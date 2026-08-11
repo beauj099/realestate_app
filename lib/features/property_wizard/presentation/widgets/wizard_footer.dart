@@ -47,7 +47,7 @@ class WizardFooter extends ConsumerWidget {
           ),
           CustomButton(
             text: 'Next',
-            icon: const Icon(Icons.arrow_forward, color: Colors.white, size: 16),
+            icon: Icon(Icons.arrow_forward, color: theme.onPrimary, size: 16),
             onTap: navData.canGoNext
                 ? () async {
                     await onNext?.call();

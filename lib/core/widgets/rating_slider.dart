@@ -160,7 +160,7 @@ class _RatingSliderState extends State<RatingSlider> {
                           style: widget.textTheme.labelLarge?.copyWith(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: widget.theme.onPrimary,
                           ),
                         ),
                       ),

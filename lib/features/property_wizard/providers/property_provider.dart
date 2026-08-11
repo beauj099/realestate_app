@@ -44,12 +44,8 @@ class PropertyViewModel extends Notifier<PropertyState> {
   }
 
   Future<void> startWizard() async {
-    try {
-      final listingId = await _repository.createListing(state.propertyTypeId);
-      state = state.copyWith(listingId: listingId, referenceNumber: '');
-    } catch (e) {
-      // If API is unavailable, continue in local mode
-    }
+    final listingId = await _repository.createListing(state.propertyTypeId);
+    state = state.copyWith(listingId: listingId, referenceNumber: '');
   }
 
   void setStep(int step) {
@@ -253,21 +249,27 @@ class PropertyViewModel extends Notifier<PropertyState> {
     final listingId = state.listingId;
     state = state.copyWith(errorMessage: null);
 
+    if (listingId == null) {
+      state = state.copyWith(
+        errorMessage: 'Listing was never created on the server. '
+            'Please check your connection and start again.',
+      );
+      return false;
+    }
+
     try {
-      if (listingId != null) {
-        await _repository.upsertAddress(listingId, state);
-        await _repository.upsertBuildingInfo(listingId, state);
-        await _repository.upsertRooms(listingId, state.rooms);
-        await _repository.upsertParking(listingId, state.parking);
-        await _repository.upsertValuation(listingId, state);
-        await _repository.upsertRunningCosts(listingId, state);
-        await _repository.upsertContacts(
-          listingId,
-          state.primaryContact,
-          state.coContacts,
-        );
-        await _repository.submitListing(listingId);
-      }
+      await _repository.upsertAddress(listingId, state);
+      await _repository.upsertBuildingInfo(listingId, state);
+      await _repository.upsertRooms(listingId, state.rooms);
+      await _repository.upsertParking(listingId, state.parking);
+      await _repository.upsertValuation(listingId, state);
+      await _repository.upsertRunningCosts(listingId, state);
+      await _repository.upsertContacts(
+        listingId,
+        state.primaryContact,
+        state.coContacts,
+      );
+      await _repository.submitListing(listingId);
       return true;
     } catch (e) {
       state = state.copyWith(errorMessage: 'Failed to submit: $e');

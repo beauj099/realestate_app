@@ -99,7 +99,7 @@ class CustomButton extends StatelessWidget {
             Text(
               text,
               style: textTheme.titleMedium?.copyWith(
-                color: isOutline ? theme.textPrimary : Colors.white,
+                color: isOutline ? theme.textPrimary : theme.onPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),

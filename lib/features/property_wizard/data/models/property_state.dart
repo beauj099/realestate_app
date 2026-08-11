@@ -4,6 +4,11 @@ import 'listing_valuation.dart';
 import 'property_running_costs.dart';
 import 'room.dart';
 
+/// Sentinel used by [PropertyState.copyWith] to distinguish an explicit `null`
+/// argument (which should clear a nullable field) from "argument not provided"
+/// (which should keep the current value).
+const Object _unset = Object();
+
 class PropertyState {
   final int currentStep;
   final String? selectedRoomId;
@@ -89,7 +94,7 @@ class PropertyState {
 
   PropertyState copyWith({
     int? currentStep,
-    String? selectedRoomId,
+    Object? selectedRoomId = _unset,
     int? propertyTypeId,
     String? streetNumber,
     String? street,
@@ -101,28 +106,30 @@ class PropertyState {
     String? postalCode,
     String? estateName,
     String? erfNumber,
-    double? latitude,
-    double? longitude,
+    Object? latitude = _unset,
+    Object? longitude = _unset,
     String? erfSize,
     String? floorArea,
     String? constructionYear,
-    int? facingId,
-    int? zoningId,
+    Object? facingId = _unset,
+    Object? zoningId = _unset,
     List<Room>? rooms,
     List<ListingParking>? parking,
     ListingValuation? listingValuation,
     PropertyRunningCosts? propertyRunningCosts,
     Contact? primaryContact,
     List<Contact>? coContacts,
-    int? listingId,
+    Object? listingId = _unset,
     String? referenceNumber,
     String? status,
-    String? p24Ref,
-    String? errorMessage,
+    Object? p24Ref = _unset,
+    Object? errorMessage = _unset,
   }) {
     return PropertyState(
       currentStep: currentStep ?? this.currentStep,
-      selectedRoomId: selectedRoomId ?? this.selectedRoomId,
+      selectedRoomId: identical(selectedRoomId, _unset)
+          ? this.selectedRoomId
+          : selectedRoomId as String?,
       propertyTypeId: propertyTypeId ?? this.propertyTypeId,
       streetNumber: streetNumber ?? this.streetNumber,
       street: street ?? this.street,
@@ -134,14 +141,17 @@ class PropertyState {
       postalCode: postalCode ?? this.postalCode,
       estateName: estateName ?? this.estateName,
       erfNumber: erfNumber ?? this.erfNumber,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
+      latitude:
+          identical(latitude, _unset) ? this.latitude : latitude as double?,
+      longitude:
+          identical(longitude, _unset) ? this.longitude : longitude as double?,
       erfSize: erfSize ?? this.erfSize,
       floorArea: floorArea ?? this.floorArea,
       constructionYear: constructionYear ?? this.constructionYear,
-      facingId: facingId ?? this.facingId,
-      zoningId: zoningId ?? this.zoningId,
-      listingId: listingId ?? this.listingId,
+      facingId: identical(facingId, _unset) ? this.facingId : facingId as int?,
+      zoningId: identical(zoningId, _unset) ? this.zoningId : zoningId as int?,
+      listingId:
+          identical(listingId, _unset) ? this.listingId : listingId as int?,
       rooms: rooms ?? this.rooms,
       parking: parking ?? this.parking,
       listingValuation: listingValuation ?? this.listingValuation,
@@ -150,8 +160,10 @@ class PropertyState {
       coContacts: coContacts ?? this.coContacts,
       referenceNumber: referenceNumber ?? this.referenceNumber,
       status: status ?? this.status,
-      p24Ref: p24Ref ?? this.p24Ref,
-      errorMessage: errorMessage ?? this.errorMessage,
+      p24Ref: identical(p24Ref, _unset) ? this.p24Ref : p24Ref as String?,
+      errorMessage: identical(errorMessage, _unset)
+          ? this.errorMessage
+          : errorMessage as String?,
     );
   }
 }

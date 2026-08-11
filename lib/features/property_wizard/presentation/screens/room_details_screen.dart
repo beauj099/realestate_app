@@ -384,7 +384,7 @@ class RoomDetailsStep extends ConsumerWidget {
         height: 180,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: !hasImage ? const Color(0xFFE5E7EB) : null,
+          color: !hasImage ? theme.imagePlaceholder : null,
           borderRadius: BorderRadius.circular(16.0),
         ),
         clipBehavior: Clip.antiAlias,
@@ -398,21 +398,21 @@ class RoomDetailsStep extends ConsumerWidget {
                   room.photoUrl!,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
-                    color: const Color(0xFFE5E7EB),
+                    color: theme.imagePlaceholder,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.broken_image_outlined,
-                            color: Colors.grey.shade400,
+                            color: theme.mutedIcon,
                             size: 32,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Tap to retry',
                             style: textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade400,
+                              color: theme.mutedIcon,
                             ),
                           ),
                         ],
@@ -426,21 +426,21 @@ class RoomDetailsStep extends ConsumerWidget {
                   fit: BoxFit.cover,
                   cacheWidth: 800,
                   errorBuilder: (context, error, stackTrace) => Container(
-                    color: const Color(0xFFE5E7EB),
+                    color: theme.imagePlaceholder,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.broken_image_outlined,
-                            color: Colors.grey.shade400,
+                            color: theme.mutedIcon,
                             size: 32,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Tap to retry',
                             style: textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade400,
+                              color: theme.mutedIcon,
                             ),
                           ),
                         ],
@@ -455,7 +455,7 @@ class RoomDetailsStep extends ConsumerWidget {
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.5),
+                        theme.shadow.withValues(alpha: 0.5),
                         Colors.transparent,
                       ],
                     ),
@@ -465,7 +465,7 @@ class RoomDetailsStep extends ConsumerWidget {
                   child: Text(
                     'Tap to add room photo',
                     style: textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
+                      color: theme.onPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -476,10 +476,10 @@ class RoomDetailsStep extends ConsumerWidget {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: theme.shadow.withValues(alpha: 0.5),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                  child: Icon(Icons.camera_alt, color: theme.onPrimary, size: 20),
                 ),
               ),
             ],
@@ -511,7 +511,7 @@ class RoomDetailsStep extends ConsumerWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: theme.borderLight,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

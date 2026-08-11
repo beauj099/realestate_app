@@ -91,5 +91,52 @@ void main() {
       expect(updated.street, 'Oak Ave');
       expect(updated.city, 'Durban');
     });
+
+    group('copyWith() nullable field clearing', () {
+      test('explicit null clears errorMessage', () {
+        final state = PropertyState().copyWith(errorMessage: 'boom');
+        expect(state.errorMessage, 'boom');
+
+        final cleared = state.copyWith(errorMessage: null);
+        expect(cleared.errorMessage, isNull);
+      });
+
+      test('explicit null clears selectedRoomId', () {
+        final state = PropertyState().copyWith(selectedRoomId: 'room-1');
+        expect(state.selectedRoomId, 'room-1');
+
+        final cleared = state.copyWith(selectedRoomId: null);
+        expect(cleared.selectedRoomId, isNull);
+      });
+
+      test('explicit null clears facingId, zoningId and listingId', () {
+        final state = PropertyState()
+            .copyWith(facingId: 2, zoningId: 3, listingId: 42);
+        expect(state.facingId, 2);
+        expect(state.zoningId, 3);
+        expect(state.listingId, 42);
+
+        final cleared = state.copyWith(
+          facingId: null,
+          zoningId: null,
+          listingId: null,
+        );
+        expect(cleared.facingId, isNull);
+        expect(cleared.zoningId, isNull);
+        expect(cleared.listingId, isNull);
+      });
+
+      test('omitting a nullable field preserves its value', () {
+        final state = PropertyState()
+            .copyWith(selectedRoomId: 'room-1', facingId: 2, listingId: 42);
+
+        final updated = state.copyWith(city: 'Cape Town');
+
+        expect(updated.city, 'Cape Town');
+        expect(updated.selectedRoomId, 'room-1');
+        expect(updated.facingId, 2);
+        expect(updated.listingId, 42);
+      });
+    });
   });
 }

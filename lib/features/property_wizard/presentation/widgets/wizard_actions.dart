@@ -14,7 +14,7 @@ Future<void> advanceWizard(BuildContext context, WidgetRef ref) async {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(state.errorMessage!),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }

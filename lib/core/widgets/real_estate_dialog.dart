@@ -56,7 +56,7 @@ Widget dialogActionButton({
         borderRadius: BorderRadius.circular(8),
       ),
     ),
-    child: Text(text, style: const TextStyle(color: Colors.white)),
+    child: Text(text, style: TextStyle(color: theme.onPrimary)),
   );
 }
 

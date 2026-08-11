@@ -33,7 +33,7 @@ class ContactCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: theme.shadow.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -57,7 +57,7 @@ class ContactCard extends StatelessWidget {
                   onTap: onRemove,
                   child: Icon(
                     Icons.remove_circle_outline,
-                    color: Colors.red,
+                    color: theme.error,
                     size: 20,
                   ),
                 ),

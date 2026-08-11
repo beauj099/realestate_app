@@ -37,12 +37,12 @@ class HomeScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: theme.onPrimary,
         icon: const Icon(Icons.add),
         label: Text(
           'Add Property',
           style: textTheme.labelLarge?.copyWith(
-            color: Colors.white,
+            color: theme.onPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),

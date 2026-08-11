@@ -17,7 +17,15 @@ class RealEstateTheme {
   
   final Color borderLight;
   final Color borderSelected;
-  
+
+  // Semantic tokens (default to light-theme values; dark factory overrides)
+  final Color onPrimary; // Text/icons rendered on top of primaryColor
+  final Color error; // Error text, destructive actions, error snackbars
+  final Color errorBackground; // Soft error badge/background fill
+  final Color imagePlaceholder; // Empty/broken image placeholder fill
+  final Color mutedIcon; // Low-emphasis icons (e.g. placeholder glyphs)
+  final Color shadow; // Base color for shadows/scrims (used with alpha)
+
   RealEstateTheme({
     required this.brandName,
     required this.primaryColor,
@@ -31,6 +39,12 @@ class RealEstateTheme {
     required this.pendingColor,
     required this.borderLight,
     required this.borderSelected,
+    this.onPrimary = Colors.white,
+    this.error = const Color(0xFFDC2626),
+    this.errorBackground = const Color(0xFFFEE2E2),
+    this.imagePlaceholder = const Color(0xFFE5E7EB),
+    this.mutedIcon = const Color(0xFF9CA3AF),
+    this.shadow = Colors.black,
   });
 
   /// Factory for the default "Editorial Crimson" (inspired by KW)
@@ -84,6 +98,10 @@ class RealEstateTheme {
       pendingColor: const Color(0xFFFBBF24),
       borderLight: const Color(0xFF333333),
       borderSelected: const Color(0xFFE53935),
+      error: const Color(0xFFF87171),
+      errorBackground: const Color(0xFF4C1D1D),
+      imagePlaceholder: const Color(0xFF2A2A2A),
+      mutedIcon: const Color(0xFF6B7280),
     );
   }
 
@@ -94,8 +112,10 @@ class RealEstateTheme {
       primaryColor: primaryColor,
       colorScheme: ColorScheme.light(
         primary: primaryColor,
+        onPrimary: onPrimary,
         secondary: secondaryColor,
         surface: cardBackgroundColor,
+        error: error,
       ),
       textTheme: _textTheme(),
     );
@@ -110,57 +130,12 @@ class RealEstateTheme {
       primaryColor: dark.primaryColor,
       colorScheme: ColorScheme.dark(
         primary: dark.primaryColor,
+        onPrimary: dark.onPrimary,
         secondary: dark.secondaryColor,
         surface: dark.cardBackgroundColor,
+        error: dark.error,
       ),
-      textTheme: TextTheme(
-        displayLarge: GoogleFonts.inter(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: dark.textPrimary,
-          letterSpacing: -1.0,
-        ),
-        displayMedium: GoogleFonts.inter(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: dark.textPrimary,
-          letterSpacing: -0.5,
-        ),
-        titleLarge: GoogleFonts.inter(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          color: dark.textPrimary,
-          letterSpacing: -0.5,
-        ),
-        titleMedium: GoogleFonts.inter(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: dark.textPrimary,
-        ),
-        bodyLarge: GoogleFonts.inter(
-          fontSize: 16,
-          fontWeight: FontWeight.normal,
-          color: dark.textPrimary,
-          height: 1.4,
-        ),
-        bodyMedium: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.normal,
-          color: dark.textSecondary,
-          height: 1.4,
-        ),
-        labelLarge: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: dark.textLabel,
-          letterSpacing: 0.5,
-        ),
-        labelMedium: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: dark.textSecondary,
-        ),
-      ),
+      textTheme: dark._textTheme(),
     );
   }
 

@@ -6,6 +6,10 @@ import '../../../../core/network/providers/api_providers.dart';
 
 enum AuthStatus { uninitialized, authenticated, unauthenticated }
 
+/// Sentinel used by [AuthState.copyWith] to distinguish an explicit `null`
+/// argument (clear the error) from "argument not provided" (keep it).
+const Object _unset = Object();
+
 class AuthState {
   final AuthStatus status;
   final String? displayName;
@@ -36,12 +40,14 @@ class AuthState {
         displayName = null,
         role = null;
 
-  AuthState copyWith({String? errorMessage}) {
+  AuthState copyWith({Object? errorMessage = _unset}) {
     return AuthState(
       status: status,
       displayName: displayName,
       role: role,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _unset)
+          ? this.errorMessage
+          : errorMessage as String?,
     );
   }
 }

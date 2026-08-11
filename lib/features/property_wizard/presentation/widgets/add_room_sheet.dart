@@ -131,9 +131,9 @@ class AddRoomSheet {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Add Custom',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: theme.onPrimary),
                         ),
                       ),
                     ],

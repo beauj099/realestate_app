@@ -53,7 +53,7 @@ class ReviewStep extends ConsumerWidget {
                     content: Text(
                       state.errorMessage ?? 'Failed to submit listing',
                     ),
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: Theme.of(context).colorScheme.error,
                   ),
                 );
               }

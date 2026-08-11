@@ -52,7 +52,7 @@ class CustomChip extends StatelessWidget {
             label,
             style: theme.toThemeData().textTheme.bodyMedium?.copyWith(
               color: isSelectedState
-                  ? Colors.white
+                  ? theme.onPrimary
                   : (onDelete != null
                         ? theme.textPrimary
                         : theme.textPrimary.withValues(alpha: 0.8)),

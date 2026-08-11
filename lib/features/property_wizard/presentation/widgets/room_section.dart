@@ -194,7 +194,7 @@ class RoomSection extends StatelessWidget {
       label: const Text('Add Room'),
       style: ElevatedButton.styleFrom(
         backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: theme.onPrimary,
         elevation: 0,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(

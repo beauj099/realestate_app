@@ -2,14 +2,26 @@ import 'dart:io' show Platform, HttpClient;
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiClient {
+  /// Backend base URL, injectable at build time via
+  /// `--dart-define=API_BASE_URL=https://...`. Falls back to local dev hosts.
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  static String _defaultBaseUrl() {
+    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+    return Platform.isAndroid
+        ? 'https://10.0.2.2:7063'
+        : 'https://localhost:7063';
+  }
+
   final Dio _dio;
   String? _token;
   void Function()? _onUnauthorized;
 
   ApiClient({String? baseUrl}) : _dio = Dio(BaseOptions(
-      baseUrl: baseUrl ?? (Platform.isAndroid ? 'https://10.0.2.2:7063' : 'https://localhost:7063'),
+      baseUrl: baseUrl ?? _defaultBaseUrl(),
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {
@@ -18,18 +30,19 @@ class ApiClient {
       },
       followRedirects: true,
     )) {
-    _dio.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () {
-        final client = HttpClient();
-        client.badCertificateCallback = (cert, host, port) => true;
-        return client;
-      },
-    );
-    _dio.interceptors.addAll([
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-      ),
+    // Only bypass TLS certificate validation in debug builds (self-signed
+    // local dev certs). Release builds use the platform's default validation.
+    if (kDebugMode) {
+      _dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final client = HttpClient();
+          client.badCertificateCallback = (cert, host, port) => true;
+          return client;
+        },
+      );
+    }
+
+    _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
           if (_token != null) {
@@ -44,7 +57,15 @@ class ApiClient {
           handler.next(error);
         },
       ),
-    ]);
+    );
+
+    // Request/response bodies can contain credentials and bearer tokens, so
+    // only log them in debug builds.
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(requestBody: true, responseBody: true),
+      );
+    }
   }
 
   void setToken(String? token) => _token = token;
