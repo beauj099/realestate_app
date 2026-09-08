@@ -49,6 +49,8 @@
 	<string>This app uses the camera to take photos of rooms in a property.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app accesses your photo library to attach photos of rooms to a property.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Needed to capture the property&apos;s GPS coordinates so the correct house can be viewed.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

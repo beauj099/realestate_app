@@ -164,6 +164,14 @@ class PropertyViewModel extends Notifier<PropertyState> {
     );
   }
 
+  void updateCoordinates({double? latitude, double? longitude}) {
+    state = state.copyWith(latitude: latitude, longitude: longitude);
+  }
+
+  void clearCoordinates() {
+    state = state.copyWith(latitude: null, longitude: null);
+  }
+
   void updateIdentifiers({String? estateName, String? erfNumber}) {
     state = state.copyWith(estateName: estateName, erfNumber: erfNumber);
   }
@@ -363,6 +371,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     String? monthlyRates,
     String? electricity,
     String? water,
+    String? municipalAccount,
   }) {
     state = state.copyWith(
       propertyRunningCosts: state.propertyRunningCosts.copyWith(
@@ -370,6 +379,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
         monthlyRates: monthlyRates,
         electricity: electricity,
         water: water,
+        municipalAccount: municipalAccount,
       ),
     );
   }

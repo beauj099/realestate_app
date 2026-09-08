@@ -182,6 +182,7 @@ class PropertyRepository {
         monthlyRates: runningCosts?['monthlyRates']?.toString() ?? '',
         electricity: runningCosts?['electricity']?.toString() ?? '',
         water: runningCosts?['water']?.toString() ?? '',
+        municipalAccount: runningCosts?['municipalAccount']?.toString() ?? '',
       ),
       primaryContact: contacts.isNotEmpty ? contacts.first : const Contact(),
       coContacts: contacts.length > 1 ? contacts.sublist(1) : [],
@@ -269,6 +270,11 @@ class PropertyRepository {
     }
     if (state.propertyRunningCosts.water.isNotEmpty) {
       data['water'] = _parseDecimal(state.propertyRunningCosts.water);
+    }
+    if (state.propertyRunningCosts.municipalAccount.isNotEmpty) {
+      data['municipalAccount'] = _parseDecimal(
+        state.propertyRunningCosts.municipalAccount,
+      );
     }
     await _client.put(ApiEndpoints.listingRunningCosts(listingId), data: data);
   }

@@ -155,19 +155,27 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  Future<void> register(
-    String username,
-    String password,
-    String displayName,
-  ) async {
+  Future<void> register({
+    required String fullName,
+    required String email,
+    required String mobile,
+    required String agencyName,
+    required String agencyRegistrationNumber,
+    required String licenceNumber,
+    required String password,
+  }) async {
     state = state.copyWith(errorMessage: null);
 
     try {
       final authService = ref.read(authApiServiceProvider);
       final response = await authService.register(
-        username,
-        password,
-        displayName,
+        fullName: fullName,
+        email: email,
+        mobile: mobile,
+        agencyName: agencyName,
+        agencyRegistrationNumber: agencyRegistrationNumber,
+        licenceNumber: licenceNumber,
+        password: password,
       );
 
       try {

@@ -40,13 +40,21 @@ class RefreshTokenResponse {
 }
 
 class RegisterRequest {
-  final String username;
+  final String fullName;
+  final String email;
+  final String mobile;
+  final String agencyName;
+  final String agencyRegistrationNumber;
+  final String licenceNumber;
   final String password;
-  final String displayName;
 
   const RegisterRequest({
-    required this.username,
+    required this.fullName,
+    required this.email,
+    required this.mobile,
+    required this.agencyName,
+    required this.agencyRegistrationNumber,
+    required this.licenceNumber,
     required this.password,
-    required this.displayName,
   });
 }

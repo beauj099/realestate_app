@@ -35,17 +35,25 @@ class AuthApiService {
     );
   }
 
-  Future<LoginResponse> register(
-    String username,
-    String password,
-    String displayName,
-  ) async {
+  Future<LoginResponse> register({
+    required String fullName,
+    required String email,
+    required String mobile,
+    required String agencyName,
+    required String agencyRegistrationNumber,
+    required String licenceNumber,
+    required String password,
+  }) async {
     final response = await _client.post(
       ApiEndpoints.register,
       data: {
-        'username': username,
+        'fullName': fullName,
+        'email': email,
+        'mobile': mobile,
+        'agencyName': agencyName,
+        'agencyRegistrationNumber': agencyRegistrationNumber,
+        'licenceNumber': licenceNumber,
         'password': password,
-        'displayName': displayName,
       },
     );
     final json = response.data as Map<String, dynamic>;

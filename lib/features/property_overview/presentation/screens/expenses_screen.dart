@@ -222,6 +222,22 @@ class ExpensesScreen extends ConsumerWidget {
                         onChanged: (val) =>
                             viewModel.updateRunningCosts(water: val),
                       ),
+                      const SizedBox(height: 16),
+                      CustomTextInput(
+                        theme: theme,
+                        label: 'Municipal Account (ZAR/month)',
+                        placeholder: 'e.g. 2500',
+                        initialValue:
+                            state.propertyRunningCosts.municipalAccount,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d*$'),
+                          ),
+                        ],
+                        onChanged: (val) =>
+                            viewModel.updateRunningCosts(municipalAccount: val),
+                      ),
                     ],
                   ),
                 ),

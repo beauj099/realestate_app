@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
@@ -18,6 +21,7 @@ class AddressScreen extends ConsumerStatefulWidget {
 
 class _AddressScreenState extends ConsumerState<AddressScreen> {
   final _errors = <String, String?>{};
+  bool _isFetchingLocation = false;
 
   bool _validate(String street, String city, String country) {
     _errors.clear();
@@ -26,6 +30,108 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
     if (country.trim().isEmpty) _errors['country'] = 'Country is required';
     setState(() {});
     return _errors.isEmpty;
+  }
+
+  String? _validateLatitude(String value) {
+    if (value.trim().isEmpty) return null;
+    final v = double.tryParse(value.trim());
+    if (v == null) return 'Enter a valid number';
+    if (v < -90 || v > 90) return 'Latitude must be between -90 and 90';
+    return null;
+  }
+
+  String? _validateLongitude(String value) {
+    if (value.trim().isEmpty) return null;
+    final v = double.tryParse(value.trim());
+    if (v == null) return 'Enter a valid number';
+    if (v < -180 || v > 180) return 'Longitude must be between -180 and 180';
+    return null;
+  }
+
+  Future<void> _useCurrentLocation() async {
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    final theme = ref.read(themeConfigProvider);
+    setState(() => _isFetchingLocation = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Location services are disabled. Please enable them in settings.',
+            ),
+            backgroundColor: theme.error,
+          ),
+        );
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Location permission denied.'),
+              backgroundColor: theme.error,
+            ),
+          );
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Location permission permanently denied. Enable it in app settings.',
+            ),
+            backgroundColor: theme.error,
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: () => Geolocator.openAppSettings(),
+            ),
+          ),
+        );
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      // clear previous errors
+      setState(() {
+        _errors.remove('latitude');
+        _errors.remove('longitude');
+      });
+      viewModel.updateCoordinates(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Location captured (±${position.accuracy.toStringAsFixed(0)}m)',
+          ),
+          backgroundColor: theme.primaryColor,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to get location: $e'),
+          backgroundColor: theme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isFetchingLocation = false);
+    }
   }
 
   Future<void> _saveAndPop() async {
@@ -64,6 +170,14 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
       if (k == 'street') return state.street.trim().isNotEmpty;
       if (k == 'city') return state.city.trim().isNotEmpty;
       if (k == 'country') return state.country.trim().isNotEmpty;
+      if (k == 'latitude') {
+        final err = _validateLatitude(state.latitude?.toString() ?? '');
+        return err == null;
+      }
+      if (k == 'longitude') {
+        final err = _validateLongitude(state.longitude?.toString() ?? '');
+        return err == null;
+      }
       return true;
     });
 
@@ -267,6 +381,164 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
                               'Found on municipal rates bill or property deed.',
                           onChanged: (val) =>
                               viewModel.updateIdentifiers(erfNumber: val),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'GPS Coordinates',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Optional — capture the property location so the correct house can be viewed.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: theme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CustomCard(
+                    theme: theme,
+                    backgroundColor: theme.borderLight.withValues(alpha: 0.3),
+                    padding: const EdgeInsets.all(18.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: CustomTextInput(
+                                key: ValueKey('lat_${state.latitude}'),
+                                theme: theme,
+                                label: 'Latitude',
+                                placeholder: 'e.g. -33.9249',
+                                initialValue: state.latitude?.toString() ?? '',
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      signed: true,
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^-?\d*\.?\d*'),
+                                  ),
+                                ],
+                                errorText: _errors['latitude'],
+                                onChanged: (val) {
+                                  if (val.trim().isEmpty) {
+                                    _errors.remove('latitude');
+                                    viewModel.updateCoordinates(
+                                      latitude: null,
+                                      longitude: state.longitude,
+                                    );
+                                    setState(() {});
+                                    return;
+                                  }
+                                  final err = _validateLatitude(val);
+                                  setState(() {
+                                    if (err != null) {
+                                      _errors['latitude'] = err;
+                                    } else {
+                                      _errors.remove('latitude');
+                                    }
+                                  });
+                                  final parsed = double.tryParse(val.trim());
+                                  if (parsed != null && err == null) {
+                                    viewModel.updateCoordinates(
+                                      latitude: parsed,
+                                      longitude: state.longitude,
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: CustomTextInput(
+                                key: ValueKey('lng_${state.longitude}'),
+                                theme: theme,
+                                label: 'Longitude',
+                                placeholder: 'e.g. 18.4241',
+                                initialValue: state.longitude?.toString() ?? '',
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      signed: true,
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^-?\d*\.?\d*'),
+                                  ),
+                                ],
+                                errorText: _errors['longitude'],
+                                onChanged: (val) {
+                                  if (val.trim().isEmpty) {
+                                    _errors.remove('longitude');
+                                    viewModel.updateCoordinates(
+                                      latitude: state.latitude,
+                                      longitude: null,
+                                    );
+                                    setState(() {});
+                                    return;
+                                  }
+                                  final err = _validateLongitude(val);
+                                  setState(() {
+                                    if (err != null) {
+                                      _errors['longitude'] = err;
+                                    } else {
+                                      _errors.remove('longitude');
+                                    }
+                                  });
+                                  final parsed = double.tryParse(val.trim());
+                                  if (parsed != null && err == null) {
+                                    viewModel.updateCoordinates(
+                                      latitude: state.latitude,
+                                      longitude: parsed,
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _isFetchingLocation
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : CustomButton(
+                                  text: 'Use current location',
+                                  theme: theme,
+                                  onTap: _useCurrentLocation,
+                                ),
+                        ),
+                        if (state.latitude != null &&
+                            state.longitude != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Lat ${state.latitude!.toStringAsFixed(6)}, Lng ${state.longitude!.toStringAsFixed(6)}',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: theme.textSecondary,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          'Range: latitude -90 to 90, longitude -180 to 180. Leave empty if unknown.',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: theme.textSecondary.withValues(alpha: 0.7),
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                       ],
                     ),
