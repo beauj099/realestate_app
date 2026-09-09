@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 /// Represents the styling configuration for a real estate brand.
 class RealEstateTheme {
   final String brandName;
-  final Color primaryColor; // e.g., Crimson (#CC0000) for KW
+  final Color primaryColor; // e.g., Navy (#1B365D) for RealWorth
   final Color secondaryColor; // e.g., Slate/Stone
   final Color backgroundColor; // Light gray/cream editorial background
   final Color cardBackgroundColor; // Clean white cards
@@ -47,11 +47,11 @@ class RealEstateTheme {
     this.shadow = Colors.black,
   });
 
-  /// Factory for the default "Editorial Crimson" (inspired by KW)
+  /// Factory for the default RealWorth theme
   factory RealEstateTheme.crimson() {
     return RealEstateTheme(
-      brandName: 'Editorial Crimson',
-      primaryColor: const Color(0xFFCC0000),
+      brandName: 'RealWorth',
+      primaryColor: const Color(0xFF1B365D),
       secondaryColor: const Color(0xFF1E1E1E),
       backgroundColor: const Color(0xFFFAF9F6), // Sophisticated editorial off-white
       cardBackgroundColor: Colors.white,
@@ -61,7 +61,7 @@ class RealEstateTheme {
       completeColor: const Color(0xFF0F9D58), // Emerald green
       pendingColor: const Color(0xFFD97706), // Amber/orange
       borderLight: const Color(0xFFE4E4E7),
-      borderSelected: const Color(0xFFCC0000),
+      borderSelected: const Color(0xFF1B365D),
     );
   }
 
@@ -83,11 +83,11 @@ class RealEstateTheme {
     );
   }
 
-  /// Dark variant of the default Editorial Crimson theme
+  /// Dark variant of the default RealWorth theme
   factory RealEstateTheme.crimsonDark() {
     return RealEstateTheme(
-      brandName: 'Editorial Crimson Dark',
-      primaryColor: const Color(0xFFE53935),
+      brandName: 'RealWorth Dark',
+      primaryColor: const Color(0xFF2A4B6E),
       secondaryColor: const Color(0xFF3A3A3A),
       backgroundColor: const Color(0xFF121212),
       cardBackgroundColor: const Color(0xFF1E1E1E),
@@ -97,7 +97,7 @@ class RealEstateTheme {
       completeColor: const Color(0xFF4ADE80),
       pendingColor: const Color(0xFFFBBF24),
       borderLight: const Color(0xFF333333),
-      borderSelected: const Color(0xFFE53935),
+      borderSelected: const Color(0xFF2A4B6E),
       error: const Color(0xFFF87171),
       errorBackground: const Color(0xFF4C1D1D),
       imagePlaceholder: const Color(0xFF2A2A2A),
