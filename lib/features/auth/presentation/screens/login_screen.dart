@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/theme_provider.dart';
@@ -68,35 +67,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'K',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 48,
-                        color: theme.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      'W',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 48,
-                        color: theme.primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Real Estate App',
-                  style: textTheme.titleLarge?.copyWith(
-                    color: theme.textPrimary,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/logo.jpg',
+                    width: 220,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
                 CustomTextInput(
                   label: 'Username',
                   placeholder: 'Enter your username',

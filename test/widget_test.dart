@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/main.dart';
+import 'package:realworth/main.dart';
 
 void main() {
   testWidgets('App renders login screen when unauthenticated', (tester) async {

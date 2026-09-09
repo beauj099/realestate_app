@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/property_overview/data/models/listing_parking.dart';
+import 'package:realworth/features/property_overview/data/models/listing_parking.dart';
 
 void main() {
   group('ListingParking', () {

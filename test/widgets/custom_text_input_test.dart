@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/core/theme/themes.dart';
-import 'package:realestate_app/core/widgets/custom_text_input.dart';
+import 'package:realworth/core/theme/themes.dart';
+import 'package:realworth/core/widgets/custom_text_input.dart';
 
 void main() {
   testWidgets('CustomTextInput renders label and placeholder', (tester) async {

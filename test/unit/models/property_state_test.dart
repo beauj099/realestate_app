@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/property_overview/data/models/contact.dart';
-import 'package:realestate_app/features/property_overview/data/models/listing_parking.dart';
-import 'package:realestate_app/features/property_overview/data/models/listing_valuation.dart';
-import 'package:realestate_app/features/property_overview/data/models/property_running_costs.dart';
-import 'package:realestate_app/features/property_overview/data/models/property_state.dart';
-import 'package:realestate_app/features/property_overview/data/models/room.dart';
+import 'package:realworth/features/property_overview/data/models/contact.dart';
+import 'package:realworth/features/property_overview/data/models/listing_parking.dart';
+import 'package:realworth/features/property_overview/data/models/listing_valuation.dart';
+import 'package:realworth/features/property_overview/data/models/property_running_costs.dart';
+import 'package:realworth/features/property_overview/data/models/property_state.dart';
+import 'package:realworth/features/property_overview/data/models/room.dart';
 
 void main() {
   group('PropertyState', () {

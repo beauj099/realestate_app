@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/property_overview/data/models/contact.dart';
+import 'package:realworth/features/property_overview/data/models/contact.dart';
 
 void main() {
   group('Contact', () {

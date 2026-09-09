@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/property_overview/data/models/property_running_costs.dart';
+import 'package:realworth/features/property_overview/data/models/property_running_costs.dart';
 
 void main() {
   group('PropertyRunningCosts', () {

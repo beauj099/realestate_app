@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/core/widgets/custom_button.dart';
+import 'package:realworth/core/widgets/custom_button.dart';
 
 void main() {
   testWidgets('CustomButton renders label text', (tester) async {

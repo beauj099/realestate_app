@@ -1,5 +1,5 @@
-name: realestate_app
-description: "A new Flutter project."
+name: realworth
+description: "RealWorth — Property Evaluation."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -44,10 +44,12 @@ dependencies:
   shared_preferences: ^2.3.0
   flutter_dotenv: ^5.2.1
   geolocator: ^13.0.2
+  flutter_native_splash: ^2.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -69,6 +71,7 @@ flutter:
 
   assets:
     - .env
+    - assets/images/logo.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

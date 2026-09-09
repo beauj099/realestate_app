@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/auth/providers/auth_provider.dart';
+import 'package:realworth/features/auth/providers/auth_provider.dart';
 
 void main() {
   group('AuthState', () {

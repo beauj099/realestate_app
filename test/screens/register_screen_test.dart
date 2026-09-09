@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/features/auth/presentation/screens/register_screen.dart';
+import 'package:realworth/features/auth/presentation/screens/register_screen.dart';
 
 void main() {
   testWidgets('RegisterScreen renders all input fields', (tester) async {

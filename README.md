@@ -1,6 +1,6 @@
-# realestate_app
+# RealWorth
 
-A new Flutter project.
+RealWorth — Property Evaluation.
 
 ## Getting Started
 

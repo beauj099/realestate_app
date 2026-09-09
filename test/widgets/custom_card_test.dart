@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realestate_app/core/widgets/custom_card.dart';
+import 'package:realworth/core/widgets/custom_card.dart';
 
 void main() {
   testWidgets('CustomCard renders child widget', (tester) async {
