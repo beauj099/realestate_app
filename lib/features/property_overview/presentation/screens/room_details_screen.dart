@@ -419,61 +419,16 @@ class RoomDetailsScreen extends ConsumerWidget {
                   const SizedBox(height: 20),
                   Container(height: 1, color: theme.borderLight),
                   const SizedBox(height: 20),
-                  Text(
-                    'ROOM NOTES',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textLabel,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CustomCard(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.note_alt_outlined,
-                              color: theme.textLabel,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'ROOM NOTES',
-                              style: textTheme.labelLarge?.copyWith(
-                                color: theme.textLabel,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          initialValue: room.notes,
-                          maxLines: 4,
-                          onChanged: (val) => viewModel.updateRoomDetails(
-                            roomId: room.id,
-                            notes: val,
-                          ),
-                          style: textTheme.bodyLarge?.copyWith(
-                            color: theme.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            hintText:
-                                'Add specific details about the condition or layout of this room...',
-                            hintStyle: textTheme.bodyMedium?.copyWith(
-                              color: theme.textSecondary.withValues(alpha: 0.5),
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      ],
+                  CustomTextInput(
+                    theme: theme,
+                    label: 'Room notes',
+                    placeholder:
+                        'Add specific details about the condition or layout of this room...',
+                    initialValue: room.notes,
+                    maxLines: 4,
+                    onChanged: (val) => viewModel.updateRoomDetails(
+                      roomId: room.id,
+                      notes: val,
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -610,7 +565,11 @@ class RoomDetailsScreen extends ConsumerWidget {
                     color: theme.shadow.withValues(alpha: 0.5),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.camera_alt, color: theme.onPrimary, size: 20),
+                  child: Icon(
+                    Icons.camera_alt,
+                    color: theme.onPrimary,
+                    size: 20,
+                  ),
                 ),
               ),
             ],

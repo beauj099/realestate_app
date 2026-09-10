@@ -33,7 +33,24 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
 
   Future<void> _saveAndPop() async {
     final state = ref.read(propertyViewModelProvider);
-    if (!_validate(state.primaryContact)) return;
+    if (!_validate(state.primaryContact)) {
+      if (mounted) {
+        final theme = ref.read(themeConfigProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlySaveMessage(
+                const ValidationFailure().message,
+                'contacts',
+              ),
+            ),
+            backgroundColor: theme.error,
+          ),
+        );
+        context.pop();
+      }
+      return;
+    }
     showDialog(
       context: context,
       barrierDismissible: false,

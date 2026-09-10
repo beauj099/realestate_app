@@ -33,10 +33,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!isInitialized) return null;
 
-      if (!isAuthenticated && !isLoginRoute && !isRegisterRoute)
+      if (!isAuthenticated && !isLoginRoute && !isRegisterRoute) {
         return AppRoutes.loginPath;
-      if (isAuthenticated && (isLoginRoute || isRegisterRoute))
+      }
+      if (isAuthenticated && (isLoginRoute || isRegisterRoute)) {
         return AppRoutes.homePath;
+      }
 
       return null;
     },

@@ -81,7 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   placeholder: 'Enter your username',
                   controller: _usernameController,
                   keyboardType: TextInputType.text,
-                  style: InputStyle.cardBorder,
+
                   theme: theme,
                 ),
                 const SizedBox(height: 20),
@@ -90,7 +90,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   placeholder: 'Enter your password',
                   controller: _passwordController,
                   obscureText: _obscurePassword,
-                  style: InputStyle.cardBorder,
+
                   theme: theme,
                   suffixIcon: IconButton(
                     icon: Icon(

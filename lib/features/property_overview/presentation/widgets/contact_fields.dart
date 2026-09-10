@@ -33,11 +33,10 @@ class ContactFields extends StatelessWidget {
           label: 'FULL NAME',
           placeholder: 'John Doe / Acme Properties',
           initialValue: contact.fullName,
-          style: InputStyle.cardBorder,
+
           autofillHints: const [AutofillHints.name],
           errorText: fullNameError,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(fullName: val)),
+          onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
@@ -48,8 +47,7 @@ class ContactFields extends StatelessWidget {
           keyboardType: TextInputType.emailAddress,
           autofillHints: const [AutofillHints.email],
           errorText: emailError,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(emailAddress: val)),
+          onChanged: (val) => onChanged(contact.copyWith(emailAddress: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
@@ -60,8 +58,7 @@ class ContactFields extends StatelessWidget {
           keyboardType: TextInputType.phone,
           autofillHints: const [AutofillHints.telephoneNumber],
           errorText: phoneError,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(mobilePhone: val)),
+          onChanged: (val) => onChanged(contact.copyWith(mobilePhone: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
@@ -69,8 +66,7 @@ class ContactFields extends StatelessWidget {
           label: 'ID NUMBER',
           placeholder: 'Optional',
           initialValue: contact.idNumber,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(idNumber: val)),
+          onChanged: (val) => onChanged(contact.copyWith(idNumber: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
@@ -78,9 +74,8 @@ class ContactFields extends StatelessWidget {
           label: 'COMPANY NAME',
           placeholder: 'Acme Properties Pty Ltd',
           initialValue: contact.companyName,
-          style: InputStyle.cardBorder,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(companyName: val)),
+
+          onChanged: (val) => onChanged(contact.copyWith(companyName: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
@@ -97,8 +92,7 @@ class ContactFields extends StatelessWidget {
           label: 'ROLE',
           placeholder: 'e.g. Owner, Director, Agent',
           initialValue: contact.role,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(role: val)),
+          onChanged: (val) => onChanged(contact.copyWith(role: val)),
         ),
       ],
     );

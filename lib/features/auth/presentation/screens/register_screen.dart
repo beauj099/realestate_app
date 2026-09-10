@@ -210,7 +210,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     autofillHints: const ['name'],
                     isRequired: true,
                     errorText: _fullNameError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -222,7 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     autofillHints: const ['email'],
                     isRequired: true,
                     errorText: _emailError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -234,7 +234,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     autofillHints: const ['tel'],
                     isRequired: true,
                     errorText: _mobileError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -246,7 +246,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     autofillHints: const ['organization'],
                     isRequired: true,
                     errorText: _agencyNameError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -257,7 +257,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     keyboardType: TextInputType.text,
                     isRequired: true,
                     errorText: _agencyRegNoError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -270,7 +270,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     errorText: _licenceError,
                     subtext:
                         'Professional registration / Fidelity Fund Certificate',
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
@@ -281,7 +281,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     obscureText: _obscurePassword,
                     isRequired: true,
                     errorText: _passwordError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -316,7 +316,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     obscureText: _obscureConfirmPassword,
                     isRequired: true,
                     errorText: _confirmPasswordError,
-                    style: InputStyle.cardBorder,
+
                     theme: theme,
                     suffixIcon: IconButton(
                       icon: Icon(

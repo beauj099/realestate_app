@@ -188,6 +188,7 @@ class _FeaturePickerSheetState extends State<_FeaturePickerSheet> {
               color: widget.theme.textPrimary,
             ),
             decoration: InputDecoration(
+              labelText: 'Custom ${widget.categoryLabel} feature',
               hintText: 'Type a custom feature name',
               hintStyle: widget.textTheme.bodyMedium?.copyWith(
                 color: widget.theme.textSecondary.withValues(alpha: 0.5),

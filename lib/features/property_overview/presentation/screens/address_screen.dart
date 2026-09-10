@@ -136,7 +136,24 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
 
   Future<void> _saveAndPop() async {
     final state = ref.read(propertyViewModelProvider);
-    if (!_validate(state.street, state.city, state.country)) return;
+    if (!_validate(state.street, state.city, state.country)) {
+      if (mounted) {
+        final theme = ref.read(themeConfigProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlySaveMessage(
+                const ValidationFailure().message,
+                'address',
+              ),
+            ),
+            backgroundColor: theme.error,
+          ),
+        );
+        context.pop();
+      }
+      return;
+    }
     showDialog(
       context: context,
       barrierDismissible: false,

@@ -4,7 +4,9 @@ import 'package:realworth/core/theme/themes.dart';
 import 'package:realworth/core/widgets/custom_text_input.dart';
 
 void main() {
-  testWidgets('CustomTextInput renders label and placeholder', (tester) async {
+  testWidgets('CustomTextInput renders floating label and hint', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -18,6 +20,7 @@ void main() {
     );
 
     expect(find.text('Street Name'), findsOneWidget);
+    expect(find.text('e.g. Main Street'), findsOneWidget);
   });
 
   testWidgets('CustomTextInput shows initial value', (tester) async {
@@ -54,5 +57,49 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField), 'Test Value');
     expect(result, 'Test Value');
+  });
+
+  testWidgets('CustomTextInput marks required labels with an asterisk', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CustomTextInput(
+            theme: RealEstateTheme.crimson(),
+            label: 'Email address',
+            isRequired: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Email address *'), findsOneWidget);
+  });
+
+  testWidgets('CustomTextInput shows helper and error text', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              CustomTextInput(
+                theme: RealEstateTheme.crimson(),
+                label: 'Nickname',
+                subtext: 'Visible to buyers',
+              ),
+              CustomTextInput(
+                theme: RealEstateTheme.crimson(),
+                label: 'Email address',
+                errorText: 'Enter a valid email',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Visible to buyers'), findsOneWidget);
+    expect(find.text('Enter a valid email'), findsOneWidget);
   });
 }
