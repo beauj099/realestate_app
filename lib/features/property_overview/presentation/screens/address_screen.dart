@@ -10,6 +10,8 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
+import '../../data/models/nominatim_result.dart';
+import '../../providers/address_search_provider.dart';
 import '../../providers/property_provider.dart';
 
 class AddressScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,42 @@ class AddressScreen extends ConsumerStatefulWidget {
 class _AddressScreenState extends ConsumerState<AddressScreen> {
   final _errors = <String, String?>{};
   bool _isFetchingLocation = false;
+  NominatimResult? _selectedResult;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _selectSuggestion(NominatimResult result) {
+    setState(() => _selectedResult = result);
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    final current = ref.read(propertyViewModelProvider);
+    viewModel.updateAddress(
+      streetNumber: result.houseNumber ?? '',
+      street: result.road ?? '',
+      unitNumber: current.unitNumber,
+      suburb: result.suburb ?? result.neighbourhood ?? '',
+      city: result.cityOrTown,
+      province: result.state ?? '',
+      country: result.country ?? '',
+      postalCode: result.postcode ?? '',
+    );
+    viewModel.updateCoordinates(
+      latitude: result.latitude,
+      longitude: result.longitude,
+    );
+    _searchController.clear();
+    ref.read(addressSearchProvider.notifier).clear();
+    FocusScope.of(context).unfocus();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    ref.read(addressSearchProvider.notifier).clear();
+  }
 
   bool _validate(String street, String city, String country) {
     _errors.clear();
@@ -136,16 +174,21 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
 
   Future<void> _saveAndPop() async {
     final state = ref.read(propertyViewModelProvider);
+    final hasAnyAddress =
+        state.street.trim().isNotEmpty ||
+        state.city.trim().isNotEmpty ||
+        state.country.trim().isNotEmpty;
+    if (!hasAnyAddress) {
+      if (mounted) context.pop();
+      return;
+    }
     if (!_validate(state.street, state.city, state.country)) {
       if (mounted) {
         final theme = ref.read(themeConfigProvider);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              friendlySaveMessage(
-                const ValidationFailure().message,
-                'address',
-              ),
+              friendlySaveMessage(const ValidationFailure().message, 'address'),
             ),
             backgroundColor: theme.error,
           ),
@@ -182,6 +225,13 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final theme = ref.watch(themeConfigProvider);
     final textTheme = theme.toThemeData().textTheme;
+    final searchState = ref.watch(addressSearchProvider);
+
+    final hasExistingAddress =
+        state.street.trim().isNotEmpty ||
+        state.city.trim().isNotEmpty ||
+        state.country.trim().isNotEmpty;
+    final showForm = _selectedResult != null || hasExistingAddress;
 
     _errors.removeWhere((k, v) {
       if (k == 'street') return state.street.trim().isNotEmpty;
@@ -239,172 +289,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Street Address',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CustomCard(
-                    theme: theme,
-                    backgroundColor: theme.borderLight.withValues(alpha: 0.3),
-                    padding: const EdgeInsets.all(18.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'Street Number',
-                                placeholder: '',
-                                initialValue: state.streetNumber,
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(streetNumber: val),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'Unit Number (Optional)',
-                                placeholder: '',
-                                initialValue: state.unitNumber,
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(unitNumber: val),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        CustomTextInput(
-                          theme: theme,
-                          label: 'Street Name',
-                          placeholder: '',
-                          initialValue: state.street,
-                          autofillHints: const [
-                            AutofillHints.streetAddressLevel1,
-                          ],
-                          errorText: _errors['street'],
-                          onChanged: (val) =>
-                              viewModel.updateAddress(street: val),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'Suburb / District',
-                                placeholder: '',
-                                initialValue: state.suburb,
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(suburb: val),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'City',
-                                placeholder: '',
-                                initialValue: state.city,
-                                errorText: _errors['city'],
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(city: val),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'Province / State',
-                                placeholder: '',
-                                initialValue: state.province,
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(province: val),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextInput(
-                                theme: theme,
-                                label: 'Country',
-                                placeholder: '',
-                                initialValue: state.country,
-                                autofillHints: const [
-                                  AutofillHints.countryName,
-                                ],
-                                errorText: _errors['country'],
-                                onChanged: (val) =>
-                                    viewModel.updateAddress(country: val),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        CustomTextInput(
-                          theme: theme,
-                          label: 'Postal Code',
-                          placeholder: '',
-                          initialValue: state.postalCode,
-                          autofillHints: const [AutofillHints.postalCode],
-                          onChanged: (val) =>
-                              viewModel.updateAddress(postalCode: val),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Additional Identifiers',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CustomCard(
-                    theme: theme,
-                    backgroundColor: theme.borderLight.withValues(alpha: 0.3),
-                    padding: const EdgeInsets.all(18.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CustomTextInput(
-                          theme: theme,
-                          label: 'Estate Name (Optional)',
-                          placeholder: '',
-                          initialValue: state.estateName,
-                          onChanged: (val) =>
-                              viewModel.updateIdentifiers(estateName: val),
-                        ),
-                        const SizedBox(height: 16),
-                        CustomTextInput(
-                          theme: theme,
-                          label: 'Erf Number',
-                          placeholder: '',
-                          initialValue: state.erfNumber,
-                          subtext:
-                              'Found on municipal rates bill or property deed.',
-                          onChanged: (val) =>
-                              viewModel.updateIdentifiers(erfNumber: val),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'GPS Coordinates',
+                    'Find the property address',
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.textPrimary,
@@ -412,154 +297,413 @@ class _AddressScreenState extends ConsumerState<AddressScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Optional — capture the property location so the correct house can be viewed.',
+                    'Type to search — suggestions will appear below.',
                     style: textTheme.bodyMedium?.copyWith(
                       color: theme.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  CustomCard(
+                  CustomTextInput(
                     theme: theme,
-                    backgroundColor: theme.borderLight.withValues(alpha: 0.3),
-                    padding: const EdgeInsets.all(18.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: CustomTextInput(
-                                key: ValueKey('lat_${state.latitude}'),
-                                theme: theme,
-                                label: 'Latitude',
-                                placeholder: 'e.g. -33.9249',
-                                initialValue: state.latitude?.toString() ?? '',
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      signed: true,
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'^-?\d*\.?\d*'),
-                                  ),
-                                ],
-                                errorText: _errors['latitude'],
-                                onChanged: (val) {
-                                  if (val.trim().isEmpty) {
-                                    _errors.remove('latitude');
-                                    viewModel.updateCoordinates(
-                                      latitude: null,
-                                      longitude: state.longitude,
-                                    );
-                                    setState(() {});
-                                    return;
-                                  }
-                                  final err = _validateLatitude(val);
-                                  setState(() {
-                                    if (err != null) {
-                                      _errors['latitude'] = err;
-                                    } else {
-                                      _errors.remove('latitude');
-                                    }
-                                  });
-                                  final parsed = double.tryParse(val.trim());
-                                  if (parsed != null && err == null) {
-                                    viewModel.updateCoordinates(
-                                      latitude: parsed,
-                                      longitude: state.longitude,
-                                    );
-                                  }
-                                },
+                    controller: _searchController,
+                    label: 'Search address',
+                    placeholder: 'e.g. 12 Long Street, Cape Town',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: searchState.query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: _clearSearch,
+                          )
+                        : null,
+                    onChanged: (val) => ref
+                        .read(addressSearchProvider.notifier)
+                        .updateQuery(val),
+                  ),
+                  if (searchState.isLoading) ...[
+                    const SizedBox(height: 16),
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                  ],
+                  if (searchState.error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      searchState.error!,
+                      style: textTheme.bodyMedium?.copyWith(color: theme.error),
+                    ),
+                  ],
+                  if (searchState.suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    CustomCard(
+                      theme: theme,
+                      backgroundColor: theme.borderLight.withValues(alpha: 0.3),
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (
+                            var i = 0;
+                            i < searchState.suggestions.length;
+                            i++
+                          ) ...[
+                            if (i > 0)
+                              Divider(
+                                height: 1,
+                                color: theme.borderLight.withValues(alpha: 0.4),
                               ),
+                            ListTile(
+                              leading: const Icon(Icons.place_outlined),
+                              title: Text(
+                                searchState.suggestions[i].displayName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: theme.textPrimary,
+                                ),
+                              ),
+                              onTap: () =>
+                                  _selectSuggestion(searchState.suggestions[i]),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: CustomTextInput(
-                                key: ValueKey('lng_${state.longitude}'),
-                                theme: theme,
-                                label: 'Longitude',
-                                placeholder: 'e.g. 18.4241',
-                                initialValue: state.longitude?.toString() ?? '',
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      signed: true,
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'^-?\d*\.?\d*'),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (showForm) ...[
+                    const SizedBox(height: 28),
+                    Text(
+                      'Street Address',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomCard(
+                      key: ValueKey(
+                        'street_form_${_selectedResult?.displayName}',
+                      ),
+                      theme: theme,
+                      backgroundColor: theme.borderLight.withValues(alpha: 0.3),
+                      padding: const EdgeInsets.all(18.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'Street Number',
+                                  placeholder: '',
+                                  initialValue: state.streetNumber,
+                                  onChanged: (val) => viewModel.updateAddress(
+                                    streetNumber: val,
                                   ),
-                                ],
-                                errorText: _errors['longitude'],
-                                onChanged: (val) {
-                                  if (val.trim().isEmpty) {
-                                    _errors.remove('longitude');
-                                    viewModel.updateCoordinates(
-                                      latitude: state.latitude,
-                                      longitude: null,
-                                    );
-                                    setState(() {});
-                                    return;
-                                  }
-                                  final err = _validateLongitude(val);
-                                  setState(() {
-                                    if (err != null) {
-                                      _errors['longitude'] = err;
-                                    } else {
-                                      _errors.remove('longitude');
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'Unit Number (Optional)',
+                                  placeholder: '',
+                                  initialValue: state.unitNumber,
+                                  onChanged: (val) =>
+                                      viewModel.updateAddress(unitNumber: val),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          CustomTextInput(
+                            theme: theme,
+                            label: 'Street Name',
+                            placeholder: '',
+                            initialValue: state.street,
+                            autofillHints: const [
+                              AutofillHints.streetAddressLevel1,
+                            ],
+                            errorText: _errors['street'],
+                            onChanged: (val) =>
+                                viewModel.updateAddress(street: val),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'Suburb / District',
+                                  placeholder: '',
+                                  initialValue: state.suburb,
+                                  onChanged: (val) =>
+                                      viewModel.updateAddress(suburb: val),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'City',
+                                  placeholder: '',
+                                  initialValue: state.city,
+                                  errorText: _errors['city'],
+                                  onChanged: (val) =>
+                                      viewModel.updateAddress(city: val),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'Province / State',
+                                  placeholder: '',
+                                  initialValue: state.province,
+                                  onChanged: (val) =>
+                                      viewModel.updateAddress(province: val),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: CustomTextInput(
+                                  theme: theme,
+                                  label: 'Country',
+                                  placeholder: '',
+                                  initialValue: state.country,
+                                  autofillHints: const [
+                                    AutofillHints.countryName,
+                                  ],
+                                  errorText: _errors['country'],
+                                  onChanged: (val) =>
+                                      viewModel.updateAddress(country: val),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          CustomTextInput(
+                            theme: theme,
+                            label: 'Postal Code',
+                            placeholder: '',
+                            initialValue: state.postalCode,
+                            autofillHints: const [AutofillHints.postalCode],
+                            onChanged: (val) =>
+                                viewModel.updateAddress(postalCode: val),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      'Additional Identifiers',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomCard(
+                      theme: theme,
+                      backgroundColor: theme.borderLight.withValues(alpha: 0.3),
+                      padding: const EdgeInsets.all(18.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CustomTextInput(
+                            theme: theme,
+                            label: 'Estate Name (Optional)',
+                            placeholder: '',
+                            initialValue: state.estateName,
+                            onChanged: (val) =>
+                                viewModel.updateIdentifiers(estateName: val),
+                          ),
+                          const SizedBox(height: 16),
+                          CustomTextInput(
+                            theme: theme,
+                            label: 'Erf Number',
+                            placeholder: '',
+                            initialValue: state.erfNumber,
+                            subtext:
+                                'Found on municipal rates bill or property deed.',
+                            onChanged: (val) =>
+                                viewModel.updateIdentifiers(erfNumber: val),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      'GPS Coordinates',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Optional — capture the property location so the correct house can be viewed.',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomCard(
+                      theme: theme,
+                      backgroundColor: theme.borderLight.withValues(alpha: 0.3),
+                      padding: const EdgeInsets.all(18.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: CustomTextInput(
+                                  key: ValueKey('lat_${state.latitude}'),
+                                  theme: theme,
+                                  label: 'Latitude',
+                                  placeholder: 'e.g. -33.9249',
+                                  initialValue:
+                                      state.latitude?.toString() ?? '',
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        signed: true,
+                                        decimal: true,
+                                      ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'^-?\d*\.?\d*'),
+                                    ),
+                                  ],
+                                  errorText: _errors['latitude'],
+                                  onChanged: (val) {
+                                    if (val.trim().isEmpty) {
+                                      _errors.remove('latitude');
+                                      viewModel.updateCoordinates(
+                                        latitude: null,
+                                        longitude: state.longitude,
+                                      );
+                                      setState(() {});
+                                      return;
                                     }
-                                  });
-                                  final parsed = double.tryParse(val.trim());
-                                  if (parsed != null && err == null) {
-                                    viewModel.updateCoordinates(
-                                      latitude: state.latitude,
-                                      longitude: parsed,
-                                    );
-                                  }
-                                },
+                                    final err = _validateLatitude(val);
+                                    setState(() {
+                                      if (err != null) {
+                                        _errors['latitude'] = err;
+                                      } else {
+                                        _errors.remove('latitude');
+                                      }
+                                    });
+                                    final parsed = double.tryParse(val.trim());
+                                    if (parsed != null && err == null) {
+                                      viewModel.updateCoordinates(
+                                        latitude: parsed,
+                                        longitude: state.longitude,
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: CustomTextInput(
+                                  key: ValueKey('lng_${state.longitude}'),
+                                  theme: theme,
+                                  label: 'Longitude',
+                                  placeholder: 'e.g. 18.4241',
+                                  initialValue:
+                                      state.longitude?.toString() ?? '',
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        signed: true,
+                                        decimal: true,
+                                      ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'^-?\d*\.?\d*'),
+                                    ),
+                                  ],
+                                  errorText: _errors['longitude'],
+                                  onChanged: (val) {
+                                    if (val.trim().isEmpty) {
+                                      _errors.remove('longitude');
+                                      viewModel.updateCoordinates(
+                                        latitude: state.latitude,
+                                        longitude: null,
+                                      );
+                                      setState(() {});
+                                      return;
+                                    }
+                                    final err = _validateLongitude(val);
+                                    setState(() {
+                                      if (err != null) {
+                                        _errors['longitude'] = err;
+                                      } else {
+                                        _errors.remove('longitude');
+                                      }
+                                    });
+                                    final parsed = double.tryParse(val.trim());
+                                    if (parsed != null && err == null) {
+                                      viewModel.updateCoordinates(
+                                        latitude: state.latitude,
+                                        longitude: parsed,
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _isFetchingLocation
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
+                                : CustomButton(
+                                    text: 'Use current location',
+                                    theme: theme,
+                                    onTap: _useCurrentLocation,
+                                  ),
+                          ),
+                          if (state.latitude != null &&
+                              state.longitude != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Lat ${state.latitude!.toStringAsFixed(6)}, Lng ${state.longitude!.toStringAsFixed(6)}',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: theme.textSecondary,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _isFetchingLocation
-                              ? const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              : CustomButton(
-                                  text: 'Use current location',
-                                  theme: theme,
-                                  onTap: _useCurrentLocation,
-                                ),
-                        ),
-                        if (state.latitude != null &&
-                            state.longitude != null) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Text(
-                            'Lat ${state.latitude!.toStringAsFixed(6)}, Lng ${state.longitude!.toStringAsFixed(6)}',
+                            'Range: latitude -90 to 90, longitude -180 to 180. Leave empty if unknown.',
                             style: textTheme.bodySmall?.copyWith(
-                              color: theme.textSecondary,
+                              color: theme.textSecondary.withValues(alpha: 0.7),
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Text(
-                          'Range: latitude -90 to 90, longitude -180 to 180. Leave empty if unknown.',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: theme.textSecondary.withValues(alpha: 0.7),
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
