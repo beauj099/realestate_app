@@ -6,6 +6,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
 import '../models/contact.dart';
+import '../models/enums/outdoor_extra.dart';
 import '../models/listing_parking.dart';
 import '../models/listing_valuation.dart';
 import '../models/property_running_costs.dart';
@@ -171,6 +172,9 @@ class PropertyRepository {
           .toList(),
       outdoorFeatures: outdoorJson
           .map((f) => (f as Map<String, dynamic>)['description'] as String)
+          .where(
+            (f) => !OutdoorExtraCategory.parking.displayStrings.contains(f),
+          )
           .toList(),
       listingValuation: ListingValuation(
         ownersNetPrice: valuation?['ownersNetPrice']?.toString() ?? '',

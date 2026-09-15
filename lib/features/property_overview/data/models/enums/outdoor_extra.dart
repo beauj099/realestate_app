@@ -21,6 +21,11 @@ extension OutdoorExtraCategoryExtension on OutdoorExtraCategory {
         return 'Energy & Water';
     }
   }
+
+  List<String> get displayStrings => OutdoorExtra.values
+      .where((e) => e.category == this)
+      .map((e) => e.displayString)
+      .toList();
 }
 
 enum OutdoorExtra {
