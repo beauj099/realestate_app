@@ -20,24 +20,22 @@ class NominatimService {
             ),
           );
 
-  Future<List<NominatimResult>> searchAddress(String query) async {
-    final sanitized = query.trim();
-    if (sanitized.isEmpty) return const [];
-
-    final response = await _dio.get<List<dynamic>>(
-      '/search',
+  Future<NominatimResult?> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/reverse',
       queryParameters: {
-        'q': sanitized,
+        'lat': latitude.toString(),
+        'lon': longitude.toString(),
         'format': 'jsonv2',
         'addressdetails': 1,
-        'limit': 8,
-        'countrycodes': 'za',
       },
     );
 
-    return (response.data ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(NominatimResult.fromJson)
-        .toList();
+    final data = response.data;
+    if (data == null || data.containsKey('error')) return null;
+    return NominatimResult.fromJson(data);
   }
 }

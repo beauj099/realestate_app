@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/themes.dart';
 
@@ -20,7 +19,8 @@ class WizardAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => Size.fromHeight(kToolbarHeight + bottomBorderHeight);
+  Size get preferredSize =>
+      Size.fromHeight(kToolbarHeight + bottomBorderHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -49,33 +49,7 @@ class WizardAppBar extends StatelessWidget implements PreferredSizeWidget {
           letterSpacing: -0.2,
         ),
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 20.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'K',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                  color: theme.textPrimary,
-                ),
-              ),
-              Text(
-                'W',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                  color: theme.primaryColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        ...?actions,
-      ],
+      actions: [...?actions],
       bottom: PreferredSize(
         preferredSize: Size.fromHeight(bottomBorderHeight),
         child: Container(color: theme.borderLight, height: bottomBorderHeight),
