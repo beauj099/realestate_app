@@ -21,6 +21,30 @@ final propertyViewModelProvider =
       return PropertyViewModel();
     });
 
+/// Parking types keyed by API id, with offline fallback labels matching the
+/// last-known backend seed. The features screen prefers live API data.
+const fallbackParkingTypes = {
+  1: 'Single Garage',
+  2: 'Double Garage',
+  3: 'Triple Garage',
+  4: 'Carport',
+  5: 'Off-Street Parking',
+  6: 'Undercover Parking',
+};
+
+final parkingTypesProvider = FutureProvider.autoDispose<Map<int, String>>((
+  ref,
+) async {
+  try {
+    final lookup = ref.watch(lookupApiServiceProvider);
+    final types = await lookup.getParkingTypes();
+    if (types.isEmpty) return fallbackParkingTypes;
+    return {for (final t in types) t.id: t.description};
+  } catch (_) {
+    return fallbackParkingTypes;
+  }
+});
+
 class PropertyViewModel extends Notifier<PropertyState> {
   late final PropertyRepository _repository;
 
@@ -33,6 +57,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
   Future<int> createNewListing() async {
     final result = await _repository.createListing(
       state.propertyTypeId > 0 ? state.propertyTypeId : null,
+      p24Ref: state.p24Ref,
     );
     if (ref.mounted) {
       state = state.copyWith(
@@ -52,12 +77,21 @@ class PropertyViewModel extends Notifier<PropertyState> {
     if (id == null) return;
     state = state.copyWith(errorMessage: null);
     try {
-      await _repository.updatePropertyType(id, state.propertyTypeId);
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: mapFailure(e).message,
+      await _repository.updatePropertyType(
+        id,
+        state.propertyTypeId,
+        p24Ref: state.p24Ref,
       );
+    } catch (e) {
+      state = state.copyWith(errorMessage: mapFailure(e).message);
     }
+  }
+
+  void updateP24Ref(String? value) {
+    final trimmed = value?.trim();
+    state = state.copyWith(
+      p24Ref: trimmed == null || trimmed.isEmpty ? null : trimmed,
+    );
   }
 
   Future<void> saveAddress() async {
@@ -78,9 +112,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.upsertBuildingInfo(id, state);
     } catch (e) {
-      state = state.copyWith(
-        errorMessage: mapFailure(e).message,
-      );
+      state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
 
@@ -94,9 +126,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
       await _repository.upsertOutdoorFeatures(id, state.outdoorFeatures);
       if (ref.mounted) state = state.copyWith(rooms: syncedRooms);
     } catch (e) {
-      state = state.copyWith(
-        errorMessage: mapFailure(e).message,
-      );
+      state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
 

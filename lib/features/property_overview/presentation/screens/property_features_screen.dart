@@ -14,15 +14,6 @@ import '../../providers/property_provider.dart';
 import '../widgets/add_parking_sheet.dart';
 import '../widgets/add_room_sheet.dart';
 
-const _parkingTypes = {
-  1: 'Single Garage',
-  2: 'Double Garage',
-  3: 'Triple Garage',
-  4: 'Carport',
-  5: 'Off-Street Parking',
-  6: 'Undercover Parking',
-};
-
 class PropertyFeaturesScreen extends ConsumerWidget {
   const PropertyFeaturesScreen({super.key});
 
@@ -88,6 +79,9 @@ class PropertyFeaturesScreen extends ConsumerWidget {
 
     final listingId = state.listingId;
     final rooms = state.rooms;
+    final parkingTypes = ref
+        .watch(parkingTypesProvider)
+        .maybeWhen(data: (types) => types, orElse: () => fallbackParkingTypes);
 
     return PopScope(
       canPop: false,
@@ -387,7 +381,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                               viewModel,
                               theme,
                               textTheme,
-                              parkingTypes: _parkingTypes,
+                              parkingTypes: parkingTypes,
                               currentParking: state.parking,
                             ),
                             icon: const Icon(Icons.add, size: 20),
@@ -406,8 +400,8 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                       ] else ...[
                         ...state.parking.map((p) {
                           final label =
-                              _parkingTypes[p.parkingTypeId] ??
-                              'Parking Type $p.parkingTypeId';
+                              parkingTypes[p.parkingTypeId] ??
+                              'Parking Type ${p.parkingTypeId}';
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(
@@ -489,7 +483,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                               viewModel,
                               theme,
                               textTheme,
-                              parkingTypes: _parkingTypes,
+                              parkingTypes: parkingTypes,
                               currentParking: state.parking,
                             ),
                             icon: const Icon(Icons.add, size: 20),

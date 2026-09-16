@@ -18,6 +18,18 @@ class PropertyRepository {
 
   PropertyRepository(this._client);
 
+  List<Map<String, dynamic>>? _conditionCategoriesCache;
+  Map<String, int>? _featureIdByNameCache;
+
+  /// Parking-category outdoor display strings, normalized for comparison.
+  /// Parking is managed via the dedicated `/parking` endpoint, so these
+  /// legacy outdoor entries are excluded when loading a listing.
+  static final Set<String> _parkingOutdoorNames = OutdoorExtraCategory
+      .parking
+      .displayStrings
+      .map((s) => s.trim().toLowerCase())
+      .toSet();
+
   Future<List<Room>> getInitialRooms() async => [];
 
   Future<List<ListingSummaryDto>> getAllListings({
@@ -53,12 +65,13 @@ class PropertyRepository {
   }
 
   Future<({int id, String referenceNumber})> createListing(
-    int? propertyTypeId,
-  ) async {
-    final response = await _client.post(
-      ApiEndpoints.listings,
-      data: propertyTypeId != null ? {'propertyTypeId': propertyTypeId} : {},
-    );
+    int? propertyTypeId, {
+    String? p24Ref,
+  }) async {
+    final data = <String, dynamic>{};
+    if (propertyTypeId != null) data['propertyTypeId'] = propertyTypeId;
+    if (p24Ref != null && p24Ref.isNotEmpty) data['p24Ref'] = p24Ref;
+    final response = await _client.post(ApiEndpoints.listings, data: data);
     final json = response.data as Map<String, dynamic>;
     return (
       id: json['id'] as int,
@@ -148,7 +161,7 @@ class PropertyRepository {
           name: r['name'] as String? ?? '',
           roomTypeId: r['roomTypeId'] as int? ?? 1,
           roomTypeOther: r['roomTypeOther'] as String?,
-          conditionRating: condition?['conditionRating'] as int?,
+          conditionRating: _parseConditionRating(condition?['conditionRating']),
           features: [...features, ...customFeatures],
           notes: condition?['notes'] as String? ?? '',
           photoUrl: r['photoUrl'] as String?,
@@ -172,9 +185,7 @@ class PropertyRepository {
           .toList(),
       outdoorFeatures: outdoorJson
           .map((f) => (f as Map<String, dynamic>)['description'] as String)
-          .where(
-            (f) => !OutdoorExtraCategory.parking.displayStrings.contains(f),
-          )
+          .where((f) => !_parkingOutdoorNames.contains(f.trim().toLowerCase()))
           .toList(),
       listingValuation: ListingValuation(
         ownersNetPrice: valuation?['ownersNetPrice']?.toString() ?? '',
@@ -193,11 +204,14 @@ class PropertyRepository {
     );
   }
 
-  Future<void> updatePropertyType(int listingId, int propertyTypeId) async {
-    await _client.put(
-      ApiEndpoints.listing(listingId),
-      data: {'propertyTypeId': propertyTypeId},
-    );
+  Future<void> updatePropertyType(
+    int listingId,
+    int propertyTypeId, {
+    String? p24Ref,
+  }) async {
+    final data = <String, dynamic>{'propertyTypeId': propertyTypeId};
+    if (p24Ref != null && p24Ref.isNotEmpty) data['p24Ref'] = p24Ref;
+    await _client.put(ApiEndpoints.listing(listingId), data: data);
   }
 
   Future<void> upsertAddress(int listingId, PropertyState state) async {
@@ -324,7 +338,9 @@ class PropertyRepository {
     if (photoUrl != null && !photoUrl.startsWith('http')) {
       try {
         photoUrl = await _uploadRoomPhoto(listingId, createdId, photoUrl);
-      } catch (_) {}
+      } catch (e) {
+        developer.log('Room photo upload failed: $e');
+      }
     }
 
     if (room.conditionRating != null) {
@@ -336,12 +352,12 @@ class PropertyRepository {
       );
     }
 
-    for (final feature in room.features) {
-      if (feature.featureId != null) {
-        await _linkRoomFeature(listingId, createdId, feature.featureId!);
-      } else {
-        await _addCustomFeature(listingId, createdId, feature.description);
-      }
+    final partitioned = await _partitionFeatures(room.features);
+    for (final featureId in partitioned.linkedIds) {
+      await _linkRoomFeature(listingId, createdId, featureId);
+    }
+    for (final description in partitioned.customDescriptions) {
+      await _addCustomFeature(listingId, createdId, description);
     }
 
     return room.copyWith(id: createdId.toString(), photoUrl: photoUrl);
@@ -363,12 +379,14 @@ class PropertyRepository {
     } else if (photoUrl != null && !photoUrl.startsWith('http')) {
       try {
         photoUrl = await _uploadRoomPhoto(listingId, apiId, photoUrl);
-      } catch (_) {}
+      } catch (e) {
+        developer.log('Room photo upload failed: $e');
+      }
     }
 
     final existingCondition = existing['condition'] as Map<String, dynamic>?;
     if (room.conditionRating !=
-            (existingCondition?['conditionRating'] as int?) ||
+            _parseConditionRating(existingCondition?['conditionRating']) ||
         room.notes != (existingCondition?['notes'] as String? ?? '')) {
       await _upsertRoomCondition(
         listingId,
@@ -394,14 +412,9 @@ class PropertyRepository {
     };
     final existingCustomDescriptions = existingCustomById.values.toSet();
 
-    final desiredFeatureIds = room.features
-        .where((f) => f.featureId != null)
-        .map((f) => f.featureId!)
-        .toSet();
-    final desiredCustomDescriptions = room.features
-        .where((f) => f.featureId == null)
-        .map((f) => f.description)
-        .toSet();
+    final partitioned = await _partitionFeatures(room.features);
+    final desiredFeatureIds = partitioned.linkedIds;
+    final desiredCustomDescriptions = partitioned.customDescriptions;
 
     for (final fid in desiredFeatureIds.difference(existingFeatureIds)) {
       await _linkRoomFeature(listingId, apiId, fid);
@@ -585,7 +598,9 @@ class PropertyRepository {
     int? conditionRating,
     String? notes,
   }) async {
-    final data = <String, dynamic>{'conditionCategoryId': 1};
+    final data = <String, dynamic>{
+      'conditionCategoryId': await _resolveConditionCategoryId(),
+    };
     if (conditionRating != null) data['conditionRating'] = conditionRating;
     if (notes != null) data['notes'] = notes;
     await _client.put(
@@ -644,7 +659,7 @@ class PropertyRepository {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(
         filePath,
-        filename: 'room_photo.jpg',
+        filename: 'room_photo${_photoExtension(filePath)}',
       ),
     });
     final response = await _client.post(
@@ -668,6 +683,93 @@ class PropertyRepository {
   num? _parseDecimal(String value) {
     if (value.isEmpty) return null;
     return num.tryParse(value);
+  }
+
+  /// Backend stores `ConditionRating` as `decimal?`, which may serialize as
+  /// an int, double, or string. The app models it as an int level (1-4).
+  static int? _parseConditionRating(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is num) return value.round();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      return parsed?.round();
+    }
+    return null;
+  }
+
+  /// Keeps the original file extension so the API's extension allow-list
+  /// (`.jpg/.jpeg/.png/.webp`) validates the actual content type.
+  static String _photoExtension(String filePath) {
+    final dot = filePath.lastIndexOf('.');
+    if (dot < 0) return '.jpg';
+    final ext = filePath.substring(dot).toLowerCase();
+    return ['.jpg', '.jpeg', '.png', '.webp'].contains(ext) ? ext : '.jpg';
+  }
+
+  /// Resolves the condition category against `/api/condition-categories`
+  /// instead of assuming id 1 exists. Falls back to 1 when offline.
+  Future<int> _resolveConditionCategoryId() async {
+    try {
+      _conditionCategoriesCache ??= await _getConditionCategoriesJson();
+      if (_conditionCategoriesCache!.isNotEmpty) {
+        return _conditionCategoriesCache!.first['id'] as int;
+      }
+    } catch (e) {
+      developer.log('Condition categories lookup failed, using 1: $e');
+    }
+    return 1;
+  }
+
+  Future<List<Map<String, dynamic>>> _getConditionCategoriesJson() async {
+    final response = await _client.get(ApiEndpoints.conditionCategories);
+    return (response.data as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Maps feature descriptions to predefined `/api/features` ids
+  /// (case-insensitive). Descriptions with no match stay custom features.
+  Future<Map<String, int>> _featureIdByName() async {
+    if (_featureIdByNameCache != null) return _featureIdByNameCache!;
+    final map = <String, int>{};
+    try {
+      final response = await _client.get(ApiEndpoints.features);
+      for (final e in (response.data as List).cast<Map<String, dynamic>>()) {
+        final description = (e['description'] as String?)?.trim().toLowerCase();
+        final id = e['id'] as int?;
+        if (description != null && description.isNotEmpty && id != null) {
+          map.putIfAbsent(description, () => id);
+        }
+      }
+    } catch (e) {
+      developer.log('Features lookup failed, using custom features: $e');
+    }
+    _featureIdByNameCache = map;
+    return map;
+  }
+
+  /// Splits room features into predefined ids (link) vs free text (custom),
+  /// resolving descriptions against the lookup so locally-created features
+  /// link correctly instead of always becoming custom features.
+  Future<({Set<int> linkedIds, Set<String> customDescriptions})>
+  _partitionFeatures(List<RoomFeature> features) async {
+    final linkedIds = <int>{};
+    final customDescriptions = <String>{};
+    Map<String, int>? lookup;
+    for (final feature in features) {
+      if (feature.featureId != null) {
+        linkedIds.add(feature.featureId!);
+      } else {
+        lookup ??= await _featureIdByName();
+        final resolved = lookup[feature.description.trim().toLowerCase()];
+        if (resolved != null) {
+          linkedIds.add(resolved);
+        } else {
+          customDescriptions.add(feature.description);
+        }
+      }
+    }
+    return (linkedIds: linkedIds, customDescriptions: customDescriptions);
   }
 
   bool _contactHasData(Contact contact) {
