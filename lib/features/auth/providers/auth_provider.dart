@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -56,6 +57,18 @@ class AuthState {
 
 class AuthNotifier extends Notifier<AuthState> {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  void _logAuthError(String action, Object error) {
+    if (error is DioException) {
+      debugPrint(
+        'AuthProvider: $action failed: [${error.type}] '
+        '${error.requestOptions.method} ${error.requestOptions.path} '
+        '-> ${error.response?.statusCode} ${error.response?.data ?? error.message}',
+      );
+    } else {
+      debugPrint('AuthProvider: $action failed: $error');
+    }
+  }
 
   @override
   AuthState build() {
@@ -119,7 +132,7 @@ class AuthNotifier extends Notifier<AuthState> {
         role: response.role,
       );
     } catch (e) {
-      debugPrint('AuthProvider: login failed: $e');
+      _logAuthError('login', e);
       state = AuthState.unauthenticated(errorMessage: mapFailure(e).message);
     }
   }
@@ -202,7 +215,7 @@ class AuthNotifier extends Notifier<AuthState> {
         role: response.role,
       );
     } catch (e) {
-      debugPrint('AuthProvider: register failed: $e');
+      _logAuthError('register', e);
       state = AuthState.unauthenticated(errorMessage: mapFailure(e).message);
     }
   }

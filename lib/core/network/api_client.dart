@@ -48,12 +48,17 @@ class ApiClient {
           }
 
           final path = error.requestOptions.path;
-          final isAuthEndpoint =
+          final isLoginOrRegister =
               path.contains(ApiEndpoints.login) ||
-              path.contains(ApiEndpoints.register) ||
-              path.contains(ApiEndpoints.refresh);
+              path.contains(ApiEndpoints.register);
 
-          if (isAuthEndpoint) {
+          if (isLoginOrRegister) {
+            // A failed login/register must not wipe an existing session.
+            handler.next(error);
+            return;
+          }
+
+          if (path.contains(ApiEndpoints.refresh)) {
             _onUnauthorized?.call();
             handler.next(error);
             return;

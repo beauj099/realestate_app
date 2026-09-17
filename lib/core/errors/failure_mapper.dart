@@ -24,7 +24,11 @@ Failure _mapDioException(DioException error) {
       );
     case DioExceptionType.badResponse:
       final statusCode = error.response?.statusCode;
-      if (statusCode == 401) return const UnauthorizedFailure();
+      if (statusCode == 401) {
+        final detail = _extractServerMessage(error.response?.data);
+        if (detail != null) return UnauthorizedFailure(detail);
+        return const UnauthorizedFailure();
+      }
       if (statusCode == 404) {
         return const ValidationFailure('The requested resource was not found.');
       }
