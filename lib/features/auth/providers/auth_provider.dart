@@ -70,6 +70,78 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  String _mapAuthFailure(Object error, String action) {
+    final failure = mapFailure(error);
+    if (error is DioException &&
+        error.response?.statusCode == 401 &&
+        (action == 'login' || action == 'register')) {
+      final detail = _extractServerMessageForAuth(error.response?.data);
+      if (detail != null) return detail;
+      return 'Invalid username or password. Please check your details and try again.';
+    }
+    return failure.message;
+  }
+
+  String? _extractServerMessageForAuth(dynamic data) {
+    if (data == null) return null;
+    if (data is String && data.trim().isNotEmpty) {
+      final sanitized = _sanitizeMessage(data.trim());
+      if (sanitized == null) return null;
+      return sanitized;
+    }
+    if (data is Map) {
+      final detail = data['detail'] ?? data['Detail'];
+      if (detail is String && detail.trim().isNotEmpty) {
+        final sanitized = _sanitizeMessage(detail.trim());
+        if (sanitized != null) return sanitized;
+      }
+      final title = data['title'] ?? data['Title'];
+      if (title is String && title.trim().isNotEmpty) {
+        final sanitized = _sanitizeMessage(title.trim());
+        if (sanitized != null) return sanitized;
+      }
+      final message = data['message'] ?? data['Message'];
+      if (message is String && message.trim().isNotEmpty) {
+        final sanitized = _sanitizeMessage(message.trim());
+        if (sanitized != null) return sanitized;
+      }
+      final errors = data['errors'] ?? data['Errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final firstKey = errors.keys.first;
+        final firstVal = errors[firstKey];
+        if (firstVal is List && firstVal.isNotEmpty) {
+          final msg = firstVal.first.toString();
+          if (msg.isNotEmpty) {
+            final combined = '$firstKey: $msg';
+            return _sanitizeMessage(combined) ?? combined;
+          }
+        }
+        if (firstVal is String && firstVal.isNotEmpty) {
+          final combined = '$firstKey: $firstVal';
+          return _sanitizeMessage(combined) ?? combined;
+        }
+      }
+    }
+    return null;
+  }
+
+  String? _sanitizeMessage(String message) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.contains('<html') ||
+        trimmed.contains('<!DOCTYPE') ||
+        trimmed.contains('<body')) {
+      return null;
+    }
+    if (trimmed.contains(' at ') && trimmed.contains('Exception')) {
+      return null;
+    }
+    if (trimmed.length > 120) {
+      return '${trimmed.substring(0, 120).trim()}…';
+    }
+    return trimmed;
+  }
+
   @override
   AuthState build() {
     return const AuthState.uninitialized();
@@ -133,7 +205,9 @@ class AuthNotifier extends Notifier<AuthState> {
       );
     } catch (e) {
       _logAuthError('login', e);
-      state = AuthState.unauthenticated(errorMessage: mapFailure(e).message);
+      state = AuthState.unauthenticated(
+        errorMessage: _mapAuthFailure(e, 'login'),
+      );
     }
   }
 
@@ -216,7 +290,9 @@ class AuthNotifier extends Notifier<AuthState> {
       );
     } catch (e) {
       _logAuthError('register', e);
-      state = AuthState.unauthenticated(errorMessage: mapFailure(e).message);
+      state = AuthState.unauthenticated(
+        errorMessage: _mapAuthFailure(e, 'register'),
+      );
     }
   }
 

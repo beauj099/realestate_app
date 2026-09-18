@@ -59,22 +59,23 @@ String? _extractServerMessage(dynamic data) {
   }
   if (data is Map) {
     // ASP.NET ProblemDetails: { title, detail, errors: { field: [msg] } }
-    final detail = data['detail'];
+    // Support case-insensitive keys (Message, Detail, Title, Errors)
+    final detail = data['detail'] ?? data['Detail'];
     if (detail is String && detail.trim().isNotEmpty) {
       final sanitized = _sanitizeMessage(detail.trim());
       if (sanitized != null) return sanitized;
     }
-    final title = data['title'];
+    final title = data['title'] ?? data['Title'];
     if (title is String && title.trim().isNotEmpty) {
       final sanitized = _sanitizeMessage(title.trim());
       if (sanitized != null) return sanitized;
     }
-    final message = data['message'];
+    final message = data['message'] ?? data['Message'];
     if (message is String && message.trim().isNotEmpty) {
       final sanitized = _sanitizeMessage(message.trim());
       if (sanitized != null) return sanitized;
     }
-    final errors = data['errors'];
+    final errors = data['errors'] ?? data['Errors'];
     if (errors is Map && errors.isNotEmpty) {
       final firstKey = errors.keys.first;
       final firstVal = errors[firstKey];
