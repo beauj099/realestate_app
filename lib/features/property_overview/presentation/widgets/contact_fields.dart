@@ -4,6 +4,12 @@ import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../data/models/contact.dart';
 
+/// Owner capture form.
+///
+/// An owner is either a person or a registered entity, never both, so the type
+/// is chosen first and only that type's fields are shown. Previously every
+/// owner saw ID number *and* company registration number and had to work out
+/// which applied.
 class ContactFields extends StatelessWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
@@ -26,18 +32,66 @@ class ContactFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        CustomTextInput(
-          theme: theme,
-          label: 'FULL NAME',
-          placeholder: 'John Doe / Acme Properties',
-          initialValue: contact.fullName,
+    final ownerType = contact.ownerType;
+    final isBusiness = ownerType == OwnerType.business;
 
-          autofillHints: const [AutofillHints.name],
-          errorText: fullNameError,
-          onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OwnerTypeToggle(
+          selected: ownerType,
+          theme: theme,
+          textTheme: textTheme,
+          onChanged: (type) => onChanged(contact.asOwnerType(type)),
         ),
+        const SizedBox(height: 16),
+        if (isBusiness) ...[
+          CustomTextInput(
+            theme: theme,
+            label: 'COMPANY NAME',
+            placeholder: 'Acme Properties Pty Ltd',
+            initialValue: contact.companyName,
+            onChanged: (val) => onChanged(contact.copyWith(companyName: val)),
+          ),
+          const SizedBox(height: 16),
+          CustomTextInput(
+            theme: theme,
+            label: 'COMPANY REGISTRATION NUMBER',
+            placeholder: 'e.g. 2021/123456/07',
+            initialValue: contact.companyRegistrationNumber,
+            onChanged: (val) =>
+                onChanged(contact.copyWith(companyRegistrationNumber: val)),
+          ),
+          const SizedBox(height: 16),
+          CustomTextInput(
+            theme: theme,
+            label: 'CONTACT PERSON',
+            placeholder: 'Who signs for the company',
+            initialValue: contact.fullName,
+            autofillHints: const [AutofillHints.name],
+            errorText: fullNameError,
+            onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+          ),
+        ] else ...[
+          CustomTextInput(
+            theme: theme,
+            label: 'FULL NAME',
+            placeholder: 'John Doe',
+            initialValue: contact.fullName,
+            autofillHints: const [AutofillHints.name],
+            errorText: fullNameError,
+            onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+          ),
+          const SizedBox(height: 16),
+          CustomTextInput(
+            theme: theme,
+            label: 'ID NUMBER',
+            placeholder: 'e.g. 8001015009087',
+            initialValue: contact.idNumber,
+            keyboardType: TextInputType.number,
+            onChanged: (val) => onChanged(contact.copyWith(idNumber: val)),
+          ),
+        ],
         const SizedBox(height: 16),
         CustomTextInput(
           theme: theme,
@@ -63,38 +117,90 @@ class ContactFields extends StatelessWidget {
         const SizedBox(height: 16),
         CustomTextInput(
           theme: theme,
-          label: 'ID NUMBER',
-          placeholder: 'Optional',
-          initialValue: contact.idNumber,
-          onChanged: (val) => onChanged(contact.copyWith(idNumber: val)),
-        ),
-        const SizedBox(height: 16),
-        CustomTextInput(
-          theme: theme,
-          label: 'COMPANY NAME',
-          placeholder: 'Acme Properties Pty Ltd',
-          initialValue: contact.companyName,
-
-          onChanged: (val) => onChanged(contact.copyWith(companyName: val)),
-        ),
-        const SizedBox(height: 16),
-        CustomTextInput(
-          theme: theme,
-          label: 'COMPANY REGISTRATION NUMBER',
-          placeholder: 'Optional',
-          initialValue: contact.companyRegistrationNumber,
-          onChanged: (val) =>
-              onChanged(contact.copyWith(companyRegistrationNumber: val)),
-        ),
-        const SizedBox(height: 16),
-        CustomTextInput(
-          theme: theme,
           label: 'ROLE',
-          placeholder: 'e.g. Owner, Director, Agent',
+          placeholder: isBusiness
+              ? 'e.g. Director, Trustee'
+              : 'e.g. Owner, Executor',
           initialValue: contact.role,
           onChanged: (val) => onChanged(contact.copyWith(role: val)),
         ),
       ],
+    );
+  }
+}
+
+/// Segmented person/business switch.
+class _OwnerTypeToggle extends StatelessWidget {
+  final OwnerType selected;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final ValueChanged<OwnerType> onChanged;
+
+  const _OwnerTypeToggle({
+    required this.selected,
+    required this.theme,
+    required this.textTheme,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.borderLight.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: OwnerType.values.map((type) {
+          final isSelected = type == selected;
+          return Expanded(
+            child: InkWell(
+              onTap: () => onChanged(type),
+              borderRadius: BorderRadius.circular(9),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? theme.cardBackgroundColor
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(9),
+                  border: isSelected
+                      ? Border.all(color: theme.primaryColor, width: 1.4)
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      type == OwnerType.business
+                          ? Icons.domain_outlined
+                          : Icons.person_outline,
+                      size: 18,
+                      color: isSelected
+                          ? theme.primaryColor
+                          : theme.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      type.label,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: isSelected
+                            ? theme.primaryColor
+                            : theme.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }

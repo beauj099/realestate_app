@@ -1,115 +1,53 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/themes.dart';
-import '../../../../core/widgets/real_estate_dialog.dart';
+import '../../../../core/widgets/searchable_picker.dart';
 import '../../data/models/listing_parking.dart';
 import '../../providers/property_provider.dart';
 
+/// Parking-type picker.
+///
+/// Uses the same type-to-filter sheet as rooms, so the two "add" flows behave
+/// identically and neither can be clipped by the keyboard or the safe area.
 class AddParkingSheet {
-  static void show(
+  static Future<void> show(
     BuildContext context,
     PropertyViewModel viewModel,
     RealEstateTheme theme,
     TextTheme textTheme, {
     required Map<int, String> parkingTypes,
     required List<ListingParking> currentParking,
-  }) {
+  }) async {
     final counts = <int, int>{
       for (final p in currentParking) p.parkingTypeId: p.quantity,
     };
 
-    showRealEstateBottomSheet(
+    final result = await showSearchablePicker<int>(
       context: context,
       theme: theme,
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Add Parking',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Choose a parking type:',
-                  style: textTheme.bodyLarge?.copyWith(
-                    color: theme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 8.0,
-                  children: parkingTypes.entries.map((entry) {
-                    final label = entry.value;
-                    final typeId = entry.key;
-                    final count = counts[typeId] ?? 0;
-                    return InkWell(
-                      onTap: () {
-                        viewModel.addParking(typeId);
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: count > 0
-                                ? theme.primaryColor
-                                : theme.borderLight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          color: theme.cardBackgroundColor,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              label,
-                              style: textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            if (count > 0) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.primaryColor,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '$count',
-                                  style: textTheme.labelSmall?.copyWith(
-                                    color: theme.onPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
+      title: 'Add Parking',
+      searchHint: 'Search parking types…',
+      options: parkingTypes.entries.map((entry) {
+        final count = counts[entry.key] ?? 0;
+        return PickerOption<int>(
+          value: entry.key,
+          // Showing the running count keeps the sheet honest when an agent
+          // adds a second or third bay of the same type.
+          label: count > 0 ? '${entry.value}  ($count)' : entry.value,
+          icon: _iconFor(entry.value),
         );
-      },
+      }).toList(),
     );
+
+    final typeId = result?.option?.value;
+    if (typeId != null) viewModel.addParking(typeId);
+  }
+
+  static IconData _iconFor(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('carport')) return Icons.car_rental_outlined;
+    if (l.contains('garage')) return Icons.garage_outlined;
+    if (l.contains('undercover')) return Icons.umbrella_outlined;
+    return Icons.local_parking_outlined;
   }
 }

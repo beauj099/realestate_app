@@ -4,14 +4,19 @@ abstract final class AppRoutes {
   static const String registerPath = '/register';
   static const String homePath = '/home';
   static const String settingsPath = '/settings';
+  static const String profilePath = '/profile';
 
   static const String propertyPath = '/property/:id';
+
+  /// Deprecated: property type is a dropdown on the property overview screen.
+  /// The route is kept as a redirect so old deep links still resolve.
   static const String propertyTypePath = '/property/:id/property-type';
   static const String addressPath = '/property/:id/address';
   static const String buildingInfoPath = '/property/:id/building-info';
   static const String propertyFeaturesPath = '/property/:id/property-features';
   static const String roomDetailsPath = '/property/:id/room-details/:roomId';
   static const String expensesPath = '/property/:id/expenses';
+  static const String valuationPath = '/property/:id/valuation';
   static const String ownerDetailsPath = '/property/:id/owner-details';
 
   // Deprecated: use ownerDetailsPath instead
@@ -29,6 +34,8 @@ abstract final class AppRoutes {
       '/property/$id/room-details/$roomId';
 
   static String expenses(int id) => '/property/$id/expenses';
+
+  static String valuation(int id) => '/property/$id/valuation';
 
   static String valuationCosts(int id) => expenses(id);
 

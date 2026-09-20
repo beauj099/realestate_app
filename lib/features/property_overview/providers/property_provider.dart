@@ -48,11 +48,43 @@ final parkingTypesProvider = FutureProvider.autoDispose<Map<int, String>>((
 class PropertyViewModel extends Notifier<PropertyState> {
   late final PropertyRepository _repository;
 
+  /// State captured when a section screen opened.
+  ///
+  /// Every section edits the one shared [PropertyState], so leaving a screen
+  /// without saving has to put the shared state back exactly as it was —
+  /// otherwise the overview would show edits that were never persisted.
+  PropertyState? _sectionSnapshot;
+
   @override
   PropertyState build() {
     _repository = ref.watch(propertyRepositoryProvider);
     return PropertyState(rooms: const [], parking: const []);
   }
+
+  /// Marks the start of an editing session for one section screen.
+  void beginSectionEdit() {
+    _sectionSnapshot = state;
+  }
+
+  /// Rolls the shared state back to the snapshot taken on entry.
+  void discardSectionEdit() {
+    final snapshot = _sectionSnapshot;
+    _sectionSnapshot = null;
+    if (snapshot != null) state = snapshot;
+  }
+
+  /// Accepts the current state as the new baseline after a successful save.
+  void commitSectionEdit() {
+    _sectionSnapshot = null;
+  }
+
+  /// Whether anything changed since the section screen opened.
+  ///
+  /// Compares by identity: any mutation produces a new [PropertyState], so a
+  /// value typed and then retyped identically still counts as a change. That
+  /// errs toward asking before discarding, which is the safe direction.
+  bool get hasUnsavedSectionChanges =>
+      _sectionSnapshot != null && !identical(_sectionSnapshot, state);
 
   Future<int> createNewListing() async {
     final result = await _repository.createListing(
@@ -130,12 +162,28 @@ class PropertyViewModel extends Notifier<PropertyState> {
     }
   }
 
+  /// Persists pricing and commission only.
+  ///
+  /// Split from [saveRunningCosts] when valuation moved to its own section:
+  /// saving Expenses used to post an empty valuation record alongside it,
+  /// before the agent had agreed a price.
   Future<void> saveValuation() async {
     final id = state.listingId;
     if (id == null) return;
     state = state.copyWith(errorMessage: null);
     try {
       await _repository.upsertValuation(id, state);
+    } catch (e) {
+      state = state.copyWith(errorMessage: mapFailure(e).message);
+    }
+  }
+
+  /// Persists the monthly running costs captured on the Expenses section.
+  Future<void> saveRunningCosts() async {
+    final id = state.listingId;
+    if (id == null) return;
+    state = state.copyWith(errorMessage: null);
+    try {
       await _repository.upsertRunningCosts(id, state);
     } catch (e) {
       state = state.copyWith(errorMessage: mapFailure(e).message);
@@ -226,7 +274,9 @@ class PropertyViewModel extends Notifier<PropertyState> {
     state = state.copyWith(zoningId: id);
   }
 
-  void addCustomRoom(String name, int roomTypeId) {
+  /// Adds a room and returns its local id so the caller can open it straight
+  /// away — picking a room type is the start of describing it, not the end.
+  String addCustomRoom(String name, int roomTypeId) {
     final defaults = roomDefaultFeatures[roomTypeId] ?? [];
     final newRoom = Room(
       id: 'custom-${DateTime.now().millisecondsSinceEpoch}',
@@ -235,6 +285,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
       features: defaults.map((d) => RoomFeature(description: d)).toList(),
     );
     state = state.copyWith(rooms: [...state.rooms, newRoom]);
+    return newRoom.id;
   }
 
   void removeRoom(String roomId) {
@@ -280,6 +331,28 @@ class PropertyViewModel extends Notifier<PropertyState> {
       current[idx] = current[idx].copyWith(quantity: current[idx].quantity - 1);
     }
     state = state.copyWith(parking: current);
+  }
+
+  void addExteriorPhoto(String path) {
+    if (state.exteriorPhotos.contains(path)) return;
+    state = state.copyWith(exteriorPhotos: [...state.exteriorPhotos, path]);
+  }
+
+  void removeExteriorPhoto(String path) {
+    state = state.copyWith(
+      exteriorPhotos: state.exteriorPhotos.where((p) => p != path).toList(),
+    );
+  }
+
+  /// Promotes [path] to the hero shot by moving it to the front of the list.
+  void setMainExteriorPhoto(String path) {
+    if (!state.exteriorPhotos.contains(path)) return;
+    state = state.copyWith(
+      exteriorPhotos: [
+        path,
+        ...state.exteriorPhotos.where((p) => p != path),
+      ],
+    );
   }
 
   void addOutdoorFeature(String feature) {
@@ -449,31 +522,11 @@ class PropertyViewModel extends Notifier<PropertyState> {
     }
 
     try {
-      await _repository.upsertAddress(listingId, state);
-      await _repository.upsertBuildingInfo(listingId, state);
-      final syncedRooms = await _repository.upsertRooms(listingId, state.rooms);
-      await _repository.upsertParking(listingId, state.parking);
-      await _repository.upsertOutdoorFeatures(listingId, state.outdoorFeatures);
-      await _repository.upsertValuation(listingId, state);
-      await _repository.upsertRunningCosts(listingId, state);
-      final syncedContacts = await _repository.upsertContacts(
-        listingId,
-        state.primaryContact,
-        state.coContacts,
-      );
+      // Sections persist themselves when the agent taps Save, and anything
+      // they backed out of was rolled back, so local state already matches the
+      // server. Re-posting every section here would push state the agent chose
+      // to discard and could clobber a newer server-side edit.
       await _repository.submitListing(listingId);
-      if (ref.mounted) {
-        final includedPrimary = state.primaryContact.fullName.isNotEmpty;
-        state = state.copyWith(
-          rooms: syncedRooms,
-          primaryContact: includedPrimary && syncedContacts.isNotEmpty
-              ? syncedContacts.first
-              : const Contact(),
-          coContacts: includedPrimary
-              ? (syncedContacts.length > 1 ? syncedContacts.sublist(1) : [])
-              : syncedContacts,
-        );
-      }
       return true;
     } catch (e) {
       state = state.copyWith(errorMessage: mapFailure(e).message);

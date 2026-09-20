@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../widgets/agency_logo.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -42,6 +43,7 @@ class SettingsScreen extends ConsumerWidget {
     final textTheme = theme.toThemeData().textTheme;
     final themeMode = ref.watch(themeModeProvider);
     final authState = ref.watch(authProvider);
+    final agency = ref.watch(agencyProvider);
 
     final isDark = themeMode == ThemeMode.dark;
 
@@ -100,35 +102,47 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: theme.primaryColor,
-                          child: Text(
-                            authState.displayName![0].toUpperCase(),
-                            style: TextStyle(
-                              color: theme.cardBackgroundColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
+                        AgencyLogo(agency: agency, size: 44),
                         const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              authState.displayName!,
-                              style: textTheme.titleMedium,
-                            ),
-                            Text(
-                              authState.role ?? '',
-                              style: textTheme.bodyMedium,
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                authState.displayName!,
+                                style: textTheme.titleMedium,
+                              ),
+                              Text(
+                                [
+                                  authState.role,
+                                  agency.name,
+                                ].whereType<String>().join(' · '),
+                                style: textTheme.bodyMedium,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ListTile(
+                  title: Text('My Profile', style: textTheme.titleMedium),
+                  subtitle: Text(
+                    'Name, contact details and agency',
+                    style: textTheme.bodyMedium,
+                  ),
+                  leading: Icon(
+                    Icons.person_outline,
+                    color: theme.primaryColor,
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: theme.textSecondary,
+                  ),
+                  onTap: () => context.push(AppRoutes.profilePath),
+                ),
+                Divider(height: 1, color: theme.borderLight),
                 ListTile(
                   title: Text(
                     'Sign Out',

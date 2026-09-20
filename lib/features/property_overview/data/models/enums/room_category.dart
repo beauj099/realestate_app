@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum RoomCategory {
   bedroom,
   bathroom,
@@ -25,6 +27,26 @@ extension RoomCategoryExtension on RoomCategory {
         return 'Entertainment';
       case RoomCategory.additional:
         return 'Additional';
+    }
+  }
+
+  /// Glyph shown beside every room type in this category.
+  IconData get icon {
+    switch (this) {
+      case RoomCategory.bedroom:
+        return Icons.king_bed_outlined;
+      case RoomCategory.bathroom:
+        return Icons.bathtub_outlined;
+      case RoomCategory.livingSpaces:
+        return Icons.weekend_outlined;
+      case RoomCategory.kitchenAndUtility:
+        return Icons.kitchen_outlined;
+      case RoomCategory.workAndStudy:
+        return Icons.desk_outlined;
+      case RoomCategory.entertainment:
+        return Icons.sports_esports_outlined;
+      case RoomCategory.additional:
+        return Icons.category_outlined;
     }
   }
 

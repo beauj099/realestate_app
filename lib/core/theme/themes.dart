@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'agency.dart';
+
 /// Represents the styling configuration for a real estate brand.
 class RealEstateTheme {
   final String brandName;
+
+  /// The white-label agency this theme was built from.
+  final Agency agency;
   final Color primaryColor; // e.g., Navy (#1B365D) for RealWorth
   final Color secondaryColor; // e.g., Slate/Stone
   final Color backgroundColor; // Light gray/cream editorial background
@@ -28,6 +33,7 @@ class RealEstateTheme {
 
   RealEstateTheme({
     required this.brandName,
+    this.agency = Agency.realWorth,
     required this.primaryColor,
     required this.secondaryColor,
     required this.backgroundColor,
@@ -105,6 +111,64 @@ class RealEstateTheme {
     );
   }
 
+  /// Light theme carrying [agency]'s palette over the house layout.
+  ///
+  /// Only the brand-owned colours change; the editorial background, semantic
+  /// status colours and typography stay constant so every agency's build looks
+  /// like the same product.
+  factory RealEstateTheme.fromAgency(Agency agency) {
+    final base = RealEstateTheme.crimson();
+    return RealEstateTheme(
+      brandName: agency.name,
+      agency: agency,
+      primaryColor: agency.primaryColor,
+      secondaryColor: agency.secondaryColor,
+      backgroundColor: base.backgroundColor,
+      cardBackgroundColor: base.cardBackgroundColor,
+      textPrimary: base.textPrimary,
+      textSecondary: base.textSecondary,
+      textLabel: base.textLabel,
+      completeColor: base.completeColor,
+      pendingColor: base.pendingColor,
+      borderLight: base.borderLight,
+      borderSelected: agency.primaryColor,
+      onPrimary: agency.onPrimary,
+    );
+  }
+
+  /// Dark counterpart of [RealEstateTheme.fromAgency].
+  ///
+  /// The brand primary is lightened so it keeps enough contrast against the
+  /// dark surface; very light brands are darkened instead.
+  factory RealEstateTheme.fromAgencyDark(Agency agency) {
+    final base = RealEstateTheme.crimsonDark();
+    final hsl = HSLColor.fromColor(agency.primaryColor);
+    final adjusted = hsl.lightness > 0.6
+        ? hsl.withLightness(0.45)
+        : hsl.withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0));
+    final primary = adjusted.toColor();
+    return RealEstateTheme(
+      brandName: '${agency.name} Dark',
+      agency: agency,
+      primaryColor: primary,
+      secondaryColor: base.secondaryColor,
+      backgroundColor: base.backgroundColor,
+      cardBackgroundColor: base.cardBackgroundColor,
+      textPrimary: base.textPrimary,
+      textSecondary: base.textSecondary,
+      textLabel: base.textLabel,
+      completeColor: base.completeColor,
+      pendingColor: base.pendingColor,
+      borderLight: base.borderLight,
+      borderSelected: primary,
+      onPrimary: Colors.white,
+      error: base.error,
+      errorBackground: base.errorBackground,
+      imagePlaceholder: base.imagePlaceholder,
+      mutedIcon: base.mutedIcon,
+    );
+  }
+
   ThemeData toThemeData() {
     return ThemeData(
       useMaterial3: true,
@@ -122,7 +186,7 @@ class RealEstateTheme {
   }
 
   ThemeData toDarkThemeData() {
-    final dark = RealEstateTheme.crimsonDark();
+    final dark = RealEstateTheme.fromAgencyDark(agency);
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,

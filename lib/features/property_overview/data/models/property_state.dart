@@ -46,6 +46,13 @@ class PropertyState {
   final ListingValuation listingValuation;
   final PropertyRunningCosts propertyRunningCosts;
 
+  /// Exterior shots of the property, first entry being the hero image.
+  ///
+  /// Local file paths only for now: the API exposes photo upload per room
+  /// (`/api/listings/{id}/rooms/{roomId}/photo`) but has no listing-level photo
+  /// endpoint, so these are not yet persisted. See `docs/BACKEND_CHANGES.md`.
+  final List<String> exteriorPhotos;
+
   // Step 6: Owner Details
   final Contact primaryContact;
   final List<Contact> coContacts;
@@ -83,6 +90,7 @@ class PropertyState {
     this.parking = const [],
     this.outdoorFeatures = const [],
     this.outdoorHiddenFeatures = const [],
+    this.exteriorPhotos = const [],
     this.listingValuation = const ListingValuation(),
     this.propertyRunningCosts = const PropertyRunningCosts(),
     this.primaryContact = const Contact(),
@@ -116,6 +124,7 @@ class PropertyState {
     List<ListingParking>? parking,
     List<String>? outdoorFeatures,
     List<String>? outdoorHiddenFeatures,
+    List<String>? exteriorPhotos,
     ListingValuation? listingValuation,
     PropertyRunningCosts? propertyRunningCosts,
     Contact? primaryContact,
@@ -159,6 +168,7 @@ class PropertyState {
       outdoorFeatures: outdoorFeatures ?? this.outdoorFeatures,
       outdoorHiddenFeatures:
           outdoorHiddenFeatures ?? this.outdoorHiddenFeatures,
+      exteriorPhotos: exteriorPhotos ?? this.exteriorPhotos,
       listingValuation: listingValuation ?? this.listingValuation,
       propertyRunningCosts: propertyRunningCosts ?? this.propertyRunningCosts,
       primaryContact: primaryContact ?? this.primaryContact,
