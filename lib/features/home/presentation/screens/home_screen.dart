@@ -294,53 +294,91 @@ class _ListingCard extends ConsumerWidget {
           border: Border.all(color: theme.borderLight),
         ),
         clipBehavior: Clip.antiAlias,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: 104,
-              height: 104,
-              child: listingPhoto(
-                listing.primaryPhotoUrl,
-                theme: theme,
-                textTheme: textTheme,
-                cacheWidth: 300,
+        // A ListView gives its items unbounded height, so the stretched Row needs
+        // IntrinsicHeight to size itself to its tallest child. Without it layout
+        // throws "BoxConstraints forces an infinite height" every frame and the
+        // home screen freezes as soon as one listing is shown.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 104,
+                height: 104,
+                child: listingPhoto(
+                  listing.primaryPhotoUrl,
+                  theme: theme,
+                  textTheme: textTheme,
+                  cacheWidth: 300,
+                ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      hasAddress ? addressLine : 'No address yet',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: hasAddress
-                            ? theme.textPrimary
-                            : theme.textSecondary,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        hasAddress ? addressLine : 'No address yet',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: hasAddress
+                              ? theme.textPrimary
+                              : theme.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (ownerName.isNotEmpty) ...[
-                      const SizedBox(height: 3),
+                      if (ownerName.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline,
+                              size: 13,
+                              color: theme.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                ownerName,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: theme.textSecondary,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(
-                            Icons.person_outline,
-                            size: 13,
-                            color: theme.textSecondary,
+                          _StatusBadge(
+                            label: statusLabel,
+                            isSubmitted: isSubmitted,
+                            theme: theme,
+                            textTheme: textTheme,
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
+                          if (propertyType != null) ...[
+                            const SizedBox(width: 8),
+                            Icon(
+                              propertyType.icon,
+                              size: 13,
+                              color: theme.textSecondary,
+                            ),
+                          ],
+                          const Spacer(),
+                          Flexible(
                             child: Text(
-                              ownerName,
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: theme.textSecondary,
-                                fontSize: 13,
+                              listing.referenceNumber,
+                              style: textTheme.labelMedium?.copyWith(
+                                color: theme.textSecondary.withValues(
+                                  alpha: 0.7,
+                                ),
+                                fontSize: 10,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -348,41 +386,11 @@ class _ListingCard extends ConsumerWidget {
                         ],
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _StatusBadge(
-                          label: statusLabel,
-                          isSubmitted: isSubmitted,
-                          theme: theme,
-                          textTheme: textTheme,
-                        ),
-                        if (propertyType != null) ...[
-                          const SizedBox(width: 8),
-                          Icon(
-                            propertyType.icon,
-                            size: 13,
-                            color: theme.textSecondary,
-                          ),
-                        ],
-                        const Spacer(),
-                        Flexible(
-                          child: Text(
-                            listing.referenceNumber,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: theme.textSecondary.withValues(alpha: 0.7),
-                              fontSize: 10,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
