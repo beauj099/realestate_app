@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/theme/agency.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
+import '../../../../core/widgets/searchable_picker.dart';
+import '../../data/models/agent_profile.dart';
+import '../../providers/agent_profile_provider.dart';
 import '../../providers/auth_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -29,6 +33,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+
+  /// Listed agency the agent picked, or null when they typed a name that is
+  /// not in the registry.
+  Agency? _selectedAgency;
 
   // Inline errors driven by CustomTextInput.errorText
   String? _fullNameError;
@@ -117,6 +125,48 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _confirmPasswordError == null;
   }
 
+  /// Opens the agency picker and applies the chosen brand straight away.
+  ///
+  /// An agency that is not on the list is kept as free text, and the app stays
+  /// on the house palette rather than guessing an unknown brand's colours.
+  Future<void> _pickAgency() async {
+    final theme = ref.read(themeConfigProvider);
+    final result = await showSearchablePicker<Agency>(
+      context: context,
+      theme: theme,
+      title: 'Your Agency',
+      searchHint: 'Search agencies…',
+      selectedValue: _selectedAgency,
+      options: Agency.all
+          .map(
+            (a) => PickerOption<Agency>(
+              value: a,
+              label: a.name,
+              icon: Icons.apartment_outlined,
+            ),
+          )
+          .toList(),
+      customLabel: 'Use name',
+      customHint: 'Not listed —',
+    );
+    if (result == null) return;
+
+    setState(() {
+      if (result.isCustom) {
+        _selectedAgency = null;
+        _agencyNameController.text = result.customLabel!;
+      } else {
+        _selectedAgency = result.option!.value;
+        _agencyNameController.text = _selectedAgency!.name;
+      }
+      _agencyNameError = null;
+    });
+
+    if (_selectedAgency != null) {
+      await ref.read(agencyProvider.notifier).setAgency(_selectedAgency!);
+    }
+  }
+
   Future<void> _handleRegister() async {
     if (!_validateFields()) return;
 
@@ -146,7 +196,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           backgroundColor: theme.error,
         ),
       );
+      return;
     }
+
+    // The API returns only a display name and role, so keep the rest of what
+    // was entered — it is the only copy the profile screen has to show.
+    await ref
+        .read(agentProfileProvider.notifier)
+        .save(
+          AgentProfile(
+            fullName: _fullNameController.text.trim(),
+            email: _emailController.text.trim(),
+            mobile: _mobileController.text.trim(),
+            agencyName: _agencyNameController.text.trim(),
+            agencySlug: _selectedAgency?.slug,
+            agencyRegistrationNumber: _agencyRegNoController.text.trim(),
+            licenceNumber: _licenceController.text.trim(),
+          ),
+        );
   }
 
   @override
@@ -157,9 +224,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       body: SafeArea(
-        child: Center(
+        bottom: false,
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.opaque,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             child: Form(
               key: _formKey,
               child: Column(
@@ -224,16 +294,57 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     theme: theme,
                   ),
                   const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Agency / company name',
-                    placeholder: 'e.g. Acme Properties',
-                    controller: _agencyNameController,
-                    keyboardType: TextInputType.text,
-                    autofillHints: const ['organization'],
-                    isRequired: true,
-                    errorText: _agencyNameError,
-
-                    theme: theme,
+                  // Picking a listed agency re-brands the app immediately, so
+                  // the agent sees their own colours before they even sign in.
+                  InkWell(
+                    onTap: _pickAgency,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Agency / company name *',
+                        errorText: _agencyNameError,
+                        filled: true,
+                        fillColor: theme.cardBackgroundColor,
+                        labelStyle: textTheme.bodyLarge?.copyWith(
+                          color: theme.textSecondary,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: theme.borderLight),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: theme.borderLight),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _agencyNameController.text.isEmpty
+                                  ? 'Select your agency'
+                                  : _agencyNameController.text,
+                              style: textTheme.bodyLarge?.copyWith(
+                                color: _agencyNameController.text.isEmpty
+                                    ? theme.textSecondary.withValues(alpha: 0.6)
+                                    : theme.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Icon(
+                            Icons.keyboard_arrow_down,
+                            color: theme.textSecondary,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   CustomTextInput(
@@ -332,16 +443,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       maxHeight: 20,
                     ),
                   ),
-                  const SizedBox(height: 28),
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : CustomButton(
-                          text: 'Create Account',
-                          fullWidth: true,
-                          onTap: _handleRegister,
-                          theme: theme,
-                        ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => context.go(AppRoutes.loginPath),
                     child: Text(
@@ -353,6 +455,41 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+      // Pinned: the form is long enough that an inline button sat below the
+      // fold and looked cut off.
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: theme.cardBackgroundColor,
+          border: Border(top: BorderSide(color: theme.borderLight)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: _isLoading
+                  ? Center(
+                      child: SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                    )
+                  : CustomButton(
+                      text: 'Create Account',
+                      fullWidth: true,
+                      onTap: _handleRegister,
+                      theme: theme,
+                    ),
             ),
           ),
         ),

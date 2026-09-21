@@ -1,42 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_chip.dart';
 import '../../../../core/widgets/custom_text_input.dart';
-import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../data/models/enums/facing_direction.dart';
 import '../../providers/property_provider.dart';
+import '../widgets/wizard_section_scaffold.dart';
 
 class BuildingInfoScreen extends ConsumerWidget {
   const BuildingInfoScreen({super.key});
-
-  Future<void> _saveAndPop(BuildContext context, WidgetRef ref) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-    final viewModel = ref.read(propertyViewModelProvider.notifier);
-    await viewModel.saveBuildingInfo();
-    if (!context.mounted) return;
-    Navigator.pop(context);
-    final error = ref.read(propertyViewModelProvider).errorMessage;
-    if (error != null && context.mounted) {
-      final theme = ref.read(themeConfigProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(friendlySaveMessage(error, 'building info')),
-          backgroundColor: theme.error,
-        ),
-      );
-    }
-    if (context.mounted) context.pop();
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,27 +21,17 @@ class BuildingInfoScreen extends ConsumerWidget {
     final theme = ref.watch(themeConfigProvider);
     final textTheme = theme.toThemeData().textTheme;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        await _saveAndPop(context, ref);
+    return WizardSectionScaffold(
+      title: 'Building Info',
+      sectionName: 'building info',
+      onSave: () async {
+        await viewModel.saveBuildingInfo();
+        final error = ref.read(propertyViewModelProvider).errorMessage;
+        return error == null
+            ? null
+            : friendlySaveMessage(error, 'building info');
       },
-      child: Scaffold(
-        backgroundColor: theme.backgroundColor,
-        appBar: WizardAppBar(
-          title: 'Building Info',
-          onBack: () => Navigator.maybePop(context),
-          theme: theme,
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 24.0,
-            ),
-            child: Column(
+      child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -75,14 +41,7 @@ class BuildingInfoScreen extends ConsumerWidget {
                     color: theme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Provide the core structural specifications of the property for valuation and regulatory compliance.',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: theme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 CustomTextInput(
                   theme: theme,
                   label: 'Erf Size (m\u00B2)',
@@ -188,9 +147,6 @@ class BuildingInfoScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 

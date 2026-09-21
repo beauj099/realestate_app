@@ -8,36 +8,36 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/feature_list_widget.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
-import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../data/models/enums/outdoor_extra.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/add_parking_sheet.dart';
 import '../widgets/add_room_sheet.dart';
+import '../widgets/wizard_section_scaffold.dart';
 
 class PropertyFeaturesScreen extends ConsumerWidget {
   const PropertyFeaturesScreen({super.key});
 
-  Future<void> _saveAndPop(BuildContext context, WidgetRef ref) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+  /// Adds a room, then opens it straight away.
+  ///
+  /// Choosing a room type is only the first half of describing a room — the
+  /// condition rating, features and photo all live on the detail screen — so
+  /// the agent is taken there rather than dropped back on a list.
+  Future<void> _addRoomAndOpen(
+    BuildContext context,
+    PropertyViewModel viewModel,
+    RealEstateTheme theme,
+    TextTheme textTheme,
+    int? listingId,
+  ) async {
+    final roomId = await AddRoomSheet.show(
+      context,
+      viewModel,
+      theme,
+      textTheme,
     );
-    final viewModel = ref.read(propertyViewModelProvider.notifier);
-    await viewModel.savePropertyFeatures();
-    if (!context.mounted) return;
-    Navigator.pop(context);
-    final error = ref.read(propertyViewModelProvider).errorMessage;
-    if (error != null && context.mounted) {
-      final theme = ref.read(themeConfigProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(friendlySaveMessage(error, 'property features')),
-          backgroundColor: theme.error,
-        ),
-      );
-    }
-    if (context.mounted) context.pop();
+    if (roomId == null || listingId == null || !context.mounted) return;
+    viewModel.selectRoomForEditing(roomId);
+    context.push(AppRoutes.roomDetails(listingId, roomId));
   }
 
   void _confirmDeleteRoom(
@@ -83,44 +83,27 @@ class PropertyFeaturesScreen extends ConsumerWidget {
         .watch(parkingTypesProvider)
         .maybeWhen(data: (types) => types, orElse: () => fallbackParkingTypes);
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        await _saveAndPop(context, ref);
+    return WizardSectionScaffold(
+      title: 'Property Features',
+      sectionName: 'property features',
+      onSave: () async {
+        await viewModel.savePropertyFeatures();
+        final error = ref.read(propertyViewModelProvider).errorMessage;
+        return error == null
+            ? null
+            : friendlySaveMessage(error, 'property features');
       },
-      child: Scaffold(
-        backgroundColor: theme.backgroundColor,
-        appBar: WizardAppBar(
-          title: 'Property Features',
-          onBack: () => Navigator.maybePop(context),
-          theme: theme,
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 24.0,
-            ),
-            child: Column(
+      child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Property Features',
+                  'Rooms, parking and outdoor features',
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Detail and configure every room in the residence.',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: theme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Text(
@@ -182,11 +165,12 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () => AddRoomSheet.show(
+                            onPressed: () => _addRoomAndOpen(
                               context,
                               viewModel,
                               theme,
                               textTheme,
+                              listingId,
                             ),
                             icon: const Icon(Icons.add, size: 20),
                             label: const Text('Add Room'),
@@ -312,11 +296,12 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () => AddRoomSheet.show(
+                            onPressed: () => _addRoomAndOpen(
                               context,
                               viewModel,
                               theme,
                               textTheme,
+                              listingId,
                             ),
                             icon: const Icon(Icons.add, size: 20),
                             label: const Text('Add Room'),
@@ -568,12 +553,8 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }

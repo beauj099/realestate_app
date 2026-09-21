@@ -12,8 +12,9 @@ import '../../features/property_overview/presentation/screens/expenses_screen.da
 import '../../features/property_overview/presentation/screens/owner_details_screen.dart';
 import '../../features/property_overview/presentation/screens/property_features_screen.dart';
 import '../../features/property_overview/presentation/screens/property_overview_screen.dart';
-import '../../features/property_overview/presentation/screens/property_type_screen.dart';
 import '../../features/property_overview/presentation/screens/room_details_screen.dart';
+import '../../features/property_overview/presentation/screens/valuation_screen.dart';
+import '../../features/settings/presentation/screens/profile_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../constants/route_constants.dart';
 
@@ -75,6 +76,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: AppRoutes.profilePath,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.propertyPath,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
@@ -82,10 +88,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return PropertyOverviewScreen(propertyId: id);
         },
       ),
+      // Property type is now a dropdown on the property overview screen; the
+      // old standalone route redirects so existing deep links still resolve.
       GoRoute(
         path: AppRoutes.propertyTypePath,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const PropertyTypeScreen(),
+        redirect: (context, state) {
+          final id = state.pathParameters['id']!;
+          return AppRoutes.property(int.parse(id));
+        },
       ),
       GoRoute(
         path: AppRoutes.addressPath,
@@ -127,6 +138,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.ownerDetailsPath,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const OwnerDetailsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.valuationPath,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ValuationScreen(),
       ),
       GoRoute(
         path: AppRoutes.contactsPath,

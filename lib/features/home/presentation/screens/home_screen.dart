@@ -7,8 +7,11 @@ import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/listing_photo.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../property_overview/data/models/enums/property_type.dart';
 import '../../../property_overview/providers/property_provider.dart';
+import '../../../settings/presentation/widgets/agency_logo.dart';
 
 final listingsProvider = FutureProvider.autoDispose<List<ListingSummaryDto>>((
   ref,
@@ -16,6 +19,17 @@ final listingsProvider = FutureProvider.autoDispose<List<ListingSummaryDto>>((
   final repo = ref.watch(propertyRepositoryProvider);
   return repo.getAllListings();
 });
+
+/// Address and owner for one listing card.
+///
+/// Kept separate from [listingsProvider] so a card renders its reference and
+/// status immediately and fills in the human-readable detail when it arrives —
+/// a slow or failed enrichment never blocks the list.
+final listingCardInfoProvider = FutureProvider.autoDispose
+    .family<({String addressLine, String ownerName}), int>((ref, id) async {
+      final repo = ref.watch(propertyRepositoryProvider);
+      return repo.getListingCardInfo(id);
+    });
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -26,6 +40,7 @@ class HomeScreen extends ConsumerWidget {
     final textTheme = theme.toThemeData().textTheme;
     final listingsAsync = ref.watch(listingsProvider);
     final authState = ref.watch(authProvider);
+    final agency = ref.watch(agencyProvider);
     final firstName = authState.displayName
         ?.trim()
         .split(RegExp(r'\s+'))
@@ -36,23 +51,38 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: theme.cardBackgroundColor,
         surfaceTintColor: theme.cardBackgroundColor,
-        title: Text('My Properties', style: textTheme.titleLarge),
-        actions: [
-          if (firstName != null && firstName.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text(
-                  'Welcome $firstName',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: theme.textPrimary,
-                    fontWeight: FontWeight.w600,
+        titleSpacing: 16,
+        // The agency mark makes it obvious whose white-label build this is.
+        title: Row(
+          children: [
+            AgencyLogo(agency: agency, size: 34),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'My Properties',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textPrimary,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  if (firstName != null && firstName.isNotEmpty)
+                    Text(
+                      'Welcome back, $firstName',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textSecondary,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: theme.borderLight, height: 1),
@@ -94,92 +124,18 @@ class HomeScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () => ref.refresh(listingsProvider.future),
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
+              // Bottom padding clears the floating action button so the last
+              // card is never hidden behind it.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: listings.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final listing = listings[index];
-                return _buildListingCard(
-                  listing,
-                  theme,
-                  textTheme,
-                  context,
-                  ref,
-                );
-              },
+              itemBuilder: (context, index) =>
+                  _ListingCard(listing: listings[index]),
             ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _buildEmptyState(theme, textTheme),
-      ),
-    );
-  }
-
-  Widget _buildListingCard(
-    ListingSummaryDto listing,
-    RealEstateTheme theme,
-    TextTheme textTheme,
-    BuildContext context,
-    WidgetRef ref,
-  ) {
-    final isSubmitted = listing.status == 'submitted';
-    final statusLabel = isSubmitted ? 'Submitted' : 'Incomplete';
-
-    return InkWell(
-      onTap: () async {
-        await context.push(AppRoutes.property(listing.id));
-        ref.invalidate(listingsProvider);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardBackgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.borderLight),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    listing.referenceNumber,
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Status: $statusLabel',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: theme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSubmitted
-                    ? theme.completeColor.withValues(alpha: 0.15)
-                    : theme.pendingColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                statusLabel.toUpperCase(),
-                style: textTheme.labelLarge?.copyWith(
-                  color: isSubmitted ? theme.completeColor : theme.pendingColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -207,6 +163,180 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A listing, identified the way an agent thinks of it.
+///
+/// The photo and street address lead; the reference number is demoted to small
+/// print because it means nothing to the person reading it. Status stays as a
+/// badge so incomplete listings remain obvious.
+class _ListingCard extends ConsumerWidget {
+  final ListingSummaryDto listing;
+
+  const _ListingCard({required this.listing});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(themeConfigProvider);
+    final textTheme = theme.toThemeData().textTheme;
+    final info = ref.watch(listingCardInfoProvider(listing.id));
+
+    final isSubmitted = listing.status == 'submitted';
+    final statusLabel = isSubmitted ? 'Submitted' : 'Incomplete';
+    final propertyType = PropertyTypeExtension.fromId(listing.propertyTypeId);
+
+    final cardInfo = info.asData?.value;
+    final addressLine = cardInfo?.addressLine ?? '';
+    final ownerName = cardInfo?.ownerName ?? '';
+    final hasAddress = addressLine.isNotEmpty;
+
+    return InkWell(
+      onTap: () async {
+        await context.push(AppRoutes.property(listing.id));
+        ref.invalidate(listingsProvider);
+        ref.invalidate(listingCardInfoProvider(listing.id));
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.cardBackgroundColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: theme.borderLight),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 104,
+              height: 104,
+              // Photos are captured on device and not yet uploaded, so a
+              // listing fetched from the API has no hero image to show.
+              child: listingPhoto(
+                null,
+                theme: theme,
+                textTheme: textTheme,
+                cacheWidth: 300,
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      hasAddress
+                          ? addressLine
+                          : (info.isLoading
+                                ? 'Loading address…'
+                                : 'No address yet'),
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: hasAddress
+                            ? theme.textPrimary
+                            : theme.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (ownerName.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            size: 13,
+                            color: theme.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              ownerName,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: theme.textSecondary,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _StatusBadge(
+                          label: statusLabel,
+                          isSubmitted: isSubmitted,
+                          theme: theme,
+                          textTheme: textTheme,
+                        ),
+                        if (propertyType != null) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            propertyType.icon,
+                            size: 13,
+                            color: theme.textSecondary,
+                          ),
+                        ],
+                        const Spacer(),
+                        Flexible(
+                          child: Text(
+                            listing.referenceNumber,
+                            style: textTheme.labelMedium?.copyWith(
+                              color: theme.textSecondary.withValues(alpha: 0.7),
+                              fontSize: 10,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final bool isSubmitted;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _StatusBadge({
+    required this.label,
+    required this.isSubmitted,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSubmitted ? theme.completeColor : theme.pendingColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: textTheme.labelLarge?.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
         ),
       ),
     );

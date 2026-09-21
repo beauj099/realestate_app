@@ -64,6 +64,58 @@ class PropertyRepository {
     }).toList();
   }
 
+  /// Fetches just enough of a listing to label it on the home screen.
+  ///
+  /// `GET /api/listings` returns only the reference number and status, which
+  /// tells an agent nothing about which house it is. This pulls the address and
+  /// primary owner from the single-listing endpoint instead.
+  ///
+  /// That is one request per card. Acceptable at the handful of listings an
+  /// agent owns, but the right fix is for the list endpoint to return these
+  /// fields — see `docs/BACKEND_CHANGES.md`.
+  Future<({String addressLine, String ownerName})> getListingCardInfo(
+    int listingId,
+  ) async {
+    final response = await _client.get(ApiEndpoints.listing(listingId));
+    final j = response.data as Map<String, dynamic>;
+
+    final address = j['address'] as Map<String, dynamic>?;
+    final streetNumber = (address?['streetNumber'] ?? '').toString().trim();
+    final street = (address?['street'] ?? '').toString().trim();
+    final suburb = (address?['suburb'] ?? '').toString().trim();
+    final city = (address?['city'] ?? '').toString().trim();
+
+    final streetLine = [streetNumber, street].where((p) => p.isNotEmpty).join(' ');
+    final addressLine = [
+      streetLine,
+      suburb,
+      city,
+    ].where((p) => p.isNotEmpty).join(', ');
+
+    final contacts = (j['contacts'] as List<dynamic>?) ?? [];
+    final owners = contacts
+        .map((c) => c as Map<String, dynamic>)
+        .map(
+          (c) => ((c['companyName'] ?? '').toString().trim().isNotEmpty
+                  ? c['companyName']
+                  : c['fullName'] ?? '')
+              .toString()
+              .trim(),
+        )
+        .where((n) => n.isNotEmpty)
+        .toList();
+
+    return (
+      addressLine: addressLine,
+      // Two names fit a card; more than that becomes "+n".
+      ownerName: owners.isEmpty
+          ? ''
+          : owners.length <= 2
+          ? owners.join(' & ')
+          : '${owners.take(2).join(' & ')} +${owners.length - 2}',
+    );
+  }
+
   Future<({int id, String referenceNumber})> createListing(
     int? propertyTypeId, {
     String? p24Ref,

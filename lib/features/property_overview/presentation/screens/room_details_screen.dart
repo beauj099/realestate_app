@@ -5,14 +5,15 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/condition_selector.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/feature_list_widget.dart';
 import '../../../../core/widgets/platform_image.dart';
-import '../../../../core/widgets/rating_slider.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
+import '../../data/models/enums/condition_rating.dart';
 import '../../data/models/enums/standard_amenity.dart';
 import '../../data/models/room.dart';
 import '../../providers/property_provider.dart';
@@ -34,33 +35,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       orElse: () => state.rooms.first,
     );
 
-    final ratings = [
-      {
-        'level': 1,
-        'emoji': '\u{1F635}',
-        'label': 'LEVEL 1\nTo be\nrenovated',
-        'range': '0\u201324%',
-      },
-      {
-        'level': 2,
-        'emoji': '\u{1F610}',
-        'label': 'LEVEL 2\nTo be\nrenovated',
-        'range': '25\u201349%',
-      },
-      {
-        'level': 3,
-        'emoji': '\u{1F642}',
-        'label': 'LEVEL 3\nOptional\nrenovation',
-        'range': '50\u201374%',
-      },
-      {
-        'level': 4,
-        'emoji': '\u{1F600}',
-        'label': 'LEVEL 4\nPerfect\ncondition',
-        'range': '75\u2013100%',
-      },
-    ];
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -71,7 +45,7 @@ class RoomDetailsScreen extends ConsumerWidget {
       child: Scaffold(
         backgroundColor: theme.backgroundColor,
         appBar: WizardAppBar(
-          title: 'Property Details',
+          title: room.name,
           onBack: () {
             Navigator.maybePop(context);
           },
@@ -153,79 +127,14 @@ class RoomDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: ratings.map((rating) {
-                      final level = rating['level'] as int;
-                      final emoji = rating['emoji'] as String;
-                      final label = rating['label'] as String;
-                      final range = rating['range'] as String;
-                      final isSelected = room.conditionRating == level;
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: CustomCard(
-                            isSelected: isSelected,
-                            onTap: () => viewModel.updateRoomDetails(
-                              roomId: room.id,
-                              conditionRating: level,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14.0,
-                              horizontal: 8.0,
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  emoji,
-                                  style: const TextStyle(fontSize: 22),
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  label,
-                                  textAlign: TextAlign.center,
-                                  style: textTheme.labelMedium?.copyWith(
-                                    fontSize: 9,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: isSelected
-                                        ? theme.primaryColor
-                                        : theme.textSecondary,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  range,
-                                  style: textTheme.labelLarge?.copyWith(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: isSelected
-                                        ? theme.primaryColor
-                                        : theme.textSecondary.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
-                  RatingSlider(
-                    conditionRating: room.conditionRating,
+                  ConditionSelector(
+                    selected: ConditionRating.fromStored(room.conditionRating),
                     theme: theme,
                     textTheme: textTheme,
-                    onChanged: (level) {
-                      viewModel.updateRoomDetails(
-                        roomId: room.id,
-                        conditionRating: level,
-                      );
-                    },
+                    onChanged: (rating) => viewModel.updateRoomDetails(
+                      roomId: room.id,
+                      conditionRating: rating.level,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Container(height: 1, color: theme.borderLight),
@@ -431,16 +340,34 @@ class RoomDetailsScreen extends ConsumerWidget {
                       notes: val,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  CustomButton(
-                    text: 'Save & Return to Features',
-                    fullWidth: true,
-                    onTap: () {
-                      viewModel.selectRoomForEditing(null);
-                      context.pop();
-                    },
-                  ),
                 ],
+              ),
+            ),
+          ),
+        ),
+        // Pinned so the agent can commit the room without scrolling back down
+        // past the whole amenity list.
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: theme.cardBackgroundColor,
+            border: Border(top: BorderSide(color: theme.borderLight)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: CustomButton(
+                  text: 'Done',
+                  fullWidth: true,
+                  theme: theme,
+                  onTap: () {
+                    viewModel.selectRoomForEditing(null);
+                    context.pop();
+                  },
+                ),
               ),
             ),
           ),

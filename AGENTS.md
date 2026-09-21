@@ -36,10 +36,20 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 ## Property wizard conventions
 
 - Non-linear overview flow: one shared `PropertyState` + `PropertyViewModel` (autoDispose `Notifier`, `lib/features/property_overview/providers/property_provider.dart`) holds all section data; each section screen calls a `save*` method that persists that section to the backend independently.
-- Screens wrap their body in `PopScope` with `onPopInvokedWithResult` to auto-save on back (no
-  discard dialog; `SnackBar` on save failure) — preserve this pattern when adding wizard screens.
+- **Saving is explicit.** Section screens wrap their body in `WizardSectionScaffold` (`presentation/widgets/wizard_section_scaffold.dart`), which pins a Save button to the bottom and commits via `onSave`. Backing out never persists: the scaffold snapshots the shared state on entry (`beginSectionEdit`) and restores it on discard (`discardSectionEdit`), confirming first when something changed. Use this scaffold for new wizard screens rather than hand-rolling `PopScope`. (This replaces the previous auto-save-on-back behaviour.)
+- Any screen with a primary action pins it to the bottom (`bottomNavigationBar` + `SafeArea(top: false)`) rather than placing it inline at the end of a scroll view.
+- Pickers with more than a handful of options use `showSearchablePicker` (`core/widgets/searchable_picker.dart`) — a type-to-filter bottom sheet — not a dedicated screen or a wall of chips. All bottom sheets go through `showRealEstateBottomSheet`, which applies safe-area, keyboard-inset and max-height handling.
 - Models are plain Dart classes with `fromJson`/`toJson`; enums live under `data/models/enums/`.
+- `PropertyType` ordinal position is the backend id (index + 1) — do not reorder or insert entries. Slot 4 reads "Commercial Property" while the database still seeds it as "Vacant Land"; see `docs/BACKEND_CHANGES.md`.
 - Reference/lookup data (property types, features, etc.) is fetched via `ReferenceDataProvider` / `LookupApiService`; `lib/features/property_overview/data/default_features.dart` supplies offline defaults.
+
+## White-labelling
+
+Agencies live in `lib/core/theme/agency.dart`; the selected one is held by `agencyProvider` (persisted to `SharedPreferences`) and drives `themeConfigProvider` via `RealEstateTheme.fromAgency` / `fromAgencyDark`. Logos are optional files at `assets/images/agencies/<slug>.png` — none ship with the repo, and `AgencyLogo` falls back to a monogram tile when one is absent. Adding an agency means one `Agency` entry plus, optionally, a logo file.
+
+## Known backend gaps
+
+`docs/BACKEND_CHANGES.md` lists what the app needs from `realestate_api` but cannot do locally — listings are not scoped per agent, agent profiles have no read/update endpoint, and there is no listing-level photo upload. Features depending on those are built but device-local; read it before assuming one of them is an app bug.
 
 ## Tests
 
