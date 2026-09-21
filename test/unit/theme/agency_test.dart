@@ -1,6 +1,17 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:realworth/core/theme/agency.dart';
 import 'package:realworth/core/theme/themes.dart';
+
+/// WCAG relative-luminance contrast ratio between two opaque colours.
+double _contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final lighter = la > lb ? la : lb;
+  final darker = la > lb ? lb : la;
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 void main() {
   // toDarkThemeData() builds its TextTheme via google_fonts, which reaches for
@@ -61,8 +72,20 @@ void main() {
     });
 
     test('a light brand keeps dark ink on its primary', () {
-      final century21 = Agency.fromSlug('century-21');
-      expect(RealEstateTheme.fromAgency(century21).onPrimary, century21.onPrimary);
+      final rawson = Agency.fromSlug('rawson');
+      expect(RealEstateTheme.fromAgency(rawson).onPrimary, rawson.onPrimary);
+    });
+
+    test('every agency has readable ink over its primary', () {
+      // Guards against a new entry defaulting to white ink over a pale brand.
+      for (final agency in Agency.all) {
+        final contrast = _contrastRatio(agency.primaryColor, agency.onPrimary);
+        expect(
+          contrast,
+          greaterThan(4.5),
+          reason: '${agency.name} ink fails WCAG AA over its primary',
+        );
+      }
     });
 
     test('dark variant lightens a dark brand for contrast', () {
@@ -73,7 +96,8 @@ void main() {
     });
 
     test('dark variant darkens a very light brand', () {
-      final agency = Agency.fromSlug('century-21');
+      // Rawson's yellow would be unreadable if it were lightened further.
+      final agency = Agency.fromSlug('rawson');
       final dark = RealEstateTheme.fromAgencyDark(agency);
       expect(dark.primaryColor.computeLuminance(),
           lessThan(agency.primaryColor.computeLuminance()));

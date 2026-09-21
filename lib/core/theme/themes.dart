@@ -143,8 +143,11 @@ class RealEstateTheme {
   factory RealEstateTheme.fromAgencyDark(Agency agency) {
     final base = RealEstateTheme.crimsonDark();
     final hsl = HSLColor.fromColor(agency.primaryColor);
-    final adjusted = hsl.lightness > 0.6
-        ? hsl.withLightness(0.45)
+    // Decide on perceived brightness, not HSL lightness: a saturated yellow
+    // sits at lightness 0.5 yet is far too bright to lighten any further.
+    final isBright = agency.primaryColor.computeLuminance() > 0.35;
+    final adjusted = isBright
+        ? hsl.withLightness((hsl.lightness - 0.22).clamp(0.0, 1.0))
         : hsl.withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0));
     final primary = adjusted.toColor();
     return RealEstateTheme(
