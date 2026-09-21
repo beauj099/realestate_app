@@ -5,10 +5,10 @@ import '../../../../core/theme/agency.dart';
 /// Draws an agency's brand mark.
 ///
 /// Prefers the logo file the brand owner drops into
-/// `assets/images/agencies/<slug>.png`. No agency artwork ships with the repo,
-/// so until a file is supplied this falls back to a monogram tile in the
-/// agency's own colours — which keeps every screen looking finished instead of
-/// showing a broken-image box.
+/// `assets/images/agencies/<slug>.png`. Agencies with no bundled file
+/// ([Agency.hasLogoFile] == false) render the monogram tile directly without
+/// attempting an [Image.asset] load, so web builds never log a 404 for a
+/// file that intentionally does not exist.
 class AgencyLogo extends StatelessWidget {
   final Agency agency;
   final double size;
@@ -17,6 +17,15 @@ class AgencyLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Skip the asset fetch entirely when no file ships: the errorBuilder
+    // fallback would still draw the monogram, but on web the failed fetch
+    // logs "Flutter Web engine failed to fetch ..." to the console first.
+    if (!agency.hasLogoFile) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.25),
+        child: SizedBox(width: size, height: size, child: _monogram()),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(size * 0.25),
       child: SizedBox(

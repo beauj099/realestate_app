@@ -48,6 +48,14 @@ class ApiEndpoints {
 
   static String listingRoomPhoto(int listingId, int roomId) =>
       '/api/listings/$listingId/rooms/$roomId/photo';
+
+  static String listingPhotos(int id) => '/api/listings/$id/photos';
+
+  static String listingPhoto(int listingId, int photoId) =>
+      '/api/listings/$listingId/photos/$photoId';
+
+  static String listingPhotoPrimary(int listingId, int photoId) =>
+      '/api/listings/$listingId/photos/$photoId/primary';
   static String listingParking(int id) => '/api/listings/$id/parking';
   static String listingSingleParking(int listingId, int parkingId) =>
       '/api/listings/$listingId/parking/$parkingId';

@@ -134,7 +134,16 @@ class _PropertyOverviewScreenState
             color: theme.textPrimary,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            // The overview sits on the root navigator above the shell; if
+            // there is nothing to pop (e.g. deep link), go home instead of
+            // leaving the agent stuck on a dead back button.
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.homePath);
+            }
+          },
         ),
         actions: [
           IconButton(
@@ -152,8 +161,11 @@ class _PropertyOverviewScreenState
         child: Column(
           children: [
             Expanded(
+              // Clamping (not bouncing) so a pointer/hover landing mid-pop
+              // never hit-tests overscroll geometry on a detaching viewport
+              // (viewport.dart:1034 "Unexpected null value" on web/desktop).
               child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+                physics: const ClampingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 24,

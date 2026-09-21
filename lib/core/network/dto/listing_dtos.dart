@@ -9,6 +9,17 @@ class ListingSummaryDto {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Human-readable card fields served inline by `GET /api/listings`
+  /// (address, first owner, primary photo, room count). All nullable/empty
+  /// when the deployed API predates them — cards degrade to placeholders.
+  final String? streetNumber;
+  final String? street;
+  final String? suburb;
+  final String? city;
+  final String? primaryOwnerName;
+  final String? primaryPhotoUrl;
+  final int roomCount;
+
   const ListingSummaryDto({
     required this.id,
     required this.referenceNumber,
@@ -19,5 +30,25 @@ class ListingSummaryDto {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.streetNumber,
+    this.street,
+    this.suburb,
+    this.city,
+    this.primaryOwnerName,
+    this.primaryPhotoUrl,
+    this.roomCount = 0,
   });
+
+  /// "12 Main Road, Suburb, City" — empty when no address captured yet.
+  String get addressLine {
+    final streetLine = [
+      streetNumber?.trim() ?? '',
+      street?.trim() ?? '',
+    ].where((p) => p.isNotEmpty).join(' ');
+    return [
+      streetLine,
+      suburb?.trim() ?? '',
+      city?.trim() ?? '',
+    ].where((p) => p.isNotEmpty).join(', ');
+  }
 }

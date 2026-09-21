@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 
+import '../../../../core/errors/failures.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
@@ -46,74 +47,53 @@ class PropertyRepository {
       ApiEndpoints.listings,
       queryParameters: params.isNotEmpty ? params : null,
     );
-    return (response.data as List).map((e) {
+    // The API returns a JSON array on success, but an auth or server failure
+    // can surface here as a non-list body (e.g. ProblemDetails). Fail loudly
+    // with a mappable Failure instead of a bare TypeError so the home screen
+    // can show the real cause.
+    final data = response.data;
+    if (data is! List) {
+      throw const ValidationFailure('Unexpected response from the server.');
+    }
+    final listings = <ListingSummaryDto>[];
+    for (final e in data) {
       final j = e as Map<String, dynamic>;
-      return ListingSummaryDto(
-        id: j['id'] as int,
-        referenceNumber: j['referenceNumber'] as String,
-        p24Ref: j['p24Ref'] as String?,
-        propertyTypeId: j['propertyTypeId'] as int? ?? 0,
-        listingValuationId: j['listingValuationId'] as int?,
-        listDate: j['listDate'] != null
-            ? DateTime.parse(j['listDate'] as String)
-            : null,
-        status: j['status'] as String,
-        createdAt: DateTime.parse(j['createdAt'] as String),
-        updatedAt: DateTime.parse(j['updatedAt'] as String),
+      // `id` is the only field a card cannot do without — skip rows that
+      // lack it instead of crashing the whole list.
+      final id = (j['id'] as num?)?.toInt();
+      if (id == null) continue;
+      listings.add(
+        ListingSummaryDto(
+          id: id,
+          // `ReferenceNumber` is nullable in the database, so tolerate nulls
+          // rather than crashing the home screen when one slips through.
+          referenceNumber: j['referenceNumber'] as String? ?? '',
+          p24Ref: j['p24Ref'] as String?,
+          propertyTypeId: (j['propertyTypeId'] as num?)?.toInt() ?? 0,
+          listingValuationId: (j['listingValuationId'] as num?)?.toInt(),
+          listDate: j['listDate'] != null
+              ? DateTime.tryParse(j['listDate'] as String)
+              : null,
+          status: j['status'] as String? ?? 'incomplete',
+          createdAt:
+              DateTime.tryParse(j['createdAt'] as String? ?? '') ??
+              DateTime.now(),
+          updatedAt:
+              DateTime.tryParse(j['updatedAt'] as String? ?? '') ??
+              DateTime.now(),
+          // Enriched summaries (address, owner, photo, room count) are served
+          // inline by newer API builds; absent on older ones — all optional.
+          streetNumber: j['streetNumber'] as String?,
+          street: j['street'] as String?,
+          suburb: j['suburb'] as String?,
+          city: j['city'] as String?,
+          primaryOwnerName: j['primaryOwnerName'] as String?,
+          primaryPhotoUrl: j['primaryPhotoUrl'] as String?,
+          roomCount: (j['roomCount'] as num?)?.toInt() ?? 0,
+        ),
       );
-    }).toList();
-  }
-
-  /// Fetches just enough of a listing to label it on the home screen.
-  ///
-  /// `GET /api/listings` returns only the reference number and status, which
-  /// tells an agent nothing about which house it is. This pulls the address and
-  /// primary owner from the single-listing endpoint instead.
-  ///
-  /// That is one request per card. Acceptable at the handful of listings an
-  /// agent owns, but the right fix is for the list endpoint to return these
-  /// fields — see `docs/BACKEND_CHANGES.md`.
-  Future<({String addressLine, String ownerName})> getListingCardInfo(
-    int listingId,
-  ) async {
-    final response = await _client.get(ApiEndpoints.listing(listingId));
-    final j = response.data as Map<String, dynamic>;
-
-    final address = j['address'] as Map<String, dynamic>?;
-    final streetNumber = (address?['streetNumber'] ?? '').toString().trim();
-    final street = (address?['street'] ?? '').toString().trim();
-    final suburb = (address?['suburb'] ?? '').toString().trim();
-    final city = (address?['city'] ?? '').toString().trim();
-
-    final streetLine = [streetNumber, street].where((p) => p.isNotEmpty).join(' ');
-    final addressLine = [
-      streetLine,
-      suburb,
-      city,
-    ].where((p) => p.isNotEmpty).join(', ');
-
-    final contacts = (j['contacts'] as List<dynamic>?) ?? [];
-    final owners = contacts
-        .map((c) => c as Map<String, dynamic>)
-        .map(
-          (c) => ((c['companyName'] ?? '').toString().trim().isNotEmpty
-                  ? c['companyName']
-                  : c['fullName'] ?? '')
-              .toString()
-              .trim(),
-        )
-        .where((n) => n.isNotEmpty)
-        .toList();
-
-    return (
-      addressLine: addressLine,
-      // Two names fit a card; more than that becomes "+n".
-      ownerName: owners.isEmpty
-          ? ''
-          : owners.length <= 2
-          ? owners.join(' & ')
-          : '${owners.take(2).join(' & ')} +${owners.length - 2}',
-    );
+    }
+    return listings;
   }
 
   Future<({int id, String referenceNumber})> createListing(

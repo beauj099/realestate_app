@@ -159,6 +159,12 @@ class ExteriorPhotosSection extends StatelessWidget {
             height: 132,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
+              // Detach from the PrimaryScrollController: this strip lives
+              // inside the overview's vertical scroll view, and sharing the
+              // primary controller makes hover hit-tests during the pop
+              // transition walk a detaching viewport (viewport.dart:1034).
+              primary: false,
+              physics: const ClampingScrollPhysics(),
               itemCount: photos.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
