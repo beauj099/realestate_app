@@ -101,7 +101,14 @@ class PropertyViewModel extends Notifier<PropertyState> {
   }
 
   Future<void> loadListing(int id) async {
-    state = await _repository.loadListing(id);
+    try {
+      final loaded = await _repository.loadListing(id);
+      if (!ref.mounted) return;
+      state = loaded;
+    } catch (e) {
+      if (!ref.mounted) return;
+      state = state.copyWith(errorMessage: mapFailure(e).message);
+    }
   }
 
   Future<void> savePropertyType() async {
@@ -115,6 +122,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
         p24Ref: state.p24Ref,
       );
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -133,6 +141,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.upsertAddress(id, state);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -144,6 +153,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.upsertBuildingInfo(id, state);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -158,6 +168,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
       await _repository.upsertOutdoorFeatures(id, state.outdoorFeatures);
       if (ref.mounted) state = state.copyWith(rooms: syncedRooms);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -174,6 +185,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.upsertValuation(id, state);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -186,6 +198,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.upsertRunningCosts(id, state);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -212,6 +225,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
         );
       }
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
   }
@@ -529,6 +543,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
       await _repository.submitListing(listingId);
       return true;
     } catch (e) {
+      if (!ref.mounted) return false;
       state = state.copyWith(errorMessage: mapFailure(e).message);
       return false;
     }
@@ -541,6 +556,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     try {
       await _repository.deleteListing(id);
     } catch (e) {
+      if (!ref.mounted) rethrow;
       state = state.copyWith(errorMessage: mapFailure(e).message);
       rethrow;
     }

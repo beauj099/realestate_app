@@ -28,6 +28,16 @@ class Agency {
   /// Ink used on top of [primaryColor]. Light brands need dark ink.
   final Color onPrimary;
 
+  /// Whether `assets/images/agencies/<slug>.png` is bundled.
+  ///
+  /// RealWorth and Acutts intentionally ship no file (see
+  /// `assets/images/agencies/README.md`) and render as monogram tiles.
+  /// [AgencyLogo] checks this first so it never issues an [Image.asset]
+  /// fetch for a file that cannot exist — on web that fetch logs a 404
+  /// ("assets/assets/images/agencies/`<slug>`.png") even though the
+  /// `errorBuilder` fallback still draws correctly.
+  final bool hasLogoFile;
+
   const Agency({
     required this.slug,
     required this.name,
@@ -35,6 +45,7 @@ class Agency {
     required this.primaryColor,
     required this.secondaryColor,
     this.onPrimary = Colors.white,
+    this.hasLogoFile = true,
   });
 
   /// Where this agency's logo is expected to live.
@@ -47,6 +58,7 @@ class Agency {
     monogram: 'RW',
     primaryColor: Color(0xFF1B365D),
     secondaryColor: Color(0xFF1E1E1E),
+    hasLogoFile: false,
   );
 
   /// South African agencies an agent can white-label the app with.
@@ -61,6 +73,7 @@ class Agency {
       monogram: 'AC',
       primaryColor: Color(0xFF00447C),
       secondaryColor: Color(0xFFE30613),
+      hasLogoFile: false,
     ),
     Agency(
       slug: 'century-21',

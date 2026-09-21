@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,22 +21,18 @@ final listingsProvider = FutureProvider.autoDispose<List<ListingSummaryDto>>((
   return repo.getAllListings();
 });
 
-/// Address and owner for one listing card.
-///
-/// Kept separate from [listingsProvider] so a card renders its reference and
-/// status immediately and fills in the human-readable detail when it arrives —
-/// a slow or failed enrichment never blocks the list.
-final listingCardInfoProvider = FutureProvider.autoDispose
-    .family<({String addressLine, String ownerName}), int>((ref, id) async {
-      final repo = ref.watch(propertyRepositoryProvider);
-      return repo.getListingCardInfo(id);
-    });
-
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isCreating = false;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = ref.watch(themeConfigProvider);
     final textTheme = theme.toThemeData().textTheme;
     final listingsAsync = ref.watch(listingsProvider);
@@ -99,24 +96,50 @@ class HomeScreen extends ConsumerWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        onPressed: () async {
-          try {
-            final viewModel = ref.read(propertyViewModelProvider.notifier);
-            viewModel.reset();
-            final listingId = await viewModel.createNewListing();
-            if (context.mounted) {
-              await context.push(AppRoutes.property(listingId));
-              ref.invalidate(listingsProvider);
-            }
-          } catch (e, st) {
-            debugPrint('Add Property error: $e\n$st');
-            if (context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(mapFailure(e).message)));
-            }
-          }
-        },
+        onPressed: _isCreating
+            ? null
+            : () async {
+                if (_isCreating) return;
+                setState(() => _isCreating = true);
+                try {
+                  final viewModel = ref.read(
+                    propertyViewModelProvider.notifier,
+                  );
+                  viewModel.reset();
+                  final listingId = await viewModel.createNewListing();
+                  if (context.mounted) {
+                    await context.push(AppRoutes.property(listingId));
+                    // Defer past the pop transition: invalidating the
+                    // autoDispose listingsProvider synchronously swaps the
+                    // ListView slivers while the outgoing route is still
+                    // hit-testable (viewport.dart:1034 on web/desktop).
+                    // Navigator.pop completes the future before the animation
+                    // starts, so we wait 400ms for it to finish.
+                    await Future.delayed(const Duration(milliseconds: 400));
+                    if (context.mounted) {
+                      ref.invalidate(listingsProvider);
+                    }
+                  }
+                } catch (e, st) {
+                  // TEMPORARY diagnostics: print the full failure so the
+                  // get/post-listings problem can be traced, then remove once
+                  // fixed. The SnackBar below keeps showing the user message.
+                  debugPrint('Add Property error: $e\n$st');
+                  if (e is DioException) {
+                    debugPrint(
+                      'Add Property response: '
+                      '${e.response?.statusCode} ${e.response?.data}',
+                    );
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(mapFailure(e).message)),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => _isCreating = false);
+                }
+              },
       ),
       body: listingsAsync.when(
         data: (listings) {
@@ -135,7 +158,24 @@ class HomeScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _buildEmptyState(theme, textTheme),
+        // TEMPORARY diagnostics: show the real failure reason on screen
+        // (plus full details in the console) so the get-listings problem
+        // can be traced. Previously this silently showed the empty state.
+        error: (error, stack) {
+          debugPrint('Home listings error: $error\n$stack');
+          if (error is DioException) {
+            debugPrint(
+              'Home listings response: '
+              '${error.response?.statusCode} ${error.response?.data}',
+            );
+          }
+          return _buildErrorState(
+            theme,
+            textTheme,
+            mapFailure(error).message,
+            onRetry: () => ref.invalidate(listingsProvider),
+          );
+        },
       ),
     );
   }
@@ -167,6 +207,48 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// TEMPORARY diagnostics widget: shows the failure reason with a retry
+  /// button. Remove once the get-listings problem is fixed and restore the
+  /// plain empty state for errors.
+  Widget _buildErrorState(
+    RealEstateTheme theme,
+    TextTheme textTheme,
+    String message, {
+    required VoidCallback onRetry,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off_outlined, size: 80, color: theme.borderLight),
+            const SizedBox(height: 24),
+            Text(
+              'Couldn\'t load properties',
+              style: textTheme.titleLarge?.copyWith(color: theme.textPrimary),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(
+                color: theme.textSecondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// A listing, identified the way an agent thinks of it.
@@ -183,22 +265,26 @@ class _ListingCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeConfigProvider);
     final textTheme = theme.toThemeData().textTheme;
-    final info = ref.watch(listingCardInfoProvider(listing.id));
 
     final isSubmitted = listing.status == 'submitted';
     final statusLabel = isSubmitted ? 'Submitted' : 'Incomplete';
     final propertyType = PropertyTypeExtension.fromId(listing.propertyTypeId);
 
-    final cardInfo = info.asData?.value;
-    final addressLine = cardInfo?.addressLine ?? '';
-    final ownerName = cardInfo?.ownerName ?? '';
+    // Served inline by `GET /api/listings` — no per-card request. Older API
+    // builds omit these fields, in which case the card shows placeholders.
+    final addressLine = listing.addressLine;
+    final ownerName = (listing.primaryOwnerName ?? '').trim();
     final hasAddress = addressLine.isNotEmpty;
 
     return InkWell(
       onTap: () async {
         await context.push(AppRoutes.property(listing.id));
-        ref.invalidate(listingsProvider);
-        ref.invalidate(listingCardInfoProvider(listing.id));
+        // Same deferral as above: let the pop animation finish before the
+        // listings FutureProvider rebuilds the slivers underneath the pointer.
+        await Future.delayed(const Duration(milliseconds: 400));
+        if (context.mounted) {
+          ref.invalidate(listingsProvider);
+        }
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(
@@ -214,10 +300,8 @@ class _ListingCard extends ConsumerWidget {
             SizedBox(
               width: 104,
               height: 104,
-              // Photos are captured on device and not yet uploaded, so a
-              // listing fetched from the API has no hero image to show.
               child: listingPhoto(
-                null,
+                listing.primaryPhotoUrl,
                 theme: theme,
                 textTheme: textTheme,
                 cacheWidth: 300,
@@ -231,11 +315,7 @@ class _ListingCard extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      hasAddress
-                          ? addressLine
-                          : (info.isLoading
-                                ? 'Loading address…'
-                                : 'No address yet'),
+                      hasAddress ? addressLine : 'No address yet',
                       style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: hasAddress

@@ -57,6 +57,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
   final _scrollController = ScrollController();
   bool _isSaving = false;
   bool _canScrollFurther = false;
+  bool _canPop = false;
 
   @override
   void initState() {
@@ -102,7 +103,15 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
     }
 
     ref.read(propertyViewModelProvider.notifier).commitSectionEdit();
-    if (mounted) context.pop();
+    _safePop();
+  }
+
+  void _safePop() {
+    if (!mounted) return;
+    setState(() => _canPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.pop();
+    });
   }
 
   /// Back gesture: discard, after confirming when there is something to lose.
@@ -110,7 +119,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     if (!viewModel.hasUnsavedSectionChanges) {
       viewModel.discardSectionEdit();
-      if (mounted) context.pop();
+      _safePop();
       return;
     }
 
@@ -143,7 +152,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
 
     if (discard != true || !mounted) return;
     viewModel.discardSectionEdit();
-    if (mounted) context.pop();
+    _safePop();
   }
 
   void _showMessage(String message, {required bool isError}) {
@@ -162,7 +171,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
     final textTheme = theme.toThemeData().textTheme;
 
     return PopScope(
-      canPop: false,
+      canPop: _canPop,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         await _handleBack();
@@ -185,7 +194,9 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
                   controller: _scrollController,
                   child: SingleChildScrollView(
                     controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
+                    // Clamping matches the overview screen: a shared bounce
+                    // viewport mis-hit-tests during root-navigator pops.
+                    physics: const ClampingScrollPhysics(),
                     // Bottom padding clears the pinned action bar so the last
                     // field is never trapped underneath it.
                     padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
