@@ -3,14 +3,16 @@ class PropertyRunningCosts {
   final String monthlyRates;
   final String electricity;
   final String water;
-  final String municipalAccount;
+  final String sewage;
+  final String refuse;
 
   const PropertyRunningCosts({
     this.monthlyLevy = '',
     this.monthlyRates = '',
     this.electricity = '',
     this.water = '',
-    this.municipalAccount = '',
+    this.sewage = '',
+    this.refuse = '',
   });
 
   PropertyRunningCosts copyWith({
@@ -18,14 +20,16 @@ class PropertyRunningCosts {
     String? monthlyRates,
     String? electricity,
     String? water,
-    String? municipalAccount,
+    String? sewage,
+    String? refuse,
   }) {
     return PropertyRunningCosts(
       monthlyLevy: monthlyLevy ?? this.monthlyLevy,
       monthlyRates: monthlyRates ?? this.monthlyRates,
       electricity: electricity ?? this.electricity,
       water: water ?? this.water,
-      municipalAccount: municipalAccount ?? this.municipalAccount,
+      sewage: sewage ?? this.sewage,
+      refuse: refuse ?? this.refuse,
     );
   }
 }

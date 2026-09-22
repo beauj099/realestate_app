@@ -10,16 +10,25 @@ void main() {
       expect(costs.monthlyRates, '');
       expect(costs.electricity, '');
       expect(costs.water, '');
+      expect(costs.sewage, '');
+      expect(costs.refuse, '');
     });
 
     test('copyWith() overrides specified fields', () {
       const costs = PropertyRunningCosts();
 
-      final updated = costs.copyWith(monthlyLevy: '1500', monthlyRates: '800');
+      final updated = costs.copyWith(
+        monthlyLevy: '1500',
+        monthlyRates: '800',
+        sewage: '350',
+        refuse: '250',
+      );
 
       expect(updated.monthlyLevy, '1500');
       expect(updated.monthlyRates, '800');
       expect(updated.electricity, '');
+      expect(updated.sewage, '350');
+      expect(updated.refuse, '250');
     });
   });
 }

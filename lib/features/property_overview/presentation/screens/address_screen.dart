@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -60,22 +59,6 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     setState(() {});
     if (_errors.isEmpty) return null;
     return friendlySaveMessage(const ValidationFailure().message, 'address');
-  }
-
-  String? _validateLatitude(String value) {
-    if (value.trim().isEmpty) return null;
-    final v = double.tryParse(value.trim());
-    if (v == null) return 'Enter a valid number';
-    if (v < -90 || v > 90) return 'Must be between -90 and 90';
-    return null;
-  }
-
-  String? _validateLongitude(String value) {
-    if (value.trim().isEmpty) return null;
-    final v = double.tryParse(value.trim());
-    if (v == null) return 'Enter a valid number';
-    if (v < -180 || v > 180) return 'Must be between -180 and 180';
-    return null;
   }
 
   Future<void> _detectAddress() async {
@@ -163,11 +146,6 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         result = null;
       }
 
-      setState(() {
-        _errors.remove('latitude');
-        _errors.remove('longitude');
-      });
-
       if (result == null) {
         viewModel.updateCoordinates(
           latitude: position.latitude,
@@ -250,12 +228,6 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
       if (k == 'street') return state.street.trim().isNotEmpty;
       if (k == 'city') return state.city.trim().isNotEmpty;
       if (k == 'country') return state.country.trim().isNotEmpty;
-      if (k == 'latitude') {
-        return _validateLatitude(state.latitude?.toString() ?? '') == null;
-      }
-      if (k == 'longitude') {
-        return _validateLongitude(state.longitude?.toString() ?? '') == null;
-      }
       return true;
     });
 
@@ -375,93 +347,9 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
             subtext: 'Found on the municipal rates bill or title deed.',
             onChanged: (val) => viewModel.updateIdentifiers(erfNumber: val),
           ),
-          const SizedBox(height: 28),
-          _label('GPS Coordinates (Optional)', theme, textTheme),
-          const SizedBox(height: 12),
-          CustomTextInput(
-            key: ValueKey('lat_${state.latitude}'),
-            theme: theme,
-            label: 'Latitude',
-            placeholder: 'e.g. -33.9249',
-            initialValue: state.latitude?.toString() ?? '',
-            keyboardType: const TextInputType.numberWithOptions(
-              signed: true,
-              decimal: true,
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-            ],
-            errorText: _errors['latitude'],
-            onChanged: (val) => _onCoordinateChanged(
-              value: val,
-              isLatitude: true,
-              viewModel: viewModel,
-              latitude: state.latitude,
-              longitude: state.longitude,
-            ),
-          ),
-          const SizedBox(height: 14),
-          CustomTextInput(
-            key: ValueKey('lng_${state.longitude}'),
-            theme: theme,
-            label: 'Longitude',
-            placeholder: 'e.g. 18.4241',
-            initialValue: state.longitude?.toString() ?? '',
-            keyboardType: const TextInputType.numberWithOptions(
-              signed: true,
-              decimal: true,
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-            ],
-            errorText: _errors['longitude'],
-            onChanged: (val) => _onCoordinateChanged(
-              value: val,
-              isLatitude: false,
-              viewModel: viewModel,
-              latitude: state.latitude,
-              longitude: state.longitude,
-            ),
-          ),
         ],
       ),
     );
-  }
-
-  void _onCoordinateChanged({
-    required String value,
-    required bool isLatitude,
-    required PropertyViewModel viewModel,
-    required double? latitude,
-    required double? longitude,
-  }) {
-    final key = isLatitude ? 'latitude' : 'longitude';
-    if (value.trim().isEmpty) {
-      _errors.remove(key);
-      viewModel.updateCoordinates(
-        latitude: isLatitude ? null : latitude,
-        longitude: isLatitude ? longitude : null,
-      );
-      setState(() {});
-      return;
-    }
-    final err = isLatitude
-        ? _validateLatitude(value)
-        : _validateLongitude(value);
-    setState(() {
-      if (err != null) {
-        _errors[key] = err;
-      } else {
-        _errors.remove(key);
-      }
-    });
-    final parsed = double.tryParse(value.trim());
-    if (parsed != null && err == null) {
-      viewModel.updateCoordinates(
-        latitude: isLatitude ? parsed : latitude,
-        longitude: isLatitude ? longitude : parsed,
-      );
-    }
   }
 
   Widget _label(String text, theme, TextTheme textTheme) {

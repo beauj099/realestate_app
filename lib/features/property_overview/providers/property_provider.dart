@@ -488,7 +488,8 @@ class PropertyViewModel extends Notifier<PropertyState> {
     String? monthlyRates,
     String? electricity,
     String? water,
-    String? municipalAccount,
+    String? sewage,
+    String? refuse,
   }) {
     state = state.copyWith(
       propertyRunningCosts: state.propertyRunningCosts.copyWith(
@@ -496,7 +497,8 @@ class PropertyViewModel extends Notifier<PropertyState> {
         monthlyRates: monthlyRates,
         electricity: electricity,
         water: water,
-        municipalAccount: municipalAccount,
+        sewage: sewage,
+        refuse: refuse,
       ),
     );
   }

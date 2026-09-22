@@ -229,7 +229,8 @@ class PropertyRepository {
         monthlyRates: runningCosts?['monthlyRates']?.toString() ?? '',
         electricity: runningCosts?['electricity']?.toString() ?? '',
         water: runningCosts?['water']?.toString() ?? '',
-        municipalAccount: runningCosts?['municipalAccount']?.toString() ?? '',
+        sewage: runningCosts?['sewage']?.toString() ?? '',
+        refuse: runningCosts?['refuse']?.toString() ?? '',
       ),
       primaryContact: contacts.isNotEmpty ? contacts.first : const Contact(),
       coContacts: contacts.length > 1 ? contacts.sublist(1) : [],
@@ -321,10 +322,11 @@ class PropertyRepository {
     if (state.propertyRunningCosts.water.isNotEmpty) {
       data['water'] = _parseDecimal(state.propertyRunningCosts.water);
     }
-    if (state.propertyRunningCosts.municipalAccount.isNotEmpty) {
-      data['municipalAccount'] = _parseDecimal(
-        state.propertyRunningCosts.municipalAccount,
-      );
+    if (state.propertyRunningCosts.sewage.isNotEmpty) {
+      data['sewage'] = _parseDecimal(state.propertyRunningCosts.sewage);
+    }
+    if (state.propertyRunningCosts.refuse.isNotEmpty) {
+      data['refuse'] = _parseDecimal(state.propertyRunningCosts.refuse);
     }
     await _client.put(ApiEndpoints.listingRunningCosts(listingId), data: data);
   }
