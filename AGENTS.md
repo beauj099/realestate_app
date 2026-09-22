@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Flutter app ("Property Evaluation") for real-estate listing creation, backed by a local ASP.NET API.
+RealWorth ("Property Evaluation") — Flutter app for real-estate listing creation, backed by a local ASP.NET API. Android application id and iOS bundle id are `com.realworth.app`.
 
 ## Commands
 
