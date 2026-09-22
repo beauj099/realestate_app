@@ -16,6 +16,8 @@ Failure _mapDioException(DioException error) {
     case DioExceptionType.sendTimeout:
     case DioExceptionType.receiveTimeout:
       return const TimeoutFailure();
+    case DioExceptionType.transformTimeout:
+      return const TimeoutFailure();
     case DioExceptionType.connectionError:
       return const NetworkFailure();
     case DioExceptionType.badCertificate:
