@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'agency.dart';
+import 'custom_agencies.dart';
 import 'themes.dart';
 
 class ThemeModeNotifier extends Notifier<ThemeMode> {
@@ -45,7 +46,9 @@ class AgencyNotifier extends Notifier<Agency> {
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final slug = prefs.getString(_agencyPrefsKey);
-    if (slug != null) state = Agency.fromSlug(slug);
+    if (slug != null) {
+      state = Agency.fromSlug(slug, custom: readCustomAgencies(prefs));
+    }
   }
 
   Future<void> setAgency(Agency agency) async {
@@ -65,4 +68,16 @@ final themeConfigProvider = Provider<RealEstateTheme>((ref) {
   return themeMode == ThemeMode.dark
       ? RealEstateTheme.fromAgencyDark(agency)
       : RealEstateTheme.fromAgency(agency);
+});
+
+/// The house RealWorth theme, ignoring the selected agency.
+///
+/// Sign-in, registration and password reset happen before the app knows whose
+/// agent this is, so they always wear the RealWorth brand. Only dark mode
+/// carries over.
+final houseThemeProvider = Provider<RealEstateTheme>((ref) {
+  final themeMode = ref.watch(themeModeProvider);
+  return themeMode == ThemeMode.dark
+      ? RealEstateTheme.fromAgencyDark(Agency.realWorth)
+      : RealEstateTheme.fromAgency(Agency.realWorth);
 });

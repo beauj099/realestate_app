@@ -42,9 +42,12 @@ dependencies:
   dio: ^5.9.2
   flutter_secure_storage: ^9.2.4
   shared_preferences: ^2.3.0
+  path_provider: ^2.1.5
   flutter_dotenv: ^5.2.1
   geolocator: ^13.0.2
   flutter_native_splash: ^2.4.1
+  file_picker: ^11.0.3
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +75,7 @@ flutter:
   assets:
     - .env
     - assets/images/logo.jpg
+    - assets/images/logo_wide.png
     # White-label agency logos, supplied by the brand owner. The folder ships
     # empty; AgencyLogo falls back to a monogram when a file is absent.
     - assets/images/agencies/

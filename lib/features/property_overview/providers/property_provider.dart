@@ -10,6 +10,7 @@ import '../../../../core/network/photo_urls.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../data/default_features.dart';
 import '../data/models/contact.dart';
+import '../data/models/listing_document.dart';
 import '../data/models/listing_parking.dart';
 import '../data/models/property_state.dart';
 import '../data/models/room.dart';
@@ -125,11 +126,18 @@ class PropertyViewModel extends Notifier<PropertyState> {
         for (final p in photos) {
           _exteriorPhotoIds[p['url'] as String] = p['id'] as int;
         }
-        state = state.copyWith(
-          exteriorPhotos: _exteriorPhotoIds.keys.toList(),
-        );
+        state = state.copyWith(exteriorPhotos: _exteriorPhotoIds.keys.toList());
       } catch (e) {
         developer.log('Listing photos load failed: $e');
+      }
+      // Documents also have their own endpoint. An API without it (older
+      // build) just leaves the list empty.
+      try {
+        final documents = await _repository.getListingDocuments(id);
+        if (!ref.mounted) return;
+        state = state.copyWith(documents: documents);
+      } catch (e) {
+        developer.log('Listing documents load failed: $e');
       }
     } catch (e) {
       if (!ref.mounted) return;
@@ -216,17 +224,62 @@ class PropertyViewModel extends Notifier<PropertyState> {
     }
   }
 
-  /// Persists the monthly running costs captured on the Expenses section.
+  /// Persists the Expenses section: the monthly running costs, then the
+  /// supporting documents — removals are deleted and newly picked files
+  /// uploaded. A document that fails to upload stays queued for the next save.
   Future<void> saveRunningCosts() async {
     final id = state.listingId;
     if (id == null) return;
     state = state.copyWith(errorMessage: null);
     try {
       await _repository.upsertRunningCosts(id, state);
+
+      for (final docId in state.removedDocumentIds) {
+        await _repository.deleteListingDocument(id, docId);
+        if (!ref.mounted) return;
+        state = state.copyWith(
+          removedDocumentIds: state.removedDocumentIds
+              .where((d) => d != docId)
+              .toList(),
+        );
+      }
+
+      Object? uploadError;
+      for (final doc in state.documents.where((d) => !d.isUploaded)) {
+        try {
+          final uploaded = await _repository.uploadListingDocument(id, doc);
+          if (!ref.mounted) return;
+          state = state.copyWith(
+            documents: [
+              for (final d in state.documents) identical(d, doc) ? uploaded : d,
+            ],
+          );
+        } catch (e) {
+          developer.log('Document upload failed: $e');
+          uploadError ??= e;
+        }
+      }
+      if (uploadError != null) throw uploadError;
     } catch (e) {
       if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
+  }
+
+  void addDocument(ListingDocument document) {
+    state = state.copyWith(documents: [...state.documents, document]);
+  }
+
+  /// Takes [document] off the list; an uploaded one is deleted from the API
+  /// on the next save, so backing out of Expenses brings it back.
+  void removeDocument(ListingDocument document) {
+    state = state.copyWith(
+      documents: state.documents.where((d) => !identical(d, document)).toList(),
+      removedDocumentIds: [
+        ...state.removedDocumentIds,
+        if (document.id != null) document.id!,
+      ],
+    );
   }
 
   Future<void> saveContacts() async {
@@ -412,10 +465,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
   Future<void> setMainExteriorPhotoAndSync(String path) async {
     if (!state.exteriorPhotos.contains(path)) return;
     state = state.copyWith(
-      exteriorPhotos: [
-        path,
-        ...state.exteriorPhotos.where((p) => p != path),
-      ],
+      exteriorPhotos: [path, ...state.exteriorPhotos.where((p) => p != path)],
     );
     final listingId = state.listingId;
     final photoId = _exteriorPhotoIds[path];
@@ -669,6 +719,29 @@ class PropertyViewModel extends Notifier<PropertyState> {
     state = state.copyWith(
       coContacts: state.coContacts.where((c) => c.id != id).toList(),
     );
+  }
+
+  /// Saves what the overview screen itself holds — the property type and any
+  /// exterior photo still waiting to upload — so the agent can leave for the
+  /// home screen knowing nothing is only on the device. Sections persist
+  /// themselves on their own Save.
+  ///
+  /// Returns a message when something could not be saved, otherwise null.
+  Future<String?> saveOverview() async {
+    if (state.listingId == null) return const NetworkFailure().message;
+    if (state.propertyTypeId > 0) {
+      await savePropertyType();
+      final error = state.errorMessage;
+      if (error != null) return friendlySaveMessage(error, 'property type');
+    }
+    await saveExteriorPhotos();
+    if (!ref.mounted) return null;
+    final pending = state.exteriorPhotos.where((p) => !isRemotePhoto(p));
+    if (pending.isNotEmpty) {
+      return 'Some photos have not uploaded yet. Check your connection and '
+          'try again.';
+    }
+    return null;
   }
 
   Future<bool> submitAndSave() async {

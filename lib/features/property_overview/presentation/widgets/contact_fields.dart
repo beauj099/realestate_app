@@ -10,12 +10,18 @@ import '../../data/models/contact.dart';
 /// is chosen first and only that type's fields are shown. Previously every
 /// owner saw ID number *and* company registration number and had to work out
 /// which applied.
+///
+/// Only a business asks for a role, as the contact person's capacity
+/// (director, trustee, member) — it is what shows they may sign for the
+/// entity. A natural person listed here is the owner, so the field added
+/// nothing for them. A role already stored on a person is kept untouched.
 class ContactFields extends StatelessWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
   final Contact contact;
   final ValueChanged<Contact> onChanged;
   final String? fullNameError;
+  final String? companyNameError;
   final String? emailError;
   final String? phoneError;
 
@@ -26,6 +32,7 @@ class ContactFields extends StatelessWidget {
     required this.contact,
     required this.onChanged,
     this.fullNameError,
+    this.companyNameError,
     this.emailError,
     this.phoneError,
   });
@@ -51,12 +58,13 @@ class ContactFields extends StatelessWidget {
             label: 'COMPANY NAME',
             placeholder: 'Acme Properties Pty Ltd',
             initialValue: contact.companyName,
+            errorText: companyNameError,
             onChanged: (val) => onChanged(contact.copyWith(companyName: val)),
           ),
           const SizedBox(height: 16),
           CustomTextInput(
             theme: theme,
-            label: 'COMPANY REGISTRATION NUMBER',
+            label: 'REGISTRATION NUMBER',
             placeholder: 'e.g. 2021/123456/07',
             initialValue: contact.companyRegistrationNumber,
             onChanged: (val) =>
@@ -71,6 +79,14 @@ class ContactFields extends StatelessWidget {
             autofillHints: const [AutofillHints.name],
             errorText: fullNameError,
             onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+          ),
+          const SizedBox(height: 16),
+          CustomTextInput(
+            theme: theme,
+            label: 'CAPACITY',
+            placeholder: 'e.g. Director, Trustee, Member',
+            initialValue: contact.role,
+            onChanged: (val) => onChanged(contact.copyWith(role: val)),
           ),
         ] else ...[
           CustomTextInput(
@@ -113,16 +129,6 @@ class ContactFields extends StatelessWidget {
           autofillHints: const [AutofillHints.telephoneNumber],
           errorText: phoneError,
           onChanged: (val) => onChanged(contact.copyWith(mobilePhone: val)),
-        ),
-        const SizedBox(height: 16),
-        CustomTextInput(
-          theme: theme,
-          label: 'ROLE',
-          placeholder: isBusiness
-              ? 'e.g. Director, Trustee'
-              : 'e.g. Owner, Executor',
-          initialValue: contact.role,
-          onChanged: (val) => onChanged(contact.copyWith(role: val)),
         ),
       ],
     );

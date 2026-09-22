@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/agency.dart';
+import '../../../../core/widgets/platform_image.dart';
 
 /// Draws an agency's brand mark.
 ///
-/// Prefers the logo file the brand owner drops into
-/// `assets/images/agencies/<slug>.png`. Agencies with no bundled file
-/// ([Agency.hasLogoFile] == false) render the monogram tile directly without
-/// attempting an [Image.asset] load, so web builds never log a 404 for a
-/// file that intentionally does not exist.
+/// In order of preference: a logo the agent uploaded for an agency they added
+/// ([Agency.logoFilePath]), the bundled artwork ([Agency.imageAsset]), then a
+/// monogram tile. Agencies with no bundled file skip the [Image.asset] load
+/// entirely, so web builds never log a 404 for a file that does not exist.
 class AgencyLogo extends StatelessWidget {
   final Agency agency;
   final double size;
@@ -17,30 +17,59 @@ class AgencyLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Skip the asset fetch entirely when no file ships: the errorBuilder
-    // fallback would still draw the monogram, but on web the failed fetch
-    // logs "Flutter Web engine failed to fetch ..." to the console first.
-    if (!agency.hasLogoFile) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.25),
-        child: SizedBox(width: size, height: size, child: _monogram()),
-      );
-    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(size * 0.25),
       child: SizedBox(
         width: size,
         height: size,
-        child: Image.asset(
-          agency.logoAsset,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _monogram(),
-        ),
+        child: agencyLogoImage(agency, fallback: _monogram()),
       ),
     );
   }
 
-  Widget _monogram() {
+  Widget _monogram() => AgencyMonogram(agency: agency, size: size);
+}
+
+/// The agency's artwork, unclipped, or [fallback] when it has none.
+///
+/// Uploaded logos can be any shape, so they are contained on white rather
+/// than cropped; bundled logos are square tiles and fill their box.
+Widget agencyLogoImage(
+  Agency agency, {
+  required Widget fallback,
+  BoxFit bundledFit = BoxFit.cover,
+}) {
+  final filePath = agency.logoFilePath;
+  if (filePath != null) {
+    return ColoredBox(
+      color: Colors.white,
+      child: localFileImage(
+        filePath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => fallback,
+      ),
+    );
+  }
+  final asset = agency.imageAsset;
+  if (asset != null) {
+    return Image.asset(
+      asset,
+      fit: bundledFit,
+      errorBuilder: (context, error, stackTrace) => fallback,
+    );
+  }
+  return fallback;
+}
+
+/// Initials on the brand colour, for agencies without artwork.
+class AgencyMonogram extends StatelessWidget {
+  final Agency agency;
+  final double size;
+
+  const AgencyMonogram({super.key, required this.agency, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       color: agency.primaryColor,
       alignment: Alignment.center,

@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (35 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (114 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -30,7 +30,8 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 
 - **State**: Riverpod v3 (`Notifier`/`NotifierProvider`, `autoDispose` where appropriate). Providers per feature in `providers/`.
 - **Routing**: go_router via `appRouterProvider` (`lib/core/router/app_router.dart`). `StatefulShellRoute.indexedStack` hosts Home + Settings (bottom nav); property-wizard screens are flat routes with `parentNavigatorKey: _rootNavigatorKey`.
-- **Auth**: JWT + refresh token stored in `flutter_secure_storage` under key `auth` (`AppConstants.storageAuthKey`). `ApiClient` interceptors auto-refresh on 401 and retry; the router redirect gated on `authProvider` status.
+- **Auth**: JWT + refresh token stored in `flutter_secure_storage` under key `auth` (`AppConstants.storageAuthKey`). `ApiClient` interceptors auto-refresh on 401 and retry; the router redirect gated on `authProvider` status. Login accepts an email or a username (registration stores the lowercased email as the username). Password reset is an emailed 6-digit code (`/forgot-password`, `POST /api/auth/forgot-password` + `/reset-password`).
+- **Agent profile**: `agentProfileProvider` loads `GET /api/agents/me` whenever the agent becomes signed in and saves via `PUT`; the secure-storage copy is only a cache (it also keeps the first/last-name split — the API stores one display name).
 - **Theme**: brand themes via `RealEstateTheme` factories in `lib/core/theme/themes.dart`, selected at runtime through `theme_provider.dart`.
 
 ## Property wizard conventions
@@ -45,7 +46,11 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 
 ## White-labelling
 
-Agencies live in `lib/core/theme/agency.dart`; the selected one is held by `agencyProvider` (persisted to `SharedPreferences`) and drives `themeConfigProvider` via `RealEstateTheme.fromAgency` / `fromAgencyDark`. Logos are optional files at `assets/images/agencies/<slug>.png` — none ship with the repo, and `AgencyLogo` falls back to a monogram tile when one is absent. Adding an agency means one `Agency` entry plus, optionally, a logo file.
+Agencies live in `lib/core/theme/agency.dart`; the selected one is held by `agencyProvider` (persisted to `SharedPreferences`) and drives `themeConfigProvider` via `RealEstateTheme.fromAgency` / `fromAgencyDark`. Logos are optional files at `assets/images/agencies/<slug>.png`, and `AgencyLogo` falls back to a monogram tile when one is absent. Adding an agency means one `Agency` entry plus, optionally, a logo file and a `bannerColor` matching the logo's background (used by the full-width home header).
+
+- Agents can add an unlisted agency ("Other" in `showAgencyPicker`) with an optional logo; these are device-local (`customAgenciesProvider`, `lib/core/theme/custom_agencies.dart`) and use the house palette.
+- Login, register and password reset always use the house theme (`houseThemeProvider` + `ScopedBrandTheme`), never the selected agency's.
+- The profile screen previews a newly picked agency locally; `agencyProvider` only changes on Save.
 
 ## Known backend gaps
 

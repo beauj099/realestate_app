@@ -40,8 +40,8 @@ class AuthApiService {
     required String email,
     required String mobile,
     required String agencyName,
-    required String agencyRegistrationNumber,
-    required String licenceNumber,
+    String? agencyRegistrationNumber,
+    String? licenceNumber,
     required String password,
   }) async {
     final response = await _client.post(
@@ -51,8 +51,8 @@ class AuthApiService {
         'email': email,
         'mobile': mobile,
         'agencyName': agencyName,
-        'agencyRegistrationNumber': agencyRegistrationNumber,
-        'licenceNumber': licenceNumber,
+        'agencyRegistrationNumber': _nullIfBlank(agencyRegistrationNumber),
+        'licenceNumber': _nullIfBlank(licenceNumber),
         'password': password,
       },
     );
@@ -65,4 +65,26 @@ class AuthApiService {
       refreshToken: json['refreshToken'] as String,
     );
   }
+
+  /// Emails a 6-digit reset code. The API answers 204 whether or not the
+  /// address is registered, so this cannot tell the caller which it was.
+  Future<void> forgotPassword(String email) async {
+    await _client.post(ApiEndpoints.forgotPassword, data: {'email': email});
+  }
+
+  /// Sets a new password using the emailed [code]. Throws a 400 with
+  /// `errors.code` or `errors.newPassword` when rejected.
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _client.post(
+      ApiEndpoints.resetPassword,
+      data: {'email': email, 'code': code, 'newPassword': newPassword},
+    );
+  }
+
+  static String? _nullIfBlank(String? value) =>
+      value == null || value.trim().isEmpty ? null : value.trim();
 }

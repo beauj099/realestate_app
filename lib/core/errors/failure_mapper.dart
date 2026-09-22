@@ -10,6 +10,30 @@ Failure mapFailure(Object error) {
   return const UnknownFailure();
 }
 
+/// Field-keyed messages from an API `ValidationProblemDetails` response,
+/// e.g. `{'email': 'Email address is already registered.'}`, so a screen can
+/// show each one under its own input. Keys are camelCase; empty when the
+/// response carries none.
+Map<String, String> mapFieldErrors(Object error) {
+  if (error is! DioException) return const {};
+  final data = error.response?.data;
+  if (data is! Map) return const {};
+  final errors = data['errors'] ?? data['Errors'];
+  if (errors is! Map) return const {};
+  final result = <String, String>{};
+  errors.forEach((key, value) {
+    final message = value is List && value.isNotEmpty
+        ? value.first.toString()
+        : value is String
+        ? value
+        : null;
+    final name = key.toString();
+    if (message == null || message.isEmpty || name.isEmpty) return;
+    result[name[0].toLowerCase() + name.substring(1)] = message;
+  });
+  return result;
+}
+
 Failure _mapDioException(DioException error) {
   switch (error.type) {
     case DioExceptionType.connectionTimeout:

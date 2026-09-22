@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/theme_provider.dart';
+import 'features/auth/providers/agent_profile_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
 
 void main() async {
@@ -45,6 +46,9 @@ class _MyAppState extends ConsumerState<MyApp> {
     final themeConfig = ref.watch(themeConfigProvider);
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(appRouterProvider);
+    // Keep the profile alive from launch: it fetches the agent's profile and
+    // applies their agency's brand whenever someone signs in.
+    ref.listen(agentProfileProvider, (_, _) {});
 
     return MaterialApp.router(
       title: AppConstants.appName,

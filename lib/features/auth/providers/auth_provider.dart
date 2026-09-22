@@ -77,7 +77,7 @@ class AuthNotifier extends Notifier<AuthState> {
         (action == 'login' || action == 'register')) {
       final detail = _extractServerMessageForAuth(error.response?.data);
       if (detail != null) return detail;
-      return 'Invalid username or password. Please check your details and try again.';
+      return 'Incorrect email/username or password. Please check your details and try again.';
     }
     return failure.message;
   }
@@ -254,8 +254,8 @@ class AuthNotifier extends Notifier<AuthState> {
     required String email,
     required String mobile,
     required String agencyName,
-    required String agencyRegistrationNumber,
-    required String licenceNumber,
+    String? agencyRegistrationNumber,
+    String? licenceNumber,
     required String password,
   }) async {
     state = state.copyWith(errorMessage: null);
@@ -300,6 +300,27 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState.unauthenticated(
         errorMessage: _mapAuthFailure(e, 'register'),
       );
+    }
+  }
+
+  /// Updates the name shown in the app (e.g. "Welcome back, …") after the
+  /// agent edits their profile, keeping the stored session in step.
+  Future<void> updateDisplayName(String displayName) async {
+    if (state.status != AuthStatus.authenticated || displayName.isEmpty) {
+      return;
+    }
+    state = AuthState.authenticated(displayName: displayName, role: state.role);
+    try {
+      final raw = await _storage.read(key: AppConstants.storageAuthKey);
+      if (raw == null) return;
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      data['displayName'] = displayName;
+      await _storage.write(
+        key: AppConstants.storageAuthKey,
+        value: jsonEncode(data),
+      );
+    } catch (e) {
+      debugPrint('AuthProvider: failed to persist display name: $e');
     }
   }
 
