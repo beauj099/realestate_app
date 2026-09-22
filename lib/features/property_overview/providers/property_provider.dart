@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/photo_urls.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../data/default_features.dart';
 import '../data/models/contact.dart';
@@ -55,6 +60,12 @@ class PropertyViewModel extends Notifier<PropertyState> {
   /// otherwise the overview would show edits that were never persisted.
   PropertyState? _sectionSnapshot;
 
+  /// Server-side ids for uploaded exterior photos, keyed by their URL.
+  /// Local (not yet uploaded) paths have no entry. Keeps the string-only
+  /// [PropertyState.exteriorPhotos] usable with the photo endpoints, which
+  /// address photos by id for primary/delete.
+  final Map<String, int> _exteriorPhotoIds = {};
+
   @override
   PropertyState build() {
     _repository = ref.watch(propertyRepositoryProvider);
@@ -105,6 +116,21 @@ class PropertyViewModel extends Notifier<PropertyState> {
       final loaded = await _repository.loadListing(id);
       if (!ref.mounted) return;
       state = loaded;
+      // Exterior photos live on their own endpoint; the detail payload
+      // does not include them.
+      try {
+        final photos = await _repository.getListingPhotos(id);
+        if (!ref.mounted) return;
+        _exteriorPhotoIds.clear();
+        for (final p in photos) {
+          _exteriorPhotoIds[p['url'] as String] = p['id'] as int;
+        }
+        state = state.copyWith(
+          exteriorPhotos: _exteriorPhotoIds.keys.toList(),
+        );
+      } catch (e) {
+        developer.log('Listing photos load failed: $e');
+      }
     } catch (e) {
       if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
@@ -347,19 +373,43 @@ class PropertyViewModel extends Notifier<PropertyState> {
     state = state.copyWith(parking: current);
   }
 
-  void addExteriorPhoto(String path) {
+  void addExteriorPhoto(String path, {Uint8List? bytes, String? filename}) {
     if (state.exteriorPhotos.contains(path)) return;
+    if (bytes != null) {
+      _repository.cachePhotoBytes(path, bytes, filename: filename);
+    }
     state = state.copyWith(exteriorPhotos: [...state.exteriorPhotos, path]);
   }
 
   void removeExteriorPhoto(String path) {
+    // Fire-and-forget is fine here: local state updates immediately and the
+    // server delete is best-effort (a mismatch self-heals on the next load).
+    unawaited(removeExteriorPhotoAndSync(path));
+  }
+
+  /// Removes [path] locally and deletes it server-side when uploaded.
+  Future<void> removeExteriorPhotoAndSync(String path) async {
+    final photoId = _exteriorPhotoIds.remove(path);
+    _repository.evictPhotoBytes(path);
     state = state.copyWith(
       exteriorPhotos: state.exteriorPhotos.where((p) => p != path).toList(),
     );
+    final listingId = state.listingId;
+    if (listingId == null || photoId == null) return;
+    try {
+      await _repository.deleteListingPhoto(listingId, photoId);
+    } catch (e) {
+      developer.log('Listing photo delete failed: $e');
+    }
   }
 
   /// Promotes [path] to the hero shot by moving it to the front of the list.
   void setMainExteriorPhoto(String path) {
+    unawaited(setMainExteriorPhotoAndSync(path));
+  }
+
+  /// Reorders locally and marks the photo primary server-side when uploaded.
+  Future<void> setMainExteriorPhotoAndSync(String path) async {
     if (!state.exteriorPhotos.contains(path)) return;
     state = state.copyWith(
       exteriorPhotos: [
@@ -367,6 +417,90 @@ class PropertyViewModel extends Notifier<PropertyState> {
         ...state.exteriorPhotos.where((p) => p != path),
       ],
     );
+    final listingId = state.listingId;
+    final photoId = _exteriorPhotoIds[path];
+    if (listingId == null || photoId == null) return;
+    try {
+      await _repository.setPrimaryListingPhoto(listingId, photoId);
+    } catch (e) {
+      developer.log('Listing photo primary failed: $e');
+    }
+  }
+
+  /// Uploads a freshly picked exterior photo, swapping the local path for
+  /// the server URL on success. Returns false when the upload failed — the
+  /// local path stays in place so [saveExteriorPhotos] can retry at submit.
+  Future<bool> uploadExteriorPhoto(String localPath) async {
+    final listingId = state.listingId;
+    if (listingId == null) return false;
+    try {
+      final created = await _repository.uploadListingPhoto(
+        listingId,
+        localPath,
+      );
+      final url = created['url'] as String?;
+      final id = created['id'] as int?;
+      if (url == null || id == null) return false;
+      if (!ref.mounted) return false;
+      _exteriorPhotoIds[url] = id;
+      state = state.copyWith(
+        exteriorPhotos: [
+          for (final p in state.exteriorPhotos) p == localPath ? url : p,
+        ],
+      );
+      return true;
+    } catch (e) {
+      developer.log('Listing photo upload failed: $e');
+      return false;
+    }
+  }
+
+  /// Uploads any exterior photos still held as local paths and repairs the
+  /// hero shot when the server primary drifted (e.g. an earlier primary PUT
+  /// failed). Called before submit so a capture-time failure is retried.
+  Future<void> saveExteriorPhotos() async {
+    final listingId = state.listingId;
+    if (listingId == null) return;
+    final photos = List<String>.from(state.exteriorPhotos);
+    var changed = false;
+    for (var i = 0; i < photos.length; i++) {
+      if (isRemotePhoto(photos[i])) continue;
+      try {
+        final created = await _repository.uploadListingPhoto(
+          listingId,
+          photos[i],
+        );
+        final url = created['url'] as String?;
+        final id = created['id'] as int?;
+        if (url == null || id == null) continue;
+        _exteriorPhotoIds[url] = id;
+        photos[i] = url;
+        changed = true;
+      } catch (e) {
+        developer.log('Listing photo upload failed: $e');
+      }
+    }
+    if (changed && ref.mounted) {
+      state = state.copyWith(exteriorPhotos: photos);
+    }
+    try {
+      final server = await _repository.getListingPhotos(listingId);
+      if (!ref.mounted) return;
+      _exteriorPhotoIds.clear();
+      for (final p in server) {
+        _exteriorPhotoIds[p['url'] as String] = p['id'] as int;
+      }
+      final primary = server.where((p) => p['isPrimary'] == true).toList();
+      if (photos.isNotEmpty &&
+          (primary.isEmpty || primary.first['url'] != photos.first)) {
+        final photoId = _exteriorPhotoIds[photos.first];
+        if (photoId != null) {
+          await _repository.setPrimaryListingPhoto(listingId, photoId);
+        }
+      }
+    } catch (e) {
+      developer.log('Listing photo sync failed: $e');
+    }
   }
 
   void addOutdoorFeature(String feature) {
@@ -394,7 +528,16 @@ class PropertyViewModel extends Notifier<PropertyState> {
     List<String>? hiddenFeatures,
     String? notes,
     String? photoUrl,
+    Uint8List? photoBytes,
+    String? photoFilename,
   }) {
+    if (photoUrl != null && photoBytes != null) {
+      _repository.cachePhotoBytes(
+        photoUrl,
+        photoBytes,
+        filename: photoFilename,
+      );
+    }
     final updatedRooms = state.rooms.map((room) {
       if (room.id == roomId) {
         return room.copyWith(
@@ -542,6 +685,11 @@ class PropertyViewModel extends Notifier<PropertyState> {
       // they backed out of was rolled back, so local state already matches the
       // server. Re-posting every section here would push state the agent chose
       // to discard and could clobber a newer server-side edit.
+      //
+      // Exterior photos are the exception: they upload in the background as
+      // they are picked, so retry anything still held as a local path (a
+      // capture-time failure) before submitting.
+      await saveExteriorPhotos();
       await _repository.submitListing(listingId);
       return true;
     } catch (e) {
@@ -565,6 +713,8 @@ class PropertyViewModel extends Notifier<PropertyState> {
   }
 
   void reset() {
+    _exteriorPhotoIds.clear();
+    _repository.pendingPhotoBytes.clear();
     state = PropertyState(
       rooms: const [],
       parking: const [],

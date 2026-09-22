@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -6,6 +7,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
+import '../../../../core/network/photo_urls.dart';
 import '../models/contact.dart';
 import '../models/enums/outdoor_extra.dart';
 import '../models/listing_parking.dart';
@@ -21,6 +23,40 @@ class PropertyRepository {
 
   List<Map<String, dynamic>>? _conditionCategoriesCache;
   Map<String, int>? _featureIdByNameCache;
+
+  /// Bytes for photos that have no filesystem path to re-read.
+  ///
+  /// On the web `image_picker` returns a blob URL, not a file path, and
+  /// `MultipartFile.fromFile` throws (`dart:io` is unavailable there). The UI
+  /// therefore caches `XFile.readAsBytes()` here at pick time, keyed by the
+  /// path stored in state, so uploads can use `MultipartFile.fromBytes`.
+  final Map<String, ({Uint8List bytes, String filename})> pendingPhotoBytes =
+      {};
+
+  /// Caches photo bytes for a later upload. [filename] should be the
+  /// original picked file name so the server's extension allow-list still
+  /// validates (blob URLs carry no extension).
+  void cachePhotoBytes(String path, Uint8List bytes, {String? filename}) {
+    pendingPhotoBytes[path] = (
+      bytes: bytes,
+      filename: filename ?? 'photo${_photoExtension(path)}',
+    );
+  }
+
+  void evictPhotoBytes(String path) => pendingPhotoBytes.remove(path);
+
+  /// Builds the `file` multipart entry for [filePath], preferring cached
+  /// bytes (web / already-in-memory) over reading from disk.
+  Future<MultipartFile> _photoMultipartFile(String filePath) async {
+    final cached = pendingPhotoBytes[filePath];
+    if (cached != null) {
+      return MultipartFile.fromBytes(cached.bytes, filename: cached.filename);
+    }
+    return MultipartFile.fromFile(
+      filePath,
+      filename: 'photo${_photoExtension(filePath)}',
+    );
+  }
 
   /// Parking-category outdoor display strings, normalized for comparison.
   /// Parking is managed via the dedicated `/parking` endpoint, so these
@@ -369,7 +405,7 @@ class PropertyRepository {
     final createdId = createdJson['id'] as int;
     var photoUrl = room.photoUrl;
 
-    if (photoUrl != null && !photoUrl.startsWith('http')) {
+    if (photoUrl != null && !isRemotePhoto(photoUrl)) {
       try {
         photoUrl = await _uploadRoomPhoto(listingId, createdId, photoUrl);
       } catch (e) {
@@ -410,7 +446,7 @@ class PropertyRepository {
     final existingPhotoUrl = existing['photoUrl'] as String?;
     if (existingPhotoUrl != null && (photoUrl == null || photoUrl.isEmpty)) {
       await _client.delete(ApiEndpoints.listingRoomPhoto(listingId, apiId));
-    } else if (photoUrl != null && !photoUrl.startsWith('http')) {
+    } else if (photoUrl != null && !isRemotePhoto(photoUrl)) {
       try {
         photoUrl = await _uploadRoomPhoto(listingId, apiId, photoUrl);
       } catch (e) {
@@ -590,8 +626,50 @@ class PropertyRepository {
     developer.log('Listing deleted: ID=$listingId');
   }
 
-  Future<String?> uploadRoomPhoto(int listingId, int roomId, String filePath) {
+  Future<String?> uploadRoomPhoto(
+    int listingId,
+    int roomId,
+    String filePath, {
+    Uint8List? bytes,
+    String? filename,
+  }) {
+    if (bytes != null) cachePhotoBytes(filePath, bytes, filename: filename);
     return _uploadRoomPhoto(listingId, roomId, filePath);
+  }
+
+  /// Listing-level (exterior) photos, ordered primary-first by the API.
+  Future<List<Map<String, dynamic>>> getListingPhotos(int listingId) async {
+    final response = await _client.get(ApiEndpoints.listingPhotos(listingId));
+    return (response.data as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Uploads one exterior photo; returns the created photo JSON
+  /// (`id`, `url`, `isPrimary`, ...). The URL is absolute (R2) or
+  /// app-relative `/uploads/...` (temporary local storage).
+  Future<Map<String, dynamic>> uploadListingPhoto(
+    int listingId,
+    String filePath, {
+    Uint8List? bytes,
+    String? filename,
+  }) async {
+    if (bytes != null) cachePhotoBytes(filePath, bytes, filename: filename);
+    final formData = FormData.fromMap({
+      'file': await _photoMultipartFile(filePath),
+    });
+    final response = await _client.post(
+      ApiEndpoints.listingPhotos(listingId),
+      data: formData,
+    );
+    pendingPhotoBytes.remove(filePath);
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> setPrimaryListingPhoto(int listingId, int photoId) async {
+    await _client.put(ApiEndpoints.listingPhotoPrimary(listingId, photoId));
+  }
+
+  Future<void> deleteListingPhoto(int listingId, int photoId) async {
+    await _client.delete(ApiEndpoints.listingPhoto(listingId, photoId));
   }
 
   Future<List<Map<String, dynamic>>> _getRoomsJson(int listingId) async {
@@ -605,7 +683,7 @@ class PropertyRepository {
       'roomTypeId': room.roomTypeId,
     };
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
-    if (room.photoUrl != null && room.photoUrl!.startsWith('http')) {
+    if (room.photoUrl != null && isRemotePhoto(room.photoUrl!)) {
       data['photoUrl'] = room.photoUrl;
     }
     final response = await _client.post(
@@ -620,7 +698,7 @@ class PropertyRepository {
     if (room.name.isNotEmpty) data['name'] = room.name;
     data['roomTypeId'] = room.roomTypeId;
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
-    if (room.photoUrl != null && room.photoUrl!.startsWith('http')) {
+    if (room.photoUrl != null && isRemotePhoto(room.photoUrl!)) {
       data['photoUrl'] = room.photoUrl;
     }
     await _client.put(ApiEndpoints.listingRoom(listingId, roomId), data: data);
@@ -691,15 +769,13 @@ class PropertyRepository {
     String filePath,
   ) async {
     final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        filePath,
-        filename: 'room_photo${_photoExtension(filePath)}',
-      ),
+      'file': await _photoMultipartFile(filePath),
     });
     final response = await _client.post(
       ApiEndpoints.listingRoomPhoto(listingId, roomId),
       data: formData,
     );
+    pendingPhotoBytes.remove(filePath);
     final json = response.data as Map<String, dynamic>?;
     return json?['url'] as String?;
   }

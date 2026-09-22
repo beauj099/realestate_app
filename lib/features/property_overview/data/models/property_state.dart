@@ -48,9 +48,10 @@ class PropertyState {
 
   /// Exterior shots of the property, first entry being the hero image.
   ///
-  /// Local file paths only for now: the API exposes photo upload per room
-  /// (`/api/listings/{id}/rooms/{roomId}/photo`) but has no listing-level photo
-  /// endpoint, so these are not yet persisted. See `docs/BACKEND_CHANGES.md`.
+  /// Entries are server photo URLs once uploaded; freshly picked shots stay
+  /// as local file paths until the upload completes (or is retried at
+  /// submit). Persisted via the listing-level photo endpoints
+  /// (`/api/listings/{id}/photos`).
   final List<String> exteriorPhotos;
 
   // Step 6: Owner Details

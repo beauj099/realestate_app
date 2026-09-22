@@ -214,11 +214,17 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<bool> refreshAuth() async {
     try {
       final raw = await _storage.read(key: AppConstants.storageAuthKey);
-      if (raw == null) return false;
+      if (raw == null) {
+        debugPrint('AuthProvider: refresh skipped: no stored session');
+        return false;
+      }
 
       final data = jsonDecode(raw) as Map<String, dynamic>;
       final currentRefreshToken = data['refreshToken'] as String?;
-      if (currentRefreshToken == null) return false;
+      if (currentRefreshToken == null) {
+        debugPrint('AuthProvider: refresh skipped: no stored refresh token');
+        return false;
+      }
 
       final authService = ref.read(authApiServiceProvider);
       final response = await authService.refreshToken(currentRefreshToken);
@@ -237,7 +243,8 @@ class AuthNotifier extends Notifier<AuthState> {
       apiClient.setToken(response.token);
 
       return true;
-    } catch (_) {
+    } catch (e) {
+      _logAuthError('refresh', e);
       return false;
     }
   }

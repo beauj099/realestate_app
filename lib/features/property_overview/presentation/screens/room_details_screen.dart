@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/network/photo_urls.dart';
+import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/condition_selector.dart';
@@ -109,7 +111,14 @@ class RoomDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  _buildRoomGraphic(context, theme, textTheme, room, viewModel),
+                  _buildRoomGraphic(
+                    context,
+                    theme,
+                    textTheme,
+                    room,
+                    viewModel,
+                    ref.watch(apiClientProvider).baseUrl,
+                  ),
                   const SizedBox(height: 28),
                   Text(
                     'Room Condition Rating',
@@ -382,6 +391,7 @@ class RoomDetailsScreen extends ConsumerWidget {
     TextTheme textTheme,
     Room room,
     PropertyViewModel viewModel,
+    String baseUrl,
   ) {
     final hasImage = room.photoUrl != null;
 
@@ -406,9 +416,9 @@ class RoomDetailsScreen extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (hasImage && room.photoUrl!.startsWith('http'))
+              if (hasImage && isRemotePhoto(room.photoUrl!))
                 Image.network(
-                  room.photoUrl!,
+                  resolvePhotoUrl(room.photoUrl!, baseUrl),
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: theme.imagePlaceholder,
@@ -433,7 +443,7 @@ class RoomDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                 )
-              else if (hasImage && !room.photoUrl!.startsWith('http'))
+              else if (hasImage && !isRemotePhoto(room.photoUrl!))
                 localFileImage(
                   room.photoUrl!,
                   fit: BoxFit.cover,
@@ -560,7 +570,15 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
 
     if (picked != null) {
-      viewModel.updateRoomDetails(roomId: roomId, photoUrl: picked.path);
+      // Cache bytes at pick time: on the web the path is only a blob URL
+      // and the upload must use `MultipartFile.fromBytes`.
+      final bytes = await picked.readAsBytes();
+      viewModel.updateRoomDetails(
+        roomId: roomId,
+        photoUrl: picked.path,
+        photoBytes: bytes,
+        photoFilename: picked.name,
+      );
     }
   }
 

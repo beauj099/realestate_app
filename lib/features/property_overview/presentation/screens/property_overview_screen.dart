@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -208,6 +209,7 @@ class _PropertyOverviewScreenState
                       theme: theme,
                       textTheme: textTheme,
                       viewModel: viewModel,
+                      baseUrl: ref.watch(apiClientProvider).baseUrl,
                     ),
                     const SizedBox(height: 24),
                     ...sections.map(
@@ -302,7 +304,9 @@ class _PropertyOverviewScreenState
           ),
           TextButton(
             onPressed: () => ctx.pop(true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -322,9 +326,9 @@ class _PropertyOverviewScreenState
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(mapFailure(e).message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mapFailure(e).message)));
       }
     }
   }

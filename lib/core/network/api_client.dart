@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -70,32 +71,87 @@ class ApiClient {
             return;
           }
 
+          // The retry itself goes through these interceptors, so a server
+          // that keeps answering 401 must not loop refresh -> retry forever.
+          if (error.requestOptions.extra['authRetried'] == true) {
+            _onUnauthorized?.call();
+            handler.next(error);
+            return;
+          }
+
+          Object? refreshError;
           try {
             _refreshCompleter ??= _onRefreshToken!().then((success) {
               if (!success) throw Exception('Refresh failed');
             });
 
             await _refreshCompleter;
+          } catch (e) {
+            refreshError = e;
+          } finally {
+            _refreshCompleter = null;
+          }
 
+          if (refreshError != null) {
+            // The session itself is dead (missing/expired refresh token):
+            // sign out so the router returns to login with a clear cause.
+            developer.log(
+              'Token refresh failed ($refreshError); signing out.',
+              name: 'ApiClient',
+            );
+            _onUnauthorized?.call();
+            handler.next(error);
+            return;
+          }
+
+          try {
             final opts = error.requestOptions;
             opts.headers[ApiConstants.authorizationHeader] =
                 '${ApiConstants.bearerPrefix}$_token';
+            opts.extra['authRetried'] = true;
+            if (opts.data is FormData) {
+              // FormData is single-use: the first attempt finalizes it, so a
+              // 401 -> refresh -> retry would crash with "The FormData has
+              // already been finalized". Clone it for the retry.
+              opts.data = (opts.data as FormData).clone();
+              // Let Dio recompute the body length for the cloned payload.
+              opts.headers.remove('Content-Length');
+              opts.headers.remove('content-length');
+            }
             final response = await _dio.fetch(opts);
+            developer.log('Retry after refresh succeeded.', name: 'ApiClient');
             handler.resolve(response);
-          } catch (_) {
-            _onUnauthorized?.call();
-            handler.next(error);
-          } finally {
-            _refreshCompleter = null;
+          } on DioException catch (retryError) {
+            if (retryError.response?.statusCode == 401) {
+              // The fresh token was rejected too: the session is unusable.
+              developer.log(
+                'Retry after refresh still 401; signing out.',
+                name: 'ApiClient',
+              );
+              _onUnauthorized?.call();
+            } else {
+              // Non-auth retry failure (network, timeout, ...): the session
+              // may still be fine, so keep it and surface the real error.
+              developer.log(
+                'Retry after refresh failed (${retryError.type}); '
+                'keeping session.',
+                name: 'ApiClient',
+              );
+            }
+            handler.next(retryError);
           }
         },
       ),
     ]);
   }
-
   void setToken(String? token) => _token = token;
   void setOnUnauthorized(void Function()? callback) =>
       _onUnauthorized = callback;
+
+  /// The backend root this client talks to. Needed to resolve app-relative
+  /// photo paths (`/uploads/...` from the temporary local storage) into
+  /// loadable URLs.
+  String get baseUrl => _dio.options.baseUrl;
 
   void setOnRefreshToken(Future<bool> Function()? callback) =>
       _onRefreshToken = callback;

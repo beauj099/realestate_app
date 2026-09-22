@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../network/photo_urls.dart';
 import '../theme/themes.dart';
 import 'platform_image.dart';
 
-/// Renders a property photo from either a remote URL or a local file path.
+/// Renders a property photo from a remote URL, an app-relative API path, or
+/// a local file path.
 ///
-/// Photos captured on device are local paths until an upload endpoint exists,
-/// while photos loaded back from the API are URLs. Callers should not have to
+/// Photos captured on device are local paths until uploaded, photos served
+/// from the temporary local storage are `/uploads/...` paths resolved against
+/// [baseUrl], and R2 photos are absolute URLs. Callers should not have to
 /// care which, so this picks the right loader and shows the same placeholder
 /// either way.
 Widget listingPhoto(
@@ -15,17 +18,28 @@ Widget listingPhoto(
   required TextTheme textTheme,
   BoxFit fit = BoxFit.cover,
   int? cacheWidth,
+  String baseUrl = '',
 }) {
   if (path == null || path.isEmpty) {
     return _placeholder(theme, textTheme, Icons.home_outlined, null);
   }
 
   Widget onError(BuildContext context, Object error, StackTrace? stack) =>
-      _placeholder(theme, textTheme, Icons.broken_image_outlined, 'Unavailable');
+      _placeholder(
+        theme,
+        textTheme,
+        Icons.broken_image_outlined,
+        'Unavailable',
+      );
 
-  if (path.startsWith('http')) {
+  if (isRemotePhoto(path)) {
+    final url = resolvePhotoUrl(path, baseUrl);
+    // An app-relative path without a base URL cannot be loaded.
+    if (url.startsWith('/')) {
+      return _placeholder(theme, textTheme, Icons.home_outlined, null);
+    }
     return Image.network(
-      path,
+      url,
       fit: fit,
       cacheWidth: cacheWidth,
       errorBuilder: onError,

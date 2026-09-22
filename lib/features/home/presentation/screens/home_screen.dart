@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
+import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/listing_photo.dart';
@@ -310,6 +311,7 @@ class _ListingCard extends ConsumerWidget {
                   theme: theme,
                   textTheme: textTheme,
                   cacheWidth: 300,
+                  baseUrl: ref.watch(apiClientProvider).baseUrl,
                 ),
               ),
               Expanded(

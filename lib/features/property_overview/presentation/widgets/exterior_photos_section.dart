@@ -17,12 +17,16 @@ class ExteriorPhotosSection extends StatelessWidget {
   final TextTheme textTheme;
   final PropertyViewModel viewModel;
 
+  /// Backend root used to resolve app-relative `/uploads/...` photo paths.
+  final String baseUrl;
+
   const ExteriorPhotosSection({
     super.key,
     required this.photos,
     required this.theme,
     required this.textTheme,
     required this.viewModel,
+    this.baseUrl = '',
   });
 
   Future<void> _addPhoto(BuildContext context) async {
@@ -65,7 +69,28 @@ class ExteriorPhotosSection extends StatelessWidget {
       source: source,
       imageQuality: 85,
     );
-    if (picked != null) viewModel.addExteriorPhoto(picked.path);
+    if (picked == null) return;
+    // `readAsBytes` works on every platform; on the web the path is only a
+    // blob URL and `MultipartFile.fromFile` (dart:io) throws, so the bytes
+    // are cached at pick time and the upload uses them. Show the shot
+    // immediately, then upload in the background. A failed upload keeps the
+    // local path so submit retries it.
+    final bytes = await picked.readAsBytes();
+    viewModel.addExteriorPhoto(
+      picked.path,
+      bytes: bytes,
+      filename: picked.name,
+    );
+    final uploaded = await viewModel.uploadExteriorPhoto(picked.path);
+    if (!uploaded && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Photo saved on this device — upload will retry on submit.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _photoActions(BuildContext context, String path) async {
@@ -174,6 +199,7 @@ class ExteriorPhotosSection extends StatelessWidget {
                   isMain: index == 0,
                   theme: theme,
                   textTheme: textTheme,
+                  baseUrl: baseUrl,
                   onTap: () => _photoActions(context, path),
                 );
               },
@@ -240,6 +266,7 @@ class _PhotoTile extends StatelessWidget {
   final bool isMain;
   final RealEstateTheme theme;
   final TextTheme textTheme;
+  final String baseUrl;
   final VoidCallback onTap;
 
   const _PhotoTile({
@@ -247,6 +274,7 @@ class _PhotoTile extends StatelessWidget {
     required this.isMain,
     required this.theme,
     required this.textTheme,
+    required this.baseUrl,
     required this.onTap,
   });
 
@@ -273,6 +301,7 @@ class _PhotoTile extends StatelessWidget {
               theme: theme,
               textTheme: textTheme,
               fit: BoxFit.cover,
+              baseUrl: baseUrl,
             ),
             if (isMain)
               Positioned(
