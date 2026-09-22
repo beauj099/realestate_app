@@ -178,11 +178,35 @@ class RoomDetailsScreen extends ConsumerWidget {
                     final allStandardAmenities = StandardAmenity.values
                         .map((a) => a.displayString)
                         .toSet();
+                    // Only amenities relevant to this room type are offered.
+                    // Already-selected standard features are kept visible too,
+                    // so legacy rooms never lose a checked item after the fix.
+                    final relevant = StandardAmenity.relevantForRoomTypeId(
+                      room.roomTypeId,
+                    ).map((a) => a.displayString).toSet();
+                    final selectedStandard = room.features
+                        .map((f) => f.description)
+                        .where(allStandardAmenities.contains)
+                        .toSet();
+                    final visible = {...relevant, ...selectedStandard};
+                    final visibleCategories = AmenityCategory.values
+                        .where(
+                          (c) => StandardAmenity.values.any(
+                            (a) =>
+                                a.category == c &&
+                                visible.contains(a.displayString),
+                          ),
+                        )
+                        .toList();
                     return Column(
                       children: [
-                        ...AmenityCategory.values.map((category) {
+                        ...visibleCategories.map((category) {
                           final amenities = StandardAmenity.values
-                              .where((a) => a.category == category)
+                              .where(
+                                (a) =>
+                                    a.category == category &&
+                                    visible.contains(a.displayString),
+                              )
                               .map((a) => a.displayString)
                               .toList();
                           final selectedForCategory = room.features

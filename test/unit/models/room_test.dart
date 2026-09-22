@@ -31,13 +31,13 @@ void main() {
     });
 
     test('copyWith() preserves unchanged fields', () {
-      final room = Room(id: '1', name: 'Kitchen', roomTypeId: 3);
+      final room = Room(id: '1', name: 'Kitchen', roomTypeId: 4);
 
       final updated = room.copyWith(notes: 'New renovation');
 
       expect(updated.id, '1');
       expect(updated.name, 'Kitchen');
-      expect(updated.roomTypeId, 3);
+      expect(updated.roomTypeId, 4);
     });
   });
 }

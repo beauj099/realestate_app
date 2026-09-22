@@ -1,3 +1,5 @@
+import 'room_category.dart';
+
 enum AmenityCategory { kitchen, bedroomBathroom, livingAreas, generalInterior }
 
 extension AmenityCategoryExtension on AmenityCategory {
@@ -63,4 +65,97 @@ enum StandardAmenity {
     }
     return null;
   }
+
+  /// Amenities relevant to one room category.
+  ///
+  /// Previously every room rendered every [AmenityCategory], so a Bedroom
+  /// showed the full Kitchen block. Each room now only sees its own
+  /// amenities plus cross-cutting finishes (floors, climate, security).
+  static List<StandardAmenity> relevantForCategory(RoomCategory category) {
+    switch (category) {
+      case RoomCategory.bedroom:
+        return const [
+          StandardAmenity.walkInCloset,
+          StandardAmenity.ensuiteBathroom,
+          StandardAmenity.ceilingFan,
+          StandardAmenity.balconyAccess,
+          StandardAmenity.tiledFloors,
+          StandardAmenity.woodenLaminateFloors,
+          StandardAmenity.airConditioning,
+          StandardAmenity.underfloorHeating,
+          StandardAmenity.highCeilings,
+          StandardAmenity.fibreReady,
+          StandardAmenity.alarmSystem,
+          StandardAmenity.intercom,
+          StandardAmenity.cctv,
+          StandardAmenity.safetyGates,
+        ];
+      case RoomCategory.bathroom:
+        return const [
+          StandardAmenity.tiledFloors,
+          StandardAmenity.underfloorHeating,
+          StandardAmenity.airConditioning,
+          StandardAmenity.highCeilings,
+          StandardAmenity.fibreReady,
+          StandardAmenity.alarmSystem,
+          StandardAmenity.intercom,
+          StandardAmenity.cctv,
+          StandardAmenity.safetyGates,
+        ];
+      case RoomCategory.livingSpaces:
+      case RoomCategory.entertainment:
+        return StandardAmenity.values
+            .where(
+              (a) =>
+                  a.category == AmenityCategory.livingAreas ||
+                  a.category == AmenityCategory.generalInterior,
+            )
+            .toList();
+      case RoomCategory.kitchenAndUtility:
+        return const [
+          StandardAmenity.builtInCupboards,
+          StandardAmenity.graniteCountertops,
+          StandardAmenity.gasHob,
+          StandardAmenity.eyeLevelOven,
+          StandardAmenity.undercounterOvenHob,
+          StandardAmenity.extractorFan,
+          StandardAmenity.kitchenIsland,
+          StandardAmenity.dishwasherConnection,
+          StandardAmenity.washingMachineConnection,
+          StandardAmenity.breakfastNook,
+          StandardAmenity.tiledFloors,
+          StandardAmenity.woodenLaminateFloors,
+          StandardAmenity.airConditioning,
+          StandardAmenity.underfloorHeating,
+          StandardAmenity.fibreReady,
+          StandardAmenity.alarmSystem,
+          StandardAmenity.intercom,
+          StandardAmenity.cctv,
+          StandardAmenity.safetyGates,
+        ];
+      case RoomCategory.workAndStudy:
+        return const [
+          StandardAmenity.fibreReady,
+          StandardAmenity.alarmSystem,
+          StandardAmenity.intercom,
+          StandardAmenity.cctv,
+          StandardAmenity.safetyGates,
+          StandardAmenity.airConditioning,
+          StandardAmenity.tiledFloors,
+          StandardAmenity.woodenLaminateFloors,
+          StandardAmenity.underfloorHeating,
+          StandardAmenity.highCeilings,
+          StandardAmenity.balconyAccess,
+          StandardAmenity.ceilingFan,
+        ];
+      case RoomCategory.additional:
+        return StandardAmenity.values;
+    }
+  }
+
+  /// Convenience lookup from the stored `roomTypeId` (index+1).
+  static List<StandardAmenity> relevantForRoomTypeId(int roomTypeId) =>
+      relevantForCategory(
+        RoomCategoryExtension.categoryForRoomTypeId(roomTypeId),
+      );
 }
