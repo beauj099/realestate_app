@@ -13,6 +13,7 @@ class ContactCard extends StatelessWidget {
   final ValueChanged<Contact> onChanged;
   final VoidCallback? onRemove;
   final String? fullNameError;
+  final String? companyNameError;
   final String? emailError;
   final String? phoneError;
 
@@ -26,6 +27,7 @@ class ContactCard extends StatelessWidget {
     required this.onChanged,
     this.onRemove,
     this.fullNameError,
+    this.companyNameError,
     this.emailError,
     this.phoneError,
   });
@@ -76,6 +78,7 @@ class ContactCard extends StatelessWidget {
             contact: contact,
             onChanged: onChanged,
             fullNameError: fullNameError,
+            companyNameError: companyNameError,
             emailError: emailError,
             phoneError: phoneError,
           ),

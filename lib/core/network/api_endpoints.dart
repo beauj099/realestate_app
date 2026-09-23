@@ -14,6 +14,11 @@ class ApiEndpoints {
   static const String login = '/api/auth/login';
   static const String register = '/api/auth/register';
   static const String refresh = '/api/auth/refresh';
+  static const String forgotPassword = '/api/auth/forgot-password';
+  static const String resetPassword = '/api/auth/reset-password';
+
+  // Agent profile
+  static const String agentMe = '/api/agents/me';
 
   // Listings
   static const String listings = '/api/listings';
@@ -56,6 +61,10 @@ class ApiEndpoints {
 
   static String listingPhotoPrimary(int listingId, int photoId) =>
       '/api/listings/$listingId/photos/$photoId/primary';
+  static String listingDocuments(int id) => '/api/listings/$id/documents';
+
+  static String listingDocument(int listingId, int documentId) =>
+      '/api/listings/$listingId/documents/$documentId';
   static String listingParking(int id) => '/api/listings/$id/parking';
   static String listingSingleParking(int listingId, int parkingId) =>
       '/api/listings/$listingId/parking/$parkingId';

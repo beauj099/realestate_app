@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +8,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
 import '../../../../core/network/providers/api_providers.dart';
+import '../../../../core/theme/agency.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/listing_photo.dart';
@@ -46,46 +48,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.cardBackgroundColor,
-        surfaceTintColor: theme.cardBackgroundColor,
-        titleSpacing: 16,
-        // The agency mark makes it obvious whose white-label build this is.
-        title: Row(
-          children: [
-            AgencyLogo(agency: agency, size: 34),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'My Properties',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                    ),
-                  ),
-                  if (firstName != null && firstName.isNotEmpty)
-                    Text(
-                      'Welcome back, $firstName',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: theme.textSecondary,
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: theme.borderLight, height: 1),
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: theme.primaryColor,
         foregroundColor: theme.onPrimary,
@@ -142,42 +104,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
               },
       ),
-      body: listingsAsync.when(
-        data: (listings) {
-          if (listings.isEmpty) return _buildEmptyState(theme, textTheme);
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(listingsProvider.future),
-            child: ListView.separated(
-              // Bottom padding clears the floating action button so the last
-              // card is never hidden behind it.
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              itemCount: listings.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _ListingCard(listing: listings[index]),
-            ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        // TEMPORARY diagnostics: show the real failure reason on screen
-        // (plus full details in the console) so the get-listings problem
-        // can be traced. Previously this silently showed the empty state.
-        error: (error, stack) {
-          debugPrint('Home listings error: $error\n$stack');
-          if (error is DioException) {
-            debugPrint(
-              'Home listings response: '
-              '${error.response?.statusCode} ${error.response?.data}',
-            );
-          }
-          return _buildErrorState(
-            theme,
-            textTheme,
-            mapFailure(error).message,
-            onRetry: () => ref.invalidate(listingsProvider),
-          );
-        },
+      body: Column(
+        children: [
+          _HomeHeader(
+            agency: agency,
+            firstName: firstName,
+            theme: theme,
+            textTheme: textTheme,
+          ),
+          Expanded(child: _buildListings(listingsAsync, theme, textTheme)),
+        ],
       ),
+    );
+  }
+
+  Widget _buildListings(
+    AsyncValue<List<ListingSummaryDto>> listingsAsync,
+    RealEstateTheme theme,
+    TextTheme textTheme,
+  ) {
+    return listingsAsync.when(
+      data: (listings) {
+        if (listings.isEmpty) return _buildEmptyState(theme, textTheme);
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(listingsProvider.future),
+          child: ListView.separated(
+            // Bottom padding clears the floating action button so the last
+            // card is never hidden behind it.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            itemCount: listings.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) =>
+                _ListingCard(listing: listings[index]),
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      // TEMPORARY diagnostics: show the real failure reason on screen
+      // (plus full details in the console) so the get-listings problem
+      // can be traced. Previously this silently showed the empty state.
+      error: (error, stack) {
+        debugPrint('Home listings error: $error\n$stack');
+        if (error is DioException) {
+          debugPrint(
+            'Home listings response: '
+            '${error.response?.statusCode} ${error.response?.data}',
+          );
+        }
+        return _buildErrorState(
+          theme,
+          textTheme,
+          mapFailure(error).message,
+          onRetry: () => ref.invalidate(listingsProvider),
+        );
+      },
     );
   }
 
@@ -254,9 +234,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 /// A listing, identified the way an agent thinks of it.
 ///
-/// The photo and street address lead; the reference number is demoted to small
-/// print because it means nothing to the person reading it. Status stays as a
-/// badge so incomplete listings remain obvious.
+/// The photo and street address lead; the reference number is left off because
+/// it means nothing to the person reading it (it is still on the property
+/// screen). Status stays as a badge so incomplete listings remain obvious.
 class _ListingCard extends ConsumerWidget {
   final ListingSummaryDto listing;
 
@@ -372,19 +352,6 @@ class _ListingCard extends ConsumerWidget {
                               color: theme.textSecondary,
                             ),
                           ],
-                          const Spacer(),
-                          Flexible(
-                            child: Text(
-                              listing.referenceNumber,
-                              style: textTheme.labelMedium?.copyWith(
-                                color: theme.textSecondary.withValues(
-                                  alpha: 0.7,
-                                ),
-                                fontSize: 10,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
                         ],
                       ),
                     ],
@@ -427,6 +394,108 @@ class _StatusBadge extends StatelessWidget {
           color: color,
           fontWeight: FontWeight.bold,
           fontSize: 10,
+        ),
+      ),
+    );
+  }
+}
+
+/// Top of the home screen: the agency's logo filling a full-width panel, the
+/// RealWorth wordmark beneath it, then the greeting.
+///
+/// The panel takes the colour of the logo artwork's own background
+/// ([Agency.bannerColor]), so a square logo reads as filling it edge to edge.
+class _HomeHeader extends StatelessWidget {
+  final Agency agency;
+  final String? firstName;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _HomeHeader({
+    required this.agency,
+    required this.firstName,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  static const double _bannerHeight = 132;
+
+  @override
+  Widget build(BuildContext context) {
+    final banner = agency.bannerColor;
+    final isDarkBanner = banner.computeLuminance() < 0.5;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDarkBanner
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.cardBackgroundColor,
+          border: Border(bottom: BorderSide(color: theme.borderLight)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ColoredBox(
+              color: banner,
+              child: SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  height: _bannerHeight,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: agencyLogoImage(
+                        agency,
+                        bundledFit: BoxFit.contain,
+                        fallback: AgencyMonogram(
+                          agency: agency,
+                          size: _bannerHeight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The house mark is already the banner for RealWorth's own
+                  // agents, so the wordmark would only repeat it.
+                  if (agency != Agency.realWorth) ...[
+                    Image.asset(
+                      'assets/images/logo_wide.png',
+                      height: 22,
+                      // Navy artwork disappears on a dark surface.
+                      color: isDarkMode ? theme.textPrimary : null,
+                      semanticLabel: 'RealWorth',
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text(
+                    'My Properties',
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textPrimary,
+                    ),
+                  ),
+                  if (firstName != null && firstName!.isNotEmpty)
+                    Text(
+                      'Welcome back, $firstName',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

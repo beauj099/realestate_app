@@ -7,7 +7,8 @@ import '../../../../core/theme/agency.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
-import '../../../../core/widgets/searchable_picker.dart';
+import '../../../../core/widgets/scoped_brand_theme.dart';
+import '../../../settings/presentation/widgets/agency_picker.dart';
 import '../../data/models/agent_profile.dart';
 import '../../providers/agent_profile_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -20,11 +21,10 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _mobileController = TextEditingController();
-  final _agencyNameController = TextEditingController();
   final _agencyRegNoController = TextEditingController();
   final _licenceController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -34,161 +34,138 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
-  /// Listed agency the agent picked, or null when they typed a name that is
-  /// not in the registry.
-  Agency? _selectedAgency;
+  Agency? _agency;
 
-  // Inline errors driven by CustomTextInput.errorText
-  String? _fullNameError;
-  String? _emailError;
-  String? _mobileError;
-  String? _agencyNameError;
-  String? _agencyRegNoError;
-  String? _licenceError;
-  String? _passwordError;
-  String? _confirmPasswordError;
+  /// Inline errors keyed by field. Each clears as soon as its field is edited,
+  /// rather than lingering until the next submit.
+  final _errors = <String, String>{};
+
+  late final Map<String, TextEditingController> _fields = {
+    'firstName': _firstNameController,
+    'lastName': _lastNameController,
+    'email': _emailController,
+    'mobile': _mobileController,
+    'password': _passwordController,
+    'confirmPassword': _confirmPasswordController,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _fields.forEach((key, controller) {
+      controller.addListener(() {
+        if (_errors.containsKey(key)) setState(() => _errors.remove(key));
+      });
+    });
+  }
 
   @override
   void dispose() {
-    _fullNameController.dispose();
-    _emailController.dispose();
-    _mobileController.dispose();
-    _agencyNameController.dispose();
-    _agencyRegNoController.dispose();
-    _licenceController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
+    for (final c in [
+      ..._fields.values,
+      _agencyRegNoController,
+      _licenceController,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   bool _validateFields() {
-    final fullName = _fullNameController.text.trim();
     final email = _emailController.text.trim();
     final mobile = _mobileController.text.trim();
-    final agencyName = _agencyNameController.text.trim();
-    final agencyRegNo = _agencyRegNoController.text.trim();
-    final licence = _licenceController.text.trim();
     final password = _passwordController.text;
-    final confirmPassword = _confirmPasswordController.text;
 
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     final phoneRegex = RegExp(r'^[\d\+\-\s\(\)]{7,20}$');
 
-    setState(() {
-      _fullNameError = fullName.isEmpty ? 'Full name is required' : null;
-      if (email.isEmpty) {
-        _emailError = 'Email address is required';
-      } else if (!emailRegex.hasMatch(email)) {
-        _emailError = 'Enter a valid email address';
-      } else {
-        _emailError = null;
-      }
-      if (mobile.isEmpty) {
-        _mobileError = 'Mobile/contact number is required';
-      } else if (!phoneRegex.hasMatch(mobile)) {
-        _mobileError = 'Enter a valid mobile number';
-      } else {
-        _mobileError = null;
-      }
-      _agencyNameError = agencyName.isEmpty
-          ? 'Agency/company name is required'
-          : null;
-      _agencyRegNoError = agencyRegNo.isEmpty
-          ? 'Agency registration number is required'
-          : null;
-      _licenceError = licence.isEmpty
-          ? 'Licence / FFC number is required'
-          : null;
-      if (password.isEmpty) {
-        _passwordError = 'Password is required';
-      } else if (password.length < 6) {
-        _passwordError = 'Password must be at least 6 characters';
-      } else {
-        _passwordError = null;
-      }
-      if (confirmPassword.isEmpty) {
-        _confirmPasswordError = 'Please confirm your password';
-      } else if (confirmPassword != password) {
-        _confirmPasswordError = 'Passwords do not match';
-      } else {
-        _confirmPasswordError = null;
-      }
-    });
+    final errors = <String, String>{
+      if (_firstNameController.text.trim().isEmpty)
+        'firstName': 'First name is required',
+      if (_lastNameController.text.trim().isEmpty)
+        'lastName': 'Last name is required',
+      if (email.isEmpty)
+        'email': 'Email address is required'
+      else if (!emailRegex.hasMatch(email))
+        'email': 'Enter a valid email address',
+      if (mobile.isEmpty)
+        'mobile': 'Mobile number is required'
+      else if (!phoneRegex.hasMatch(mobile))
+        'mobile': 'Enter a valid mobile number',
+      if (_agency == null) 'agency': 'Select your agency',
+      if (password.isEmpty)
+        'password': 'Password is required'
+      else if (password.length < 6)
+        'password': 'At least 6 characters',
+      if (_confirmPasswordController.text != password)
+        'confirmPassword': 'Passwords do not match',
+    };
 
-    return _fullNameError == null &&
-        _emailError == null &&
-        _mobileError == null &&
-        _agencyNameError == null &&
-        _agencyRegNoError == null &&
-        _licenceError == null &&
-        _passwordError == null &&
-        _confirmPasswordError == null;
+    setState(() {
+      _errors
+        ..clear()
+        ..addAll(errors);
+    });
+    return errors.isEmpty;
   }
 
-  /// Opens the agency picker and applies the chosen brand straight away.
-  ///
-  /// An agency that is not on the list is kept as free text, and the app stays
-  /// on the house palette rather than guessing an unknown brand's colours.
   Future<void> _pickAgency() async {
-    final theme = ref.read(themeConfigProvider);
-    final result = await showSearchablePicker<Agency>(
+    final agency = await showAgencyPicker(
       context: context,
-      theme: theme,
-      title: 'Your Agency',
-      searchHint: 'Search agencies…',
-      selectedValue: _selectedAgency,
-      options: Agency.all
-          .map(
-            (a) => PickerOption<Agency>(
-              value: a,
-              label: a.name,
-              icon: Icons.apartment_outlined,
-            ),
-          )
-          .toList(),
-      customLabel: 'Use name',
-      customHint: 'Not listed —',
+      ref: ref,
+      theme: ref.read(houseThemeProvider),
+      selected: _agency,
     );
-    if (result == null) return;
-
+    if (agency == null) return;
     setState(() {
-      if (result.isCustom) {
-        _selectedAgency = null;
-        _agencyNameController.text = result.customLabel!;
-      } else {
-        _selectedAgency = result.option!.value;
-        _agencyNameController.text = _selectedAgency!.name;
-      }
-      _agencyNameError = null;
+      _agency = agency;
+      _errors.remove('agency');
     });
-
-    if (_selectedAgency != null) {
-      await ref.read(agencyProvider.notifier).setAgency(_selectedAgency!);
-    }
   }
 
   Future<void> _handleRegister() async {
     if (!_validateFields()) return;
 
-    final theme = ref.read(themeConfigProvider);
+    final theme = ref.read(houseThemeProvider);
+    final agency = _agency!;
+    final profile = AgentProfile(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      email: _emailController.text.trim(),
+      mobile: _mobileController.text.trim(),
+      agencyName: agency.name,
+      agencySlug: agency.slug,
+      agencyRegistrationNumber: _agencyRegNoController.text.trim(),
+      licenceNumber: _licenceController.text.trim(),
+    );
 
     setState(() => _isLoading = true);
+
+    // Seed first: signing in triggers a profile fetch, and the API keeps only
+    // a full name, so this is what preserves the first/last split typed here.
+    await ref.read(agentProfileProvider.notifier).seed(profile);
 
     await ref
         .read(authProvider.notifier)
         .register(
-          fullName: _fullNameController.text.trim(),
-          email: _emailController.text.trim(),
-          mobile: _mobileController.text.trim(),
-          agencyName: _agencyNameController.text.trim(),
-          agencyRegistrationNumber: _agencyRegNoController.text.trim(),
-          licenceNumber: _licenceController.text.trim(),
+          fullName: profile.fullName,
+          email: profile.email,
+          mobile: profile.mobile,
+          agencyName: profile.agencyName,
+          agencyRegistrationNumber: profile.agencyRegistrationNumber,
+          licenceNumber: profile.licenceNumber,
           password: _passwordController.text,
         );
 
+    final authState = ref.read(authProvider);
+    if (authState.status == AuthStatus.authenticated) {
+      // Brand the app for the new agent; the agency's colours take over on
+      // the home screen, not here.
+      await ref.read(agencyProvider.notifier).setAgency(agency);
+    }
+
     if (!mounted) return;
     setState(() => _isLoading = false);
-    final authState = ref.read(authProvider);
     if (authState.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -196,254 +173,231 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           backgroundColor: theme.error,
         ),
       );
-      return;
     }
-
-    // The API returns only a display name and role, so keep the rest of what
-    // was entered — it is the only copy the profile screen has to show.
-    await ref
-        .read(agentProfileProvider.notifier)
-        .save(
-          AgentProfile(
-            fullName: _fullNameController.text.trim(),
-            email: _emailController.text.trim(),
-            mobile: _mobileController.text.trim(),
-            agencyName: _agencyNameController.text.trim(),
-            agencySlug: _selectedAgency?.slug,
-            agencyRegistrationNumber: _agencyRegNoController.text.trim(),
-            licenceNumber: _licenceController.text.trim(),
-          ),
-        );
   }
+
+  Widget _passwordToggle(bool obscured, VoidCallback onPressed) {
+    final theme = ref.read(houseThemeProvider);
+    return IconButton(
+      icon: Icon(
+        obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+        size: 20,
+        color: theme.textSecondary,
+      ),
+      onPressed: onPressed,
+      iconSize: 20,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 20),
+    );
+  }
+
+  static const _toggleConstraints = BoxConstraints(
+    minWidth: 32,
+    maxWidth: 32,
+    minHeight: 20,
+    maxHeight: 20,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final theme = ref.watch(themeConfigProvider);
+    // Sign-up always wears the RealWorth brand; picking an agency here brands
+    // the app only once the account exists.
+    final theme = ref.watch(houseThemeProvider);
     final textTheme = theme.toThemeData().textTheme;
+    const gap = SizedBox(height: 12);
 
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          behavior: HitTestBehavior.opaque,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      'assets/images/logo.jpg',
-                      width: 220,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Create Account',
-                    style: textTheme.titleLarge?.copyWith(
-                      color: theme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Register as an agent',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: theme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  CustomTextInput(
-                    label: 'Full name',
-                    placeholder: 'e.g. Jane Doe',
-                    controller: _fullNameController,
-                    keyboardType: TextInputType.name,
-                    autofillHints: const ['name'],
-                    isRequired: true,
-                    errorText: _fullNameError,
-
-                    theme: theme,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Email address',
-                    placeholder: 'e.g. jane@example.com',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const ['email'],
-                    isRequired: true,
-                    errorText: _emailError,
-
-                    theme: theme,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Mobile / contact number',
-                    placeholder: 'e.g. 082 123 4567',
-                    controller: _mobileController,
-                    keyboardType: TextInputType.phone,
-                    autofillHints: const ['tel'],
-                    isRequired: true,
-                    errorText: _mobileError,
-
-                    theme: theme,
-                  ),
-                  const SizedBox(height: 16),
-                  // Picking a listed agency re-brands the app immediately, so
-                  // the agent sees their own colours before they even sign in.
-                  InkWell(
-                    onTap: _pickAgency,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: 'Agency / company name *',
-                        errorText: _agencyNameError,
-                        filled: true,
-                        fillColor: theme.cardBackgroundColor,
-                        labelStyle: textTheme.bodyLarge?.copyWith(
-                          color: theme.textSecondary,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.borderLight),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.borderLight),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
+    return ScopedBrandTheme(
+      theme: theme,
+      child: Scaffold(
+        backgroundColor: theme.backgroundColor,
+        body: SafeArea(
+          bottom: false,
+          child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            behavior: HitTestBehavior.opaque,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: AutofillGroup(
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/logo.jpg',
+                        width: 96,
+                        fit: BoxFit.contain,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _agencyNameController.text.isEmpty
-                                  ? 'Select your agency'
-                                  : _agencyNameController.text,
-                              style: textTheme.bodyLarge?.copyWith(
-                                color: _agencyNameController.text.isEmpty
-                                    ? theme.textSecondary.withValues(alpha: 0.6)
-                                    : theme.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create Agent Account',
+                      style: textTheme.titleLarge?.copyWith(
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: CustomTextInput(
+                            label: 'First name',
+                            controller: _firstNameController,
+                            keyboardType: TextInputType.name,
+                            textCapitalization: TextCapitalization.words,
+                            autofillHints: const [AutofillHints.givenName],
+                            isRequired: true,
+                            errorText: _errors['firstName'],
+                            theme: theme,
                           ),
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            color: theme.textSecondary,
-                            size: 22,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CustomTextInput(
+                            label: 'Last name',
+                            controller: _lastNameController,
+                            keyboardType: TextInputType.name,
+                            textCapitalization: TextCapitalization.words,
+                            autofillHints: const [AutofillHints.familyName],
+                            isRequired: true,
+                            errorText: _errors['lastName'],
+                            theme: theme,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Agency registration number',
-                    placeholder: 'e.g. 2021/123456/07',
-                    controller: _agencyRegNoController,
-                    keyboardType: TextInputType.text,
-                    isRequired: true,
-                    errorText: _agencyRegNoError,
-
-                    theme: theme,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Licence / FFC number',
-                    placeholder: 'e.g. FFC123456',
-                    controller: _licenceController,
-                    keyboardType: TextInputType.text,
-                    isRequired: true,
-                    errorText: _licenceError,
-                    subtext:
-                        'Professional registration / Fidelity Fund Certificate',
-
-                    theme: theme,
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Password',
-                    placeholder: 'Create a password (min 6 characters)',
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    isRequired: true,
-                    errorText: _passwordError,
-
-                    theme: theme,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: theme.textSecondary,
-                      ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 32,
-                        height: 20,
-                      ),
+                    gap,
+                    CustomTextInput(
+                      label: 'Email address',
+                      placeholder: 'e.g. jane@example.com',
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      isRequired: true,
+                      errorText: _errors['email'],
+                      theme: theme,
                     ),
-                    suffixIconConstraints: const BoxConstraints(
-                      minWidth: 32,
-                      maxWidth: 32,
-                      minHeight: 20,
-                      maxHeight: 20,
+                    gap,
+                    CustomTextInput(
+                      label: 'Mobile number',
+                      placeholder: 'e.g. 082 123 4567',
+                      controller: _mobileController,
+                      keyboardType: TextInputType.phone,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      isRequired: true,
+                      errorText: _errors['mobile'],
+                      theme: theme,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomTextInput(
-                    label: 'Confirm password',
-                    placeholder: 'Re-enter your password',
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    isRequired: true,
-                    errorText: _confirmPasswordError,
-
-                    theme: theme,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: theme.textSecondary,
+                    gap,
+                    AgencyField(
+                      agency: _agency,
+                      theme: theme,
+                      label: 'Agency *',
+                      errorText: _errors['agency'],
+                      onTap: _pickAgency,
+                    ),
+                    gap,
+                    // Optional: not every agent has these to hand at sign-up.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: CustomTextInput(
+                            label: 'Agency reg. no.',
+                            controller: _agencyRegNoController,
+                            autocorrect: false,
+                            theme: theme,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: CustomTextInput(
+                            label: 'Licence / FFC no.',
+                            controller: _licenceController,
+                            autocorrect: false,
+                            theme: theme,
+                          ),
+                        ),
+                      ],
+                    ),
+                    gap,
+                    CustomTextInput(
+                      label: 'Password',
+                      placeholder: 'At least 6 characters',
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      autofillHints: const [AutofillHints.newPassword],
+                      isRequired: true,
+                      errorText: _errors['password'],
+                      theme: theme,
+                      suffixIcon: _passwordToggle(
+                        _obscurePassword,
+                        () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
-                      onPressed: () {
-                        setState(
+                      suffixIconConstraints: _toggleConstraints,
+                    ),
+                    gap,
+                    CustomTextInput(
+                      label: 'Confirm password',
+                      controller: _confirmPasswordController,
+                      obscureText: _obscureConfirmPassword,
+                      isRequired: true,
+                      errorText: _errors['confirmPassword'],
+                      theme: theme,
+                      suffixIcon: _passwordToggle(
+                        _obscureConfirmPassword,
+                        () => setState(
                           () => _obscureConfirmPassword =
                               !_obscureConfirmPassword,
-                        );
-                      },
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 32,
-                        height: 20,
+                        ),
                       ),
+                      suffixIconConstraints: _toggleConstraints,
                     ),
-                    suffixIconConstraints: const BoxConstraints(
-                      minWidth: 32,
-                      maxWidth: 32,
-                      minHeight: 20,
-                      maxHeight: 20,
-                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Pinned so the primary action never sits below the fold, with the
+        // sign-in link directly beneath it.
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: theme.cardBackgroundColor,
+            border: Border(top: BorderSide(color: theme.borderLight)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: _isLoading
+                        ? Center(
+                            child: SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: theme.primaryColor,
+                              ),
+                            ),
+                          )
+                        : CustomButton(
+                            text: 'Create Agent Account',
+                            fullWidth: true,
+                            onTap: _handleRegister,
+                            theme: theme,
+                          ),
                   ),
-                  const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => context.go(AppRoutes.loginPath),
                     child: Text(
@@ -455,41 +409,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-      // Pinned: the form is long enough that an inline button sat below the
-      // fold and looked cut off.
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.cardBackgroundColor,
-          border: Border(top: BorderSide(color: theme.borderLight)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-            child: SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: _isLoading
-                  ? Center(
-                      child: SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: theme.primaryColor,
-                        ),
-                      ),
-                    )
-                  : CustomButton(
-                      text: 'Create Account',
-                      fullWidth: true,
-                      onTap: _handleRegister,
-                      theme: theme,
-                    ),
             ),
           ),
         ),

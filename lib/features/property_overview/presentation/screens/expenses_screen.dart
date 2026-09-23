@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../providers/property_provider.dart';
+import '../widgets/expense_documents_section.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
-/// Monthly running costs for the property.
+/// Monthly running costs for the property, and the accounts that back them.
 ///
 /// Valuation (owner's net price, agent valuation, commission) used to sit here
 /// but is a negotiated figure settled at the end rather than an expense, so it
@@ -33,9 +35,7 @@ class ExpensesScreen extends ConsumerWidget {
       onSave: () async {
         await viewModel.saveRunningCosts();
         final error = ref.read(propertyViewModelProvider).errorMessage;
-        return error == null
-            ? null
-            : friendlySaveMessage(error, 'expenses');
+        return error == null ? null : friendlySaveMessage(error, 'expenses');
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,9 +107,16 @@ class ExpensesScreen extends ConsumerWidget {
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(refuse: val),
           ),
+          const SizedBox(height: 32),
+          ExpenseDocumentsSection(
+            documents: state.documents,
+            theme: theme,
+            baseUrl: ref.watch(apiClientProvider).baseUrl,
+            onAdd: viewModel.addDocument,
+            onRemove: viewModel.removeDocument,
+          ),
         ],
       ),
     );
   }
 }
-

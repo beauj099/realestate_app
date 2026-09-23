@@ -2,6 +2,7 @@
 abstract final class AppRoutes {
   static const String loginPath = '/login';
   static const String registerPath = '/register';
+  static const String forgotPasswordPath = '/forgot-password';
   static const String homePath = '/home';
   static const String settingsPath = '/settings';
   static const String profilePath = '/profile';

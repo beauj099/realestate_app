@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
@@ -31,13 +32,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isInitialized = authState.status != AuthStatus.uninitialized;
       final isLoginRoute = state.matchedLocation == AppRoutes.loginPath;
       final isRegisterRoute = state.matchedLocation == AppRoutes.registerPath;
+      final isForgotRoute =
+          state.matchedLocation == AppRoutes.forgotPasswordPath;
+      final isAuthRoute = isLoginRoute || isRegisterRoute || isForgotRoute;
 
       if (!isInitialized) return null;
 
-      if (!isAuthenticated && !isLoginRoute && !isRegisterRoute) {
+      if (!isAuthenticated && !isAuthRoute) {
         return AppRoutes.loginPath;
       }
-      if (isAuthenticated && (isLoginRoute || isRegisterRoute)) {
+      if (isAuthenticated && isAuthRoute) {
         return AppRoutes.homePath;
       }
 
@@ -51,6 +55,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.registerPath,
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPasswordPath,
+        builder: (context, state) => ForgotPasswordScreen(
+          initialEmail: state.uri.queryParameters['email'] ?? '',
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

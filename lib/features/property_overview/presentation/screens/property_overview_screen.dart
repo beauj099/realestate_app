@@ -29,6 +29,8 @@ class PropertyOverviewScreen extends ConsumerStatefulWidget {
 
 class _PropertyOverviewScreenState
     extends ConsumerState<PropertyOverviewScreen> {
+  bool _isSaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -230,58 +232,65 @@ class _PropertyOverviewScreenState
                 ),
               ),
             ),
-            if (allComplete)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.cardBackgroundColor,
-                  border: Border(
-                    top: BorderSide(color: theme.borderLight, width: 1),
-                  ),
-                ),
-                child: SafeArea(
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: CustomButton(
-                      text: 'Submit Evaluation',
-                      onTap: () async {
-                        final success = await viewModel.submitAndSave();
-                        if (!context.mounted) return;
-                        if (success) {
-                          viewModel.reset();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text(
-                                'Evaluation submitted successfully!',
-                              ),
-                              backgroundColor: theme.primaryColor,
-                            ),
-                          );
-                          context.go(AppRoutes.homePath);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                state.errorMessage ??
-                                    'Failed to submit evaluation',
-                              ),
-                              backgroundColor: theme.error,
-                            ),
-                          );
-                        }
-                      },
+            _BottomActions(
+              theme: theme,
+              isSaving: _isSaving,
+              canSubmit: allComplete,
+              onSave: _saveAndExit,
+              onSubmit: () async {
+                final success = await viewModel.submitAndSave();
+                if (!context.mounted) return;
+                if (success) {
+                  viewModel.reset();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Evaluation submitted successfully!'),
+                      backgroundColor: theme.primaryColor,
                     ),
-                  ),
-                ),
-              ),
+                  );
+                  context.go(AppRoutes.homePath);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ref.read(propertyViewModelProvider).errorMessage ??
+                            'Failed to submit evaluation',
+                      ),
+                      backgroundColor: theme.error,
+                    ),
+                  );
+                }
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  /// Saves anything the overview still holds, then returns to the home list.
+  Future<void> _saveAndExit() async {
+    setState(() => _isSaving = true);
+    final error = await ref
+        .read(propertyViewModelProvider.notifier)
+        .saveOverview();
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    final theme = ref.read(themeConfigProvider);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: theme.error),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Property saved'),
+        backgroundColor: theme.primaryColor,
+      ),
+    );
+    ref.invalidate(listingsProvider);
+    context.go(AppRoutes.homePath);
   }
 
   Future<void> _confirmDelete(
@@ -452,4 +461,77 @@ class _SectionData {
     required this.route,
     required this.isComplete,
   });
+}
+
+/// Pinned footer: Save Property always, plus Submit Evaluation once every
+/// section is complete.
+class _BottomActions extends StatelessWidget {
+  final RealEstateTheme theme;
+  final bool isSaving;
+  final bool canSubmit;
+  final VoidCallback onSave;
+  final VoidCallback onSubmit;
+
+  const _BottomActions({
+    required this.theme,
+    required this.isSaving,
+    required this.canSubmit,
+    required this.onSave,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        border: Border(top: BorderSide(color: theme.borderLight, width: 1)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 54,
+          child: isSaving
+              ? Center(
+                  child: SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: theme.primaryColor,
+                    ),
+                  ),
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: CustomButton(
+                        text: 'Save Property',
+                        fullWidth: true,
+                        // Submit is the main action once it is available.
+                        type: canSubmit
+                            ? ButtonType.outline
+                            : ButtonType.primary,
+                        theme: theme,
+                        onTap: onSave,
+                      ),
+                    ),
+                    if (canSubmit) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: CustomButton(
+                          text: 'Submit',
+                          fullWidth: true,
+                          theme: theme,
+                          onTap: onSubmit,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
 }

@@ -37,7 +37,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('LST-2026-00001'), findsOneWidget);
+    // The reference number means nothing to an agent scanning the list.
+    expect(find.text('LST-2026-00001'), findsNothing);
     expect(find.text('No address yet'), findsOneWidget);
   });
 

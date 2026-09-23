@@ -1,4 +1,5 @@
 import 'contact.dart';
+import 'listing_document.dart';
 import 'listing_parking.dart';
 import 'listing_valuation.dart';
 import 'property_running_costs.dart';
@@ -45,6 +46,14 @@ class PropertyState {
   // Step 5: Expenses
   final ListingValuation listingValuation;
   final PropertyRunningCosts propertyRunningCosts;
+
+  /// Bills and statements (water, electricity, municipal, levies) attached
+  /// under Expenses. Picked documents stay local until the section is saved.
+  final List<ListingDocument> documents;
+
+  /// Server ids of uploaded documents removed since the last save; deleted
+  /// from the API when Expenses is saved, so backing out restores them.
+  final List<int> removedDocumentIds;
 
   /// Exterior shots of the property, first entry being the hero image.
   ///
@@ -94,6 +103,8 @@ class PropertyState {
     this.exteriorPhotos = const [],
     this.listingValuation = const ListingValuation(),
     this.propertyRunningCosts = const PropertyRunningCosts(),
+    this.documents = const [],
+    this.removedDocumentIds = const [],
     this.primaryContact = const Contact(),
     this.coContacts = const [],
     this.referenceNumber = '',
@@ -128,6 +139,8 @@ class PropertyState {
     List<String>? exteriorPhotos,
     ListingValuation? listingValuation,
     PropertyRunningCosts? propertyRunningCosts,
+    List<ListingDocument>? documents,
+    List<int>? removedDocumentIds,
     Contact? primaryContact,
     List<Contact>? coContacts,
     Object? listingId = _unset,
@@ -172,6 +185,8 @@ class PropertyState {
       exteriorPhotos: exteriorPhotos ?? this.exteriorPhotos,
       listingValuation: listingValuation ?? this.listingValuation,
       propertyRunningCosts: propertyRunningCosts ?? this.propertyRunningCosts,
+      documents: documents ?? this.documents,
+      removedDocumentIds: removedDocumentIds ?? this.removedDocumentIds,
       primaryContact: primaryContact ?? this.primaryContact,
       coContacts: coContacts ?? this.coContacts,
       referenceNumber: referenceNumber ?? this.referenceNumber,

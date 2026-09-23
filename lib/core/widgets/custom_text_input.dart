@@ -22,6 +22,12 @@ class CustomTextInput extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final RealEstateTheme? theme;
 
+  /// Off for emails, usernames and codes, where a keyboard "correction"
+  /// silently changes what the agent typed.
+  final bool autocorrect;
+  final bool enableSuggestions;
+  final TextCapitalization textCapitalization;
+
   const CustomTextInput({
     super.key,
     required this.label,
@@ -41,6 +47,9 @@ class CustomTextInput extends StatelessWidget {
     this.autofillHints,
     this.inputFormatters,
     this.theme,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -67,6 +76,9 @@ class CustomTextInput extends StatelessWidget {
       maxLines: maxLines,
       autofillHints: autofillHints,
       inputFormatters: inputFormatters,
+      autocorrect: autocorrect,
+      enableSuggestions: enableSuggestions,
+      textCapitalization: textCapitalization,
       style: textTheme.bodyLarge?.copyWith(
         fontWeight: FontWeight.w600,
         color: resolvedTheme.textPrimary,

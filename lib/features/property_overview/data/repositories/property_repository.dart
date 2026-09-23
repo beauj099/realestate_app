@@ -10,6 +10,7 @@ import '../../../../core/network/dto/listing_dtos.dart';
 import '../../../../core/network/photo_urls.dart';
 import '../models/contact.dart';
 import '../models/enums/outdoor_extra.dart';
+import '../models/listing_document.dart';
 import '../models/listing_parking.dart';
 import '../models/listing_valuation.dart';
 import '../models/property_running_costs.dart';
@@ -670,6 +671,38 @@ class PropertyRepository {
 
   Future<void> deleteListingPhoto(int listingId, int photoId) async {
     await _client.delete(ApiEndpoints.listingPhoto(listingId, photoId));
+  }
+
+  Future<List<ListingDocument>> getListingDocuments(int listingId) async {
+    final response = await _client.get(
+      ApiEndpoints.listingDocuments(listingId),
+    );
+    return (response.data as List)
+        .cast<Map<String, dynamic>>()
+        .map(ListingDocument.fromJson)
+        .toList();
+  }
+
+  Future<ListingDocument> uploadListingDocument(
+    int listingId,
+    ListingDocument document,
+  ) async {
+    final formData = FormData.fromMap({
+      'category': document.category.apiValue,
+      'file': await MultipartFile.fromFile(
+        document.localPath!,
+        filename: document.fileName,
+      ),
+    });
+    final response = await _client.post(
+      ApiEndpoints.listingDocuments(listingId),
+      data: formData,
+    );
+    return ListingDocument.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteListingDocument(int listingId, int documentId) async {
+    await _client.delete(ApiEndpoints.listingDocument(listingId, documentId));
   }
 
   Future<List<Map<String, dynamic>>> _getRoomsJson(int listingId) async {

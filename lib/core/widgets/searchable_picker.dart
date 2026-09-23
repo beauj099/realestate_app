@@ -13,11 +13,20 @@ class PickerOption<T> {
   /// Leading glyph. Options without one fall back to a neutral dot.
   final IconData? icon;
 
+  /// Replaces the [icon] tile entirely, e.g. with a brand logo.
+  final Widget? leading;
+
+  /// Kept in the list whatever is typed — for an escape hatch such as
+  /// "Other" that must stay reachable when nothing matches.
+  final bool pinned;
+
   const PickerOption({
     required this.value,
     required this.label,
     this.group,
     this.icon,
+    this.leading,
+    this.pinned = false,
   });
 }
 
@@ -27,8 +36,13 @@ class PickerResult<T> {
   final PickerOption<T>? option;
   final String? customLabel;
 
-  const PickerResult.option(this.option) : customLabel = null;
-  const PickerResult.custom(this.customLabel) : option = null;
+  /// What was in the search field when the choice was made, so a follow-up
+  /// step (e.g. naming an unlisted entry) can start from it.
+  final String query;
+
+  const PickerResult.option(this.option, {this.query = ''})
+    : customLabel = null;
+  const PickerResult.custom(this.customLabel) : option = null, query = '';
 
   bool get isCustom => customLabel != null;
 }
@@ -111,7 +125,7 @@ class _SearchablePickerSheetState<T> extends State<_SearchablePickerSheet<T>> {
     final needle = _query.trim().toLowerCase();
     if (needle.isEmpty) return widget.options;
     return widget.options
-        .where((o) => o.label.toLowerCase().contains(needle))
+        .where((o) => o.pinned || o.label.toLowerCase().contains(needle))
         .toList();
   }
 
@@ -277,8 +291,10 @@ class _SearchablePickerSheetState<T> extends State<_SearchablePickerSheet<T>> {
             ),
           ),
         InkWell(
-          onTap: () =>
-              Navigator.pop(context, PickerResult<T>.option(option)),
+          onTap: () => Navigator.pop(
+            context,
+            PickerResult<T>.option(option, query: _query.trim()),
+          ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             color: isSelected
@@ -286,19 +302,22 @@ class _SearchablePickerSheetState<T> extends State<_SearchablePickerSheet<T>> {
                 : null,
             child: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.borderLight.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    option.icon ?? Icons.circle_outlined,
-                    size: 19,
-                    color: isSelected ? theme.primaryColor : theme.textSecondary,
-                  ),
-                ),
+                option.leading ??
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: theme.borderLight.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        option.icon ?? Icons.circle_outlined,
+                        size: 19,
+                        color: isSelected
+                            ? theme.primaryColor
+                            : theme.textSecondary,
+                      ),
+                    ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(

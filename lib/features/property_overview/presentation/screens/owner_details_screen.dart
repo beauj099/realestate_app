@@ -56,6 +56,10 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
 
     _errors.removeWhere((k, v) {
       if (k == 'name') return state.primaryContact.fullName.trim().isNotEmpty;
+      if (k == 'company') {
+        return state.primaryContact.companyName.trim().isNotEmpty ||
+            state.primaryContact.ownerType != OwnerType.business;
+      }
       if (k == 'email') {
         return state.primaryContact.emailAddress.trim().isNotEmpty;
       }
@@ -118,7 +122,8 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
             onChanged: (contact) {
               viewModel.updatePrimaryContact(contact);
             },
-            fullNameError: _errors['name'] ?? _errors['company'],
+            fullNameError: _errors['name'],
+            companyNameError: _errors['company'],
             emailError: _errors['email'],
             phoneError: _errors['phone'],
           ),

@@ -38,6 +38,19 @@ class Agency {
   /// `errorBuilder` fallback still draws correctly.
   final bool hasLogoFile;
 
+  /// Bundled image to draw instead of [logoAsset], for a brand whose artwork
+  /// lives outside the agencies folder (the house logo).
+  final String? assetOverride;
+
+  /// Logo an agent uploaded for an agency they added themselves. A path on
+  /// this device, so only set on [isCustom] agencies.
+  final String? logoFilePath;
+
+  /// Fill behind the logo where it is drawn larger than a tile, e.g. the home
+  /// header. Matches the logo artwork's own background so the logo reads as
+  /// filling the panel; defaults to [primaryColor], which most tiles use.
+  final Color? _bannerColor;
+
   const Agency({
     required this.slug,
     required this.name,
@@ -46,10 +59,79 @@ class Agency {
     required this.secondaryColor,
     this.onPrimary = Colors.white,
     this.hasLogoFile = true,
-  });
+    this.assetOverride,
+    this.logoFilePath,
+    Color? bannerColor,
+  }) : _bannerColor = bannerColor;
+
+  /// An agency the agent added via "Other", worn with the house palette —
+  /// there is no brand to theme from, and guessed colours would look broken.
+  factory Agency.custom({
+    required String slug,
+    required String name,
+    String? logoFilePath,
+  }) {
+    return Agency(
+      slug: slug,
+      name: name,
+      monogram: monogramFor(name),
+      primaryColor: realWorth.primaryColor,
+      secondaryColor: realWorth.secondaryColor,
+      hasLogoFile: false,
+      logoFilePath: logoFilePath,
+      // Uploaded logos are drawn on white; without one the monogram tile
+      // carries the house colour.
+      bannerColor: logoFilePath != null ? Colors.white : null,
+    );
+  }
+
+  /// Prefix of every [Agency.custom] slug.
+  static const String customSlugPrefix = 'custom-';
+
+  bool get isCustom => slug.startsWith(customSlugPrefix);
+
+  Color get bannerColor => _bannerColor ?? primaryColor;
 
   /// Where this agency's logo is expected to live.
   String get logoAsset => 'assets/images/agencies/$slug.png';
+
+  /// The bundled image to draw, or null when the agency has none.
+  String? get imageAsset => assetOverride ?? (hasLogoFile ? logoAsset : null);
+
+  /// Up to two initials, e.g. "Bay Realty" -> "BR".
+  static String monogramFor(String name) {
+    final words = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return '?';
+    return words.take(2).map((w) => w.characters.first.toUpperCase()).join();
+  }
+
+  Map<String, dynamic> toJson() => {
+    'slug': slug,
+    'name': name,
+    'logoFilePath': logoFilePath,
+  };
+
+  factory Agency.customFromJson(Map<String, dynamic> json) => Agency.custom(
+    slug: json['slug'] as String,
+    name: json['name'] as String,
+    logoFilePath: json['logoFilePath'] as String?,
+  );
+
+  // Compared by value so a custom agency rebuilt from storage still matches
+  // the one selected before, while a changed name or logo does not.
+  @override
+  bool operator ==(Object other) =>
+      other is Agency &&
+      other.slug == slug &&
+      other.name == name &&
+      other.logoFilePath == logoFilePath;
+
+  @override
+  int get hashCode => Object.hash(slug, name, logoFilePath);
 
   /// The house brand — used when an agent has not picked an agency.
   static const Agency realWorth = Agency(
@@ -59,6 +141,8 @@ class Agency {
     primaryColor: Color(0xFF1B365D),
     secondaryColor: Color(0xFF1E1E1E),
     hasLogoFile: false,
+    assetOverride: 'assets/images/logo.jpg',
+    bannerColor: Color(0xFFF7F4E5),
   );
 
   /// South African agencies an agent can white-label the app with.
@@ -82,6 +166,7 @@ class Agency {
       // The current identity is black with a gold accent, not the older gold.
       primaryColor: Color(0xFF1C1C1C),
       secondaryColor: Color(0xFFB0985E),
+      bannerColor: Color(0xFF000000),
     ),
     Agency(
       slug: 'chas-everitt',
@@ -89,6 +174,7 @@ class Agency {
       monogram: 'CE',
       primaryColor: Color(0xFF245490),
       secondaryColor: Color(0xFFF5A623),
+      bannerColor: Colors.white,
     ),
     Agency(
       slug: 'engel-volkers',
@@ -96,6 +182,7 @@ class Agency {
       monogram: 'EV',
       primaryColor: Color(0xFFE40000),
       secondaryColor: Color(0xFF242424),
+      bannerColor: Colors.white,
     ),
     Agency(
       slug: 'harcourts',
@@ -111,6 +198,7 @@ class Agency {
       // Supplied logo is monochrome, so the palette follows the known brand.
       primaryColor: Color(0xFF0033A0),
       secondaryColor: Color(0xFFE4002B),
+      bannerColor: Colors.white,
     ),
     Agency(
       slug: 'just-property',
@@ -141,6 +229,7 @@ class Agency {
       monogram: 'LG',
       primaryColor: Color(0xFF0C183C),
       secondaryColor: Color(0xFFB0985E),
+      bannerColor: Color(0xFF112347),
     ),
     Agency(
       slug: 'meridian',
@@ -192,6 +281,7 @@ class Agency {
       monogram: 'RM',
       primaryColor: Color(0xFF003DA5),
       secondaryColor: Color(0xFFD81824),
+      bannerColor: Colors.white,
     ),
     Agency(
       slug: 'seeff',
@@ -206,6 +296,7 @@ class Agency {
       monogram: 'SIR',
       primaryColor: Color(0xFF002454),
       secondaryColor: Color(0xFFB0985E),
+      bannerColor: Colors.white,
     ),
     Agency(
       slug: 'tyson',
@@ -218,18 +309,26 @@ class Agency {
 
   /// Resolves a stored [slug] back to an agency, falling back to the house
   /// brand when the slug is unknown (e.g. removed from the registry).
-  static Agency fromSlug(String? slug) {
+  static Agency fromSlug(String? slug, {List<Agency> custom = const []}) {
     if (slug == null) return realWorth;
-    return all.firstWhere((a) => a.slug == slug, orElse: () => realWorth);
+    return [
+      ...all,
+      ...custom,
+    ].firstWhere((a) => a.slug == slug, orElse: () => realWorth);
   }
 
   /// Best-effort match of a free-text agency name typed at registration.
   ///
   /// Returns `null` when nothing matches so callers can keep the typed name
   /// without silently branding the app as the wrong agency.
-  static Agency? matchName(String? name) {
+  static Agency? matchName(String? name, {List<Agency> custom = const []}) {
     final needle = name?.trim().toLowerCase();
     if (needle == null || needle.isEmpty) return null;
+    // An exact custom name wins, so "Bay Realty" added by the agent is not
+    // swallowed by a listed agency whose name happens to contain it.
+    for (final agency in custom) {
+      if (agency.name.toLowerCase() == needle) return agency;
+    }
     for (final agency in all) {
       final haystack = agency.name.toLowerCase();
       if (haystack == needle ||
