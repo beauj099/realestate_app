@@ -85,13 +85,16 @@ class ExpenseDocumentsSection extends StatelessWidget {
         type: FileType.custom,
         allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
       );
-      final file = result?.files.single;
-      if (file?.path == null) return;
+
+      // result is a List<PlatformFile> in v13.x; if empty, user canceled.
+      if (result.isEmpty || result.single.path == null) return;
+      final file = result.single;
+
       document = ListingDocument(
         category: category,
-        fileName: file!.name,
+        fileName: file.name,
         localPath: file.path,
-        sizeBytes: file.size,
+        sizeBytes: file.lengthSync() ?? await file.length(),
       );
     } else {
       final picked = await ImagePicker().pickImage(
