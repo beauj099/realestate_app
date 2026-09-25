@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api_client.dart';
+import '../services/agency_api_service.dart';
 import '../services/agent_api_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/lookup_api_service.dart';
@@ -22,4 +23,9 @@ final lookupApiServiceProvider = Provider<LookupApiService>((ref) {
 final agentApiServiceProvider = Provider<AgentApiService>((ref) {
   final client = ref.watch(apiClientProvider);
   return AgentApiService(client);
+});
+
+final agencyApiServiceProvider = Provider<AgencyApiService>((ref) {
+  final client = ref.watch(apiClientProvider);
+  return AgencyApiService(client);
 });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'agency.dart';
+import 'agency_directory.dart';
 import 'custom_agencies.dart';
 import 'themes.dart';
 
@@ -36,9 +37,16 @@ final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
 const String _agencyPrefsKey = 'agencySlug';
 
 /// Holds the agency whose branding the app is currently wearing.
+///
+/// Follows the agency directory, so a restyle made on the server (colours,
+/// logo, name) reaches the app on its next fetch.
 class AgencyNotifier extends Notifier<Agency> {
   @override
   Agency build() {
+    ref.listen(agencyDirectoryProvider, (previous, next) {
+      final current = next.where((a) => a.slug == state.slug).firstOrNull;
+      if (current != null) state = current;
+    });
     _loadFromPrefs();
     return Agency.realWorth;
   }
@@ -47,7 +55,11 @@ class AgencyNotifier extends Notifier<Agency> {
     final prefs = await SharedPreferences.getInstance();
     final slug = prefs.getString(_agencyPrefsKey);
     if (slug != null) {
-      state = Agency.fromSlug(slug, custom: readCustomAgencies(prefs));
+      state = Agency.fromSlug(
+        slug,
+        agencies: readCachedDirectory(prefs) ?? Agency.all,
+        custom: readCustomAgencies(prefs),
+      );
     }
   }
 

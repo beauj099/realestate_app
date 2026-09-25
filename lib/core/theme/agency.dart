@@ -1,11 +1,16 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// A white-label agency brand.
 ///
 /// Each agency supplies the palette the app re-themes itself with once an agent
-/// picks it. Logos live at `assets/images/agencies/<slug>.png`; where a file is
-/// absent, [AgencyLogo] falls back to the [monogram] mark so nothing renders
-/// broken.
+/// picks it. The list comes from `GET /api/agencies` (see
+/// `agency_directory.dart`), so agencies can be added or restyled without an
+/// app release; [all] is the bundled copy used until the API answers or when
+/// it cannot be reached. Logos come from [logoUrl] (R2), falling back to
+/// `assets/images/agencies/<slug>.png` and then to the [monogram] mark, so
+/// nothing renders broken.
 ///
 /// Colours are sampled from each supplied logo rather than guessed, so the app
 /// chrome matches the artwork beside it.
@@ -30,8 +35,9 @@ class Agency {
 
   /// Whether `assets/images/agencies/<slug>.png` is bundled.
   ///
-  /// RealWorth and Acutts intentionally ship no file (see
-  /// `assets/images/agencies/README.md`) and render as monogram tiles.
+  /// RealWorth has no file here (its logo is [assetOverride]), and agencies
+  /// that only exist in the API have none; those fall back to [logoUrl] or a
+  /// monogram tile (see `assets/images/agencies/README.md`).
   /// [AgencyLogo] checks this first so it never issues an [Image.asset]
   /// fetch for a file that cannot exist — on web that fetch logs a 404
   /// ("assets/assets/images/agencies/`<slug>`.png") even though the
@@ -43,8 +49,12 @@ class Agency {
   final String? assetOverride;
 
   /// Logo an agent uploaded for an agency they added themselves. A path on
-  /// this device, so only set on [isCustom] agencies.
+  /// this device, so only set on [isCustom] agencies not yet sent to the API.
   final String? logoFilePath;
+
+  /// The logo served by the API (an R2 URL). Preferred over the bundled file,
+  /// so a logo can change without an app release.
+  final String? logoUrl;
 
   /// Fill behind the logo where it is drawn larger than a tile, e.g. the home
   /// header. Matches the logo artwork's own background so the logo reads as
@@ -61,6 +71,7 @@ class Agency {
     this.hasLogoFile = true,
     this.assetOverride,
     this.logoFilePath,
+    this.logoUrl,
     Color? bannerColor,
   }) : _bannerColor = bannerColor;
 
@@ -69,20 +80,107 @@ class Agency {
   factory Agency.custom({
     required String slug,
     required String name,
+    String? monogram,
     String? logoFilePath,
+    String? logoUrl,
   }) {
+    final hasLogo = logoFilePath != null || logoUrl != null;
     return Agency(
       slug: slug,
       name: name,
-      monogram: monogramFor(name),
+      monogram: monogram ?? monogramFor(name),
       primaryColor: realWorth.primaryColor,
       secondaryColor: realWorth.secondaryColor,
       hasLogoFile: false,
       logoFilePath: logoFilePath,
+      logoUrl: logoUrl,
       // Uploaded logos are drawn on white; without one the monogram tile
       // carries the house colour.
-      bannerColor: logoFilePath != null ? Colors.white : null,
+      bannerColor: hasLogo ? Colors.white : null,
     );
+  }
+
+  /// An agency as `GET /api/agencies` returns it.
+  ///
+  /// Null colours mean the house palette (agent-added agencies have none). A
+  /// listed agency keeps its bundled logo file as the offline fallback. If the
+  /// text colour sent would be hard to read on the primary, the more legible
+  /// of dark and white ink is used instead.
+  factory Agency.fromApi(Map<String, dynamic> json) {
+    final slug = json['slug'] as String;
+    final name = json['name'] as String;
+    final monogram = json['monogram'] as String?;
+    final logoUrl = json['logoUrl'] as String?;
+    final primary = parseHexColor(json['primaryColor']);
+    if (json['isCustom'] == true || primary == null) {
+      return Agency.custom(
+        slug: slug,
+        name: name,
+        monogram: monogram,
+        logoUrl: logoUrl,
+      );
+    }
+    final bundled = all.where((a) => a.slug == slug).firstOrNull;
+    return Agency(
+      slug: slug,
+      name: name,
+      monogram: monogram ?? monogramFor(name),
+      primaryColor: primary,
+      secondaryColor:
+          parseHexColor(json['secondaryColor']) ?? realWorth.secondaryColor,
+      onPrimary: legibleInk(primary, parseHexColor(json['onPrimaryColor'])),
+      hasLogoFile: bundled?.hasLogoFile ?? false,
+      assetOverride: bundled?.assetOverride,
+      logoUrl: logoUrl,
+      bannerColor: parseHexColor(json['bannerColor']),
+    );
+  }
+
+  /// The API shape, for caching the directory on the device.
+  Map<String, dynamic> toApiJson() => {
+    'slug': slug,
+    'name': name,
+    'monogram': monogram,
+    'primaryColor': isCustom ? null : hexOf(primaryColor),
+    'secondaryColor': isCustom ? null : hexOf(secondaryColor),
+    'onPrimaryColor': isCustom ? null : hexOf(onPrimary),
+    'bannerColor': isCustom || _bannerColor == null
+        ? null
+        : hexOf(_bannerColor),
+    'logoUrl': logoUrl,
+    'isCustom': isCustom,
+  };
+
+  /// "#1B365D" -> colour; null for anything else.
+  static Color? parseHexColor(Object? value) {
+    if (value is! String) return null;
+    final match = RegExp(r'^#([0-9a-fA-F]{6})$').firstMatch(value.trim());
+    if (match == null) return null;
+    return Color(0xFF000000 | int.parse(match.group(1)!, radix: 16));
+  }
+
+  /// Colour -> "#1B365D".
+  static String hexOf(Color color) {
+    final rgb = color.toARGB32() & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  /// [preferred] when it reads clearly (WCAG AA, 4.5:1) on [background],
+  /// otherwise whichever of near-black and white contrasts more.
+  static Color legibleInk(Color background, Color? preferred) {
+    double ratio(Color a, Color b) {
+      final la = a.computeLuminance();
+      final lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    if (preferred != null && ratio(background, preferred) >= 4.5) {
+      return preferred;
+    }
+    const dark = Color(0xFF1E1E1E);
+    return ratio(background, dark) >= ratio(background, Colors.white)
+        ? dark
+        : Colors.white;
   }
 
   /// Prefix of every [Agency.custom] slug.
@@ -121,17 +219,32 @@ class Agency {
     logoFilePath: json['logoFilePath'] as String?,
   );
 
-  // Compared by value so a custom agency rebuilt from storage still matches
-  // the one selected before, while a changed name or logo does not.
+  // Compared by value so an agency rebuilt from storage or the API still
+  // matches the one selected before, while a restyle (name, logo, colours)
+  // does not, so the app re-themes.
   @override
   bool operator ==(Object other) =>
       other is Agency &&
       other.slug == slug &&
       other.name == name &&
-      other.logoFilePath == logoFilePath;
+      other.logoFilePath == logoFilePath &&
+      other.logoUrl == logoUrl &&
+      other.primaryColor == primaryColor &&
+      other.secondaryColor == secondaryColor &&
+      other.onPrimary == onPrimary &&
+      other.bannerColor == bannerColor;
 
   @override
-  int get hashCode => Object.hash(slug, name, logoFilePath);
+  int get hashCode => Object.hash(
+    slug,
+    name,
+    logoFilePath,
+    logoUrl,
+    primaryColor,
+    secondaryColor,
+    onPrimary,
+    bannerColor,
+  );
 
   /// The house brand — used when an agent has not picked an agency.
   static const Agency realWorth = Agency(
@@ -145,7 +258,8 @@ class Agency {
     bannerColor: Color(0xFFF7F4E5),
   );
 
-  /// South African agencies an agent can white-label the app with.
+  /// The bundled agencies: the offline fallback for `GET /api/agencies`,
+  /// which is where new agencies are added now (no app release needed).
   ///
   /// Listed after the house brand and otherwise alphabetical. Only add artwork
   /// you have the right to distribute; these are third-party trademarks.
@@ -155,9 +269,9 @@ class Agency {
       slug: 'acutts',
       name: 'Acutts Real Estate',
       monogram: 'AC',
-      primaryColor: Color(0xFF00447C),
-      secondaryColor: Color(0xFFE30613),
-      hasLogoFile: false,
+      primaryColor: Color(0xFFE4002B),
+      secondaryColor: Color(0xFF1E1E1E),
+      bannerColor: Color(0xFFE4002B),
     ),
     Agency(
       slug: 'century-21',
@@ -307,12 +421,17 @@ class Agency {
     ),
   ];
 
-  /// Resolves a stored [slug] back to an agency, falling back to the house
-  /// brand when the slug is unknown (e.g. removed from the registry).
-  static Agency fromSlug(String? slug, {List<Agency> custom = const []}) {
+  /// Resolves a stored [slug] back to an agency among [agencies] (by default
+  /// the bundled list) and [custom], falling back to the house brand when the
+  /// slug is unknown (e.g. removed from the directory).
+  static Agency fromSlug(
+    String? slug, {
+    List<Agency> agencies = all,
+    List<Agency> custom = const [],
+  }) {
     if (slug == null) return realWorth;
     return [
-      ...all,
+      ...agencies,
       ...custom,
     ].firstWhere((a) => a.slug == slug, orElse: () => realWorth);
   }
@@ -321,15 +440,19 @@ class Agency {
   ///
   /// Returns `null` when nothing matches so callers can keep the typed name
   /// without silently branding the app as the wrong agency.
-  static Agency? matchName(String? name, {List<Agency> custom = const []}) {
+  static Agency? matchName(
+    String? name, {
+    List<Agency> agencies = all,
+    List<Agency> custom = const [],
+  }) {
     final needle = name?.trim().toLowerCase();
     if (needle == null || needle.isEmpty) return null;
-    // An exact custom name wins, so "Bay Realty" added by the agent is not
-    // swallowed by a listed agency whose name happens to contain it.
-    for (final agency in custom) {
+    // An exact name wins, so "Bay Realty" added by an agent is not swallowed
+    // by a listed agency whose name happens to contain it.
+    for (final agency in [...custom, ...agencies]) {
       if (agency.name.toLowerCase() == needle) return agency;
     }
-    for (final agency in all) {
+    for (final agency in agencies.where((a) => !a.isCustom)) {
       final haystack = agency.name.toLowerCase();
       if (haystack == needle ||
           haystack.contains(needle) ||

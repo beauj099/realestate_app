@@ -5,9 +5,9 @@ import '../../../../core/widgets/platform_image.dart';
 
 /// Draws an agency's brand mark.
 ///
-/// In order of preference: a logo the agent uploaded for an agency they added
-/// ([Agency.logoFilePath]), the bundled artwork ([Agency.imageAsset]), then a
-/// monogram tile. Agencies with no bundled file skip the [Image.asset] load
+/// In order of preference: a logo picked on this device
+/// ([Agency.logoFilePath]), the API's logo ([Agency.logoUrl]), the bundled
+/// artwork ([Agency.imageAsset]), then a monogram tile. Agencies with no bundled file skip the [Image.asset] load
 /// entirely, so web builds never log a 404 for a file that does not exist.
 class AgencyLogo extends StatelessWidget {
   final Agency agency;
@@ -32,8 +32,12 @@ class AgencyLogo extends StatelessWidget {
 
 /// The agency's artwork, unclipped, or [fallback] when it has none.
 ///
-/// Uploaded logos can be any shape, so they are contained on white rather
-/// than cropped; bundled logos are square tiles and fill their box.
+/// In order: a logo picked on this device, the API's logo ([Agency.logoUrl]),
+/// the bundled file, then [fallback]. The bundled file (or [fallback]) also
+/// stands in while the API logo loads or when it cannot be fetched.
+///
+/// Agent-added logos can be any shape, so they are contained on white rather
+/// than cropped; listed agencies' logos are square tiles and fill their box.
 Widget agencyLogoImage(
   Agency agency, {
   required Widget fallback,
@@ -50,15 +54,28 @@ Widget agencyLogoImage(
       ),
     );
   }
+
   final asset = agency.imageAsset;
-  if (asset != null) {
-    return Image.asset(
-      asset,
-      fit: bundledFit,
-      errorBuilder: (context, error, stackTrace) => fallback,
-    );
-  }
-  return fallback;
+  final bundled = asset == null
+      ? fallback
+      : Image.asset(
+          asset,
+          fit: bundledFit,
+          errorBuilder: (context, error, stackTrace) => fallback,
+        );
+
+  final url = agency.logoUrl;
+  if (url == null) return bundled;
+  final network = Image.network(
+    url,
+    fit: agency.isCustom ? BoxFit.contain : bundledFit,
+    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+        frame == null && !wasSynchronouslyLoaded ? bundled : child,
+    errorBuilder: (context, error, stackTrace) => bundled,
+  );
+  return agency.isCustom
+      ? ColoredBox(color: Colors.white, child: network)
+      : network;
 }
 
 /// Initials on the brand colour, for agencies without artwork.

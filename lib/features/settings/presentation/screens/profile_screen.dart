@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/theme/agency.dart';
-import '../../../../core/theme/custom_agencies.dart';
+import '../../../../core/theme/agency_directory.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -273,8 +273,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Keep agent-added agencies current if one is added from the picker.
-    ref.watch(customAgenciesProvider);
+    // Keep the agency list current if one is added from the picker.
+    ref.watch(selectableAgenciesProvider);
     // Preview the selected agency here only; the global brand changes on save.
     final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
     final theme = isDark

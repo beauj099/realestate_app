@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (169 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (177 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -58,9 +58,11 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 
 ## White-labelling
 
-Agencies live in `lib/core/theme/agency.dart`; the selected one is held by `agencyProvider` (persisted to `SharedPreferences`) and drives `themeConfigProvider` via `RealEstateTheme.fromAgency` / `fromAgencyDark`. Logos are optional files at `assets/images/agencies/<slug>.png`, and `AgencyLogo` falls back to a monogram tile when one is absent. Adding an agency means one `Agency` entry plus, optionally, a logo file and a `bannerColor` matching the logo's background (used by the full-width home header).
+Agencies come from the API: `agencyDirectoryProvider` (`lib/core/theme/agency_directory.dart`) loads `GET /api/agencies` (public, so registration works signed out), caches it in `SharedPreferences`, and falls back to the bundled `Agency.all` in `lib/core/theme/agency.dart`. The selected agency is held by `agencyProvider` (slug persisted to `SharedPreferences`), follows server restyles, and drives `themeConfigProvider` via `RealEstateTheme.fromAgency` / `fromAgencyDark`.
 
-- Agents can add an unlisted agency ("Other" in `showAgencyPicker`) with an optional logo; these are device-local (`customAgenciesProvider`, `lib/core/theme/custom_agencies.dart`) and use the house palette.
+- **Adding or restyling an agency is a database change, not an app release**: a row in `dbo.Agencies` plus a logo uploaded to R2 by `tools/SeedAgencyLogos` in the API repo (see its README). `Agency.fromApi` swaps in legible text ink if the colours sent fail contrast.
+- Logos: `AgencyLogo` / `agencyLogoImage` draw `logoUrl` (R2), showing the bundled `assets/images/agencies/<slug>.png` while it loads or when offline, then a monogram tile. Bundled files and `Agency.all` are only the offline fallback now.
+- Agents can add an unlisted agency ("Other" in `showAgencyPicker`) with an optional logo. It is posted to the API and shared with every agent (house palette, logo on white). If the API cannot take it (offline, or during registration before the account exists) it is kept on the device (`customAgenciesProvider`) and `syncLocalAgencies` sends it up at the next sign-in.
 - Login, register and password reset always use the house theme (`houseThemeProvider` + `ScopedBrandTheme`), never the selected agency's.
 - The profile screen previews a newly picked agency locally; `agencyProvider` only changes on Save.
 

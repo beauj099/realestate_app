@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/agency.dart';
-import '../../../../core/theme/custom_agencies.dart';
+import '../../../../core/theme/agency_directory.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
@@ -26,8 +26,9 @@ const Agency _otherAgency = Agency(
 /// agent backed out.
 ///
 /// Each row shows the agency's logo. "Other" lets the agent name an agency
-/// that is not listed and optionally add its logo; it is then saved on this
-/// device and offered in every later agency picker.
+/// that is not listed and optionally add its logo; it is then added to the
+/// shared directory, so every agent can pick it (kept on this device until
+/// the API can take it, e.g. during registration).
 Future<Agency?> showAgencyPicker({
   required BuildContext context,
   required WidgetRef ref,
@@ -69,8 +70,8 @@ Future<Agency?> showAgencyPicker({
   );
   if (added == null) return null;
   return ref
-      .read(customAgenciesProvider.notifier)
-      .add(name: added.name, logoSourcePath: added.logoPath);
+      .read(agencyDirectoryProvider.notifier)
+      .add(name: added.name, logoPath: added.logoPath);
 }
 
 typedef _NewAgency = ({String name, String? logoPath});

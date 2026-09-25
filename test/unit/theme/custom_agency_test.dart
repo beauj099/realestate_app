@@ -51,7 +51,10 @@ void main() {
 
   test('the house brand draws its bundled logo, not a monogram', () {
     expect(Agency.realWorth.imageAsset, 'assets/images/logo.jpg');
-    expect(Agency.fromSlug('acutts').imageAsset, isNull);
+    expect(
+      Agency.fromSlug('acutts').imageAsset,
+      'assets/images/agencies/acutts.png',
+    );
     expect(
       Agency.fromSlug('remax').imageAsset,
       'assets/images/agencies/remax.png',

@@ -1,4 +1,10 @@
-# Agency logos
+# Agency logos (offline fallback)
+
+The agency list and logos now come from the API (`GET /api/agencies`, logos in
+the R2 bucket under `agencies/`), so **new agencies are added in the database,
+not here**: see `tools/SeedAgencyLogos/README.md` in the API repo. These files
+are the bundled copies the app shows before the API answers or when it cannot
+be reached.
 
 One file per agency, named `<slug>.png`, where `<slug>` matches the `slug`
 field in `lib/core/theme/agency.dart`.
@@ -6,7 +12,7 @@ field in `lib/core/theme/agency.dart`.
 | Agency                                    | File                            | Supplied |
 | ----------------------------------------- | ------------------------------- | -------- |
 | RealWorth (house brand)                   | `realworth.png`                 | —        |
-| Acutts Real Estate                        | `acutts.png`                    | —        |
+| Acutts Real Estate                        | `acutts.png`                    | yes      |
 | Century 21                                | `century-21.png`                | yes      |
 | Chas Everitt                              | `chas-everitt.png`              | yes      |
 | Engel & Völkers                           | `engel-volkers.png`             | yes      |
@@ -27,7 +33,7 @@ field in `lib/core/theme/agency.dart`.
 | Sotheby's International Realty            | `sothebys.png`                  | yes      |
 | Tyson Properties                          | `tyson.png`                     | yes      |
 
-RealWorth and Acutts have no file and render as monogram tiles.
+RealWorth has no file here; its logo is `assets/images/logo.jpg`.
 
 ## Requirements
 
@@ -36,7 +42,9 @@ RealWorth and Acutts have no file and render as monogram tiles.
 - At least 256×256. The existing files are up to 512×512.
 - Transparent or brand-coloured background, both work.
 
-## Adding an agency
+## Adding an agency to the bundled fallback
+
+Only needed for an agency that should also show offline on a fresh install.
 
 1. Add an `Agency` entry to `lib/core/theme/agency.dart` with its brand colours.
    Sample them from the logo rather than guessing — several of the originals
