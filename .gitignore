@@ -1,3 +1,21 @@
+# =====================================================================
+# SECRETS -- never commit.
+# =====================================================================
+.env
+.env.*
+!example.env
+# Android signing (release keystore and its passwords)
+*.jks
+*.keystore
+android/key.properties
+# iOS signing / provisioning
+*.p12
+*.mobileprovision
+*.cer
+# Firebase / Google service configs
+google-services.json
+GoogleService-Info.plist
+
 # Miscellaneous
 *.class
 *.log
@@ -11,7 +29,6 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-.env
 
 # IntelliJ related
 *.iml
