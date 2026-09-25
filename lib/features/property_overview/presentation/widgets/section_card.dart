@@ -85,41 +85,19 @@ class SectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
+                // A coloured mark rather than a text pill, so the title keeps
+                // the width. Still announced to screen readers.
+                Tooltip(
+                  message: isComplete ? 'Complete' : 'Required details missing',
+                  child: Icon(
+                    isComplete
+                        ? Icons.check_circle_rounded
+                        : Icons.error_outline_rounded,
+                    size: 24,
                     color: isComplete
-                        ? theme.completeColor.withValues(alpha: 0.1)
-                        : theme.pendingColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isComplete
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        size: 14,
-                        color: isComplete
-                            ? theme.completeColor
-                            : theme.pendingColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isComplete ? 'Done' : 'Incomplete',
-                        style: textTheme.labelLarge?.copyWith(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isComplete
-                              ? theme.completeColor
-                              : theme.pendingColor,
-                        ),
-                      ),
-                    ],
+                        ? theme.completeColor
+                        : theme.pendingColor,
+                    semanticLabel: isComplete ? 'Complete' : 'Incomplete',
                   ),
                 ),
                 const SizedBox(width: 4),

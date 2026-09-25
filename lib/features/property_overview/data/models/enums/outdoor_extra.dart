@@ -60,6 +60,7 @@ enum OutdoorExtra {
   perimeterWall('Perimeter Wall', OutdoorExtraCategory.security),
   automatedGate('Automated Gate', OutdoorExtraCategory.security),
   alarmSystem('Alarm System', OutdoorExtraCategory.security),
+  intercom('Intercom', OutdoorExtraCategory.security),
   cctv('CCTV / Cameras', OutdoorExtraCategory.security),
   boomedArea('Boomed Area / Security Estate', OutdoorExtraCategory.security),
   accessControl('24-Hour Access Control', OutdoorExtraCategory.security),

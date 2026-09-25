@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'contact.dart';
 import 'listing_document.dart';
 import 'listing_parking.dart';
 import 'listing_valuation.dart';
 import 'property_running_costs.dart';
 import 'room.dart';
+import 'room_score.dart';
 
 /// Sentinel used by [PropertyState.copyWith] to distinguish an explicit `null`
 /// argument (which should clear a nullable field) from "argument not provided"
@@ -73,6 +76,14 @@ class PropertyState {
   // Listing metadata
   final String referenceNumber;
   final String? p24Ref;
+
+  /// House score saved on the listing, as a percentage. Either the app's
+  /// suggestion ([houseScoreIsManual] false) or the agent's own figure.
+  final double? savedHouseScore;
+
+  /// True once the agent has set the house score themselves; the app then
+  /// stops replacing it with its suggestion.
+  final bool houseScoreIsManual;
   final String? errorMessage;
 
   PropertyState({
@@ -109,6 +120,8 @@ class PropertyState {
     this.coContacts = const [],
     this.referenceNumber = '',
     this.p24Ref,
+    this.savedHouseScore,
+    this.houseScoreIsManual = false,
     this.errorMessage,
   });
 
@@ -146,6 +159,8 @@ class PropertyState {
     Object? listingId = _unset,
     String? referenceNumber,
     Object? p24Ref = _unset,
+    Object? savedHouseScore = _unset,
+    bool? houseScoreIsManual,
     Object? errorMessage = _unset,
   }) {
     return PropertyState(
@@ -191,9 +206,191 @@ class PropertyState {
       coContacts: coContacts ?? this.coContacts,
       referenceNumber: referenceNumber ?? this.referenceNumber,
       p24Ref: identical(p24Ref, _unset) ? this.p24Ref : p24Ref as String?,
+      savedHouseScore: identical(savedHouseScore, _unset)
+          ? this.savedHouseScore
+          : savedHouseScore as double?,
+      houseScoreIsManual: houseScoreIsManual ?? this.houseScoreIsManual,
       errorMessage: identical(errorMessage, _unset)
           ? this.errorMessage
           : errorMessage as String?,
     );
   }
+
+  /// Whether [other] holds the same data, ignoring UI-only state (the room
+  /// being edited, an error message, which owner-type tab is showing) and
+  /// timestamps.
+  ///
+  /// Section screens use this to decide whether backing out loses anything:
+  /// toggling between owner types, or typing then deleting a value, leaves
+  /// the content unchanged and should not prompt.
+  bool sameContentAs(PropertyState other) =>
+      jsonEncode(_content()) == jsonEncode(other._content());
+
+  List<Object?> _content() => [
+    propertyTypeId,
+    p24Ref,
+    streetNumber.trim(),
+    street.trim(),
+    unitNumber.trim(),
+    suburb.trim(),
+    city.trim(),
+    province.trim(),
+    country.trim(),
+    postalCode.trim(),
+    estateName.trim(),
+    erfNumber.trim(),
+    latitude,
+    longitude,
+    erfSize.trim(),
+    floorArea.trim(),
+    constructionYear.trim(),
+    facingId,
+    zoningId,
+    [
+      for (final r in rooms)
+        [
+          r.id,
+          r.name,
+          r.roomTypeId,
+          r.roomTypeOther,
+          r.conditionRating,
+          r.score,
+          r.notes.trim(),
+          [for (final p in r.photos) p.path],
+          [for (final f in r.features) f.description],
+        ],
+    ],
+    [
+      for (final p in parking) [p.parkingTypeId, p.quantity],
+    ],
+    outdoorFeatures,
+    exteriorPhotos,
+    [
+      listingValuation.ownersNetPrice.trim(),
+      listingValuation.agentValuation.trim(),
+      listingValuation.commissionPercent.trim(),
+    ],
+    [
+      propertyRunningCosts.monthlyLevy.trim(),
+      propertyRunningCosts.monthlyRates.trim(),
+      propertyRunningCosts.electricity.trim(),
+      propertyRunningCosts.water.trim(),
+      propertyRunningCosts.sewage.trim(),
+      propertyRunningCosts.refuse.trim(),
+    ],
+    [
+      for (final d in documents) [d.id, d.localPath, d.category.name],
+    ],
+    removedDocumentIds,
+    [
+      for (final c in [primaryContact, ...coContacts]) _contactContent(c),
+    ],
+  ];
+
+  static List<String> _contactContent(Contact c) => [
+    c.fullName.trim(),
+    c.idNumber.trim(),
+    c.companyName.trim(),
+    c.companyRegistrationNumber.trim(),
+    c.mobilePhone.trim(),
+    c.emailAddress.trim(),
+    c.role.trim(),
+  ];
+
+  /// Whether the agent has captured anything worth keeping.
+  ///
+  /// The property type alone does not count: a listing that is only "a house"
+  /// is indistinguishable from the next one on the home screen, so leaving it
+  /// untouched discards it rather than cluttering the list.
+  bool get hasMeaningfulContent {
+    final emptyContact = _contactContent(const Contact()).join();
+    return [
+          streetNumber,
+          street,
+          unitNumber,
+          suburb,
+          city,
+          estateName,
+          erfNumber,
+          erfSize,
+          floorArea,
+          constructionYear,
+          p24Ref ?? '',
+          listingValuation.ownersNetPrice,
+          listingValuation.agentValuation,
+          listingValuation.commissionPercent,
+        ].any((v) => v.trim().isNotEmpty) ||
+        latitude != null ||
+        facingId != null ||
+        zoningId != null ||
+        rooms.isNotEmpty ||
+        parking.isNotEmpty ||
+        outdoorFeatures.isNotEmpty ||
+        exteriorPhotos.isNotEmpty ||
+        documents.isNotEmpty ||
+        isExpensesComplete ||
+        [
+          primaryContact,
+          ...coContacts,
+        ].any((c) => _contactContent(c).join() != emptyContact);
+  }
+
+  // --- Section completeness -------------------------------------------------
+  // "Complete" means every field the section's Save requires is filled in, so
+  // the overview's ticks agree with what each screen validates.
+
+  bool get isAddressComplete =>
+      street.trim().isNotEmpty &&
+      city.trim().isNotEmpty &&
+      country.trim().isNotEmpty;
+
+  bool get isBuildingInfoComplete =>
+      erfSize.trim().isNotEmpty || floorArea.trim().isNotEmpty;
+
+  /// A room is "rated" once it has a condition rating or a score — either
+  /// shows the agent has assessed it rather than just listed it.
+  static bool isRoomRated(Room room) =>
+      room.conditionRating != null || room.score != null;
+
+  int get ratedRoomCount => rooms.where(isRoomRated).length;
+
+  /// Complete once there is at least one room and every room is rated.
+  bool get isFeaturesComplete =>
+      rooms.isNotEmpty && ratedRoomCount == rooms.length;
+
+  bool get isExpensesComplete => [
+    propertyRunningCosts.monthlyLevy,
+    propertyRunningCosts.monthlyRates,
+    propertyRunningCosts.electricity,
+    propertyRunningCosts.water,
+    propertyRunningCosts.sewage,
+    propertyRunningCosts.refuse,
+  ].any((v) => v.trim().isNotEmpty);
+
+  bool get isOwnerComplete {
+    final c = primaryContact;
+    final base =
+        c.fullName.trim().isNotEmpty &&
+        c.emailAddress.trim().isNotEmpty &&
+        c.mobilePhone.trim().isNotEmpty;
+    if (c.ownerType == OwnerType.business) {
+      return base && c.companyName.trim().isNotEmpty;
+    }
+    return base;
+  }
+
+  bool get isValuationComplete =>
+      listingValuation.ownersNetPrice.trim().isNotEmpty;
+
+  /// The app's suggested house score as a percentage: the room scores,
+  /// weighted by how much each kind of room matters (see
+  /// [RoomScore.weightFor]). Null until a room is scored.
+  double? get suggestedHouseScore => RoomScore.suggestedHousePercent(rooms);
+
+  /// The house score to show: the agent's own figure when they set one,
+  /// otherwise the suggestion.
+  double? get houseScore =>
+      houseScoreIsManual ? savedHouseScore : suggestedHouseScore;
+
+  int get scoredRoomCount => rooms.where((r) => r.score != null).length;
 }

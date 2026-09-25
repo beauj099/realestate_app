@@ -39,6 +39,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isSaving = false;
   bool _isDirty = false;
 
+  /// What the form held when it was last filled from the profile. Backing out
+  /// only asks to discard when the form differs from this — editing a field
+  /// and putting it back, or re-picking the same agency, is not a change.
+  String _baseline = '';
+
+  String get _formContent => [
+    for (final c in _fields.values) c.text.trim(),
+    _agency.slug,
+  ].join('\u0000');
+
+  bool get _hasChanges => _formContent != _baseline;
+
   /// Inline errors keyed by field, cleared as soon as that field is edited.
   final _errors = <String, String>{};
 
@@ -57,7 +69,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _mobileController = TextEditingController();
     _agencyRegNoController = TextEditingController();
     _licenceController = TextEditingController();
-    _populate(ref.read(agentProfileProvider));
 
     _fields = {
       'firstName': _firstNameController,
@@ -67,6 +78,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'agencyRegistrationNumber': _agencyRegNoController,
       'licenceNumber': _licenceController,
     };
+    _populate(ref.read(agentProfileProvider));
     _fields.forEach((key, controller) {
       var lastText = controller.text;
       controller.addListener(() {
@@ -108,6 +120,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _licenceController.text = profile.licenceNumber;
     _populating = false;
     _agency = ref.read(agencyProvider);
+    _baseline = _formContent;
   }
 
   @override
@@ -215,7 +228,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleBack(RealEstateTheme theme) async {
-    if (!_isDirty) {
+    if (!_hasChanges) {
       if (mounted) context.pop();
       return;
     }

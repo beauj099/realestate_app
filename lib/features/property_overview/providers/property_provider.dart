@@ -8,7 +8,6 @@ import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/photo_urls.dart';
 import '../../../../core/network/providers/api_providers.dart';
-import '../data/default_features.dart';
 import '../data/models/contact.dart';
 import '../data/models/listing_document.dart';
 import '../data/models/listing_parking.dart';
@@ -67,6 +66,11 @@ class PropertyViewModel extends Notifier<PropertyState> {
   /// address photos by id for primary/delete.
   final Map<String, int> _exteriorPhotoIds = {};
 
+  /// True once the whole listing is known locally — created here, or loaded
+  /// with its photos and documents. [discardIfEmpty] relies on it: a listing
+  /// that only *looks* empty because a request failed must never be deleted.
+  bool _fullyLoaded = false;
+
   @override
   PropertyState build() {
     _repository = ref.watch(propertyRepositoryProvider);
@@ -92,11 +96,13 @@ class PropertyViewModel extends Notifier<PropertyState> {
 
   /// Whether anything changed since the section screen opened.
   ///
-  /// Compares by identity: any mutation produces a new [PropertyState], so a
-  /// value typed and then retyped identically still counts as a change. That
-  /// errs toward asking before discarding, which is the safe direction.
-  bool get hasUnsavedSectionChanges =>
-      _sectionSnapshot != null && !identical(_sectionSnapshot, state);
+  /// Compares content, not identity, so switching the owner type with nothing
+  /// typed, or typing a value and deleting it again, is not a change and does
+  /// not trigger the discard prompt.
+  bool get hasUnsavedSectionChanges {
+    final snapshot = _sectionSnapshot;
+    return snapshot != null && !snapshot.sameContentAs(state);
+  }
 
   Future<int> createNewListing() async {
     final result = await _repository.createListing(
@@ -108,11 +114,33 @@ class PropertyViewModel extends Notifier<PropertyState> {
         listingId: result.id,
         referenceNumber: result.referenceNumber,
       );
+      _fullyLoaded = true;
     }
     return result.id;
   }
 
+  /// Deletes the listing when the agent leaves it without capturing anything
+  /// worth keeping (see [PropertyState.hasMeaningfulContent]), so an untouched
+  /// "Add Property" never lingers on the home screen as an empty card.
+  ///
+  /// Returns true when the listing was discarded.
+  Future<bool> discardIfEmpty() async {
+    final id = state.listingId;
+    if (id == null || !_fullyLoaded || state.hasMeaningfulContent) {
+      return false;
+    }
+    try {
+      await _repository.deleteListing(id);
+      return true;
+    } catch (e) {
+      developer.log('Discarding empty listing failed: $e');
+      return false;
+    }
+  }
+
   Future<void> loadListing(int id) async {
+    _fullyLoaded = false;
+    var complete = true;
     try {
       final loaded = await _repository.loadListing(id);
       if (!ref.mounted) return;
@@ -128,6 +156,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
         }
         state = state.copyWith(exteriorPhotos: _exteriorPhotoIds.keys.toList());
       } catch (e) {
+        complete = false;
         developer.log('Listing photos load failed: $e');
       }
       // Documents also have their own endpoint. An API without it (older
@@ -137,8 +166,10 @@ class PropertyViewModel extends Notifier<PropertyState> {
         if (!ref.mounted) return;
         state = state.copyWith(documents: documents);
       } catch (e) {
+        complete = false;
         developer.log('Listing documents load failed: $e');
       }
+      _fullyLoaded = complete;
     } catch (e) {
       if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
@@ -197,13 +228,63 @@ class PropertyViewModel extends Notifier<PropertyState> {
     if (id == null) return;
     state = state.copyWith(errorMessage: null);
     try {
+      // A parking type counted down to zero is how the agent removes it.
+      final parking = state.parking.where((p) => p.quantity > 0).toList();
       final syncedRooms = await _repository.upsertRooms(id, state.rooms);
-      await _repository.upsertParking(id, state.parking);
+      await _repository.upsertParking(id, parking);
+      if (ref.mounted) state = state.copyWith(parking: parking);
       await _repository.upsertOutdoorFeatures(id, state.outdoorFeatures);
       if (ref.mounted) state = state.copyWith(rooms: syncedRooms);
     } catch (e) {
       if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
+      return;
+    }
+    await _saveSuggestedHouseScore();
+  }
+
+  /// Keeps the saved house score in step with the room scores until the
+  /// agent sets their own. A failure here does not fail the section save —
+  /// the next save tries again.
+  Future<void> _saveSuggestedHouseScore() async {
+    final id = state.listingId;
+    if (id == null || state.houseScoreIsManual) return;
+    final suggested = state.suggestedHouseScore;
+    if (suggested == state.savedHouseScore) return;
+    try {
+      await _repository.updateHouseScore(
+        id,
+        score: suggested,
+        isManual: false,
+      );
+      if (ref.mounted) state = state.copyWith(savedHouseScore: suggested);
+    } catch (e) {
+      developer.log('Saving suggested house score failed: $e');
+    }
+  }
+
+  /// Saves the agent's own house score, or with [score] null goes back to
+  /// the app's suggestion. Returns an error message, or null on success.
+  Future<String?> setHouseScore(double? score) async {
+    final id = state.listingId;
+    if (id == null) return const NetworkFailure().message;
+    final isManual = score != null;
+    final value = score ?? state.suggestedHouseScore;
+    try {
+      await _repository.updateHouseScore(
+        id,
+        score: value,
+        isManual: isManual,
+      );
+      if (ref.mounted) {
+        state = state.copyWith(
+          savedHouseScore: value,
+          houseScoreIsManual: isManual,
+        );
+      }
+      return null;
+    } catch (e) {
+      return mapFailure(e).message;
     }
   }
 
@@ -370,12 +451,11 @@ class PropertyViewModel extends Notifier<PropertyState> {
   /// Adds a room and returns its local id so the caller can open it straight
   /// away — picking a room type is the start of describing it, not the end.
   String addCustomRoom(String name, int roomTypeId) {
-    final defaults = roomDefaultFeatures[roomTypeId] ?? [];
+    // Starts with nothing ticked: every feature is something the agent saw.
     final newRoom = Room(
       id: 'custom-${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       roomTypeId: roomTypeId,
-      features: defaults.map((d) => RoomFeature(description: d)).toList(),
     );
     state = state.copyWith(rooms: [...state.rooms, newRoom]);
     return newRoom.id;
@@ -387,20 +467,15 @@ class PropertyViewModel extends Notifier<PropertyState> {
     );
   }
 
-  void addParking(int parkingTypeId) {
+  /// Adds each parking type not already listed, starting at one bay.
+  void addParkingTypes(Iterable<int> parkingTypeIds) {
     final current = List<ListingParking>.from(state.parking);
-    final existingIdx = current.indexWhere(
-      (p) => p.parkingTypeId == parkingTypeId,
-    );
-    if (existingIdx >= 0) {
-      current[existingIdx] = current[existingIdx].copyWith(
-        quantity: current[existingIdx].quantity + 1,
-      );
-    } else {
+    for (final typeId in parkingTypeIds) {
+      if (current.any((p) => p.parkingTypeId == typeId)) continue;
       current.add(
         ListingParking(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          parkingTypeId: parkingTypeId,
+          id: '${DateTime.now().microsecondsSinceEpoch}-$typeId',
+          parkingTypeId: typeId,
           quantity: 1,
         ),
       );
@@ -408,22 +483,35 @@ class PropertyViewModel extends Notifier<PropertyState> {
     state = state.copyWith(parking: current);
   }
 
-  void removeParking(int parkingTypeId) {
-    final current = List<ListingParking>.from(state.parking);
-    current.removeWhere((p) => p.parkingTypeId == parkingTypeId);
-    state = state.copyWith(parking: current);
+  /// Sets how many of a parking type there are. Zero keeps the row on screen
+  /// (so a mis-tap is easy to undo) and it is dropped when the section saves.
+  void setParkingQuantity(int parkingTypeId, int quantity) {
+    state = state.copyWith(
+      parking: [
+        for (final p in state.parking)
+          p.parkingTypeId == parkingTypeId
+              ? p.copyWith(quantity: quantity < 0 ? 0 : quantity)
+              : p,
+      ],
+    );
   }
 
-  void decrementParking(int parkingTypeId) {
-    final current = List<ListingParking>.from(state.parking);
-    final idx = current.indexWhere((p) => p.parkingTypeId == parkingTypeId);
-    if (idx < 0) return;
-    if (current[idx].quantity <= 1) {
-      current.removeAt(idx);
-    } else {
-      current[idx] = current[idx].copyWith(quantity: current[idx].quantity - 1);
-    }
-    state = state.copyWith(parking: current);
+  /// Replaces the ticked features within one outdoor category — [options] is
+  /// everything that category offers, [selected] what the agent left ticked.
+  void setOutdoorFeaturesInCategory(
+    Iterable<String> options,
+    Iterable<String> selected,
+  ) {
+    final optionSet = options.toSet();
+    final kept = state.outdoorFeatures
+        .where((f) => !optionSet.contains(f))
+        .toList();
+    state = state.copyWith(
+      outdoorFeatures: [
+        ...kept,
+        ...selected.where((f) => !kept.contains(f)),
+      ],
+    );
   }
 
   void addExteriorPhoto(String path, {Uint8List? bytes, String? filename}) {
@@ -553,20 +641,6 @@ class PropertyViewModel extends Notifier<PropertyState> {
     }
   }
 
-  void addOutdoorFeature(String feature) {
-    final current = List<String>.from(state.outdoorFeatures);
-    if (!current.contains(feature)) {
-      current.add(feature);
-    }
-    state = state.copyWith(outdoorFeatures: current);
-  }
-
-  void removeOutdoorFeature(String feature) {
-    final current = List<String>.from(state.outdoorFeatures);
-    current.remove(feature);
-    state = state.copyWith(outdoorFeatures: current);
-  }
-
   void selectRoomForEditing(String? roomId) {
     state = state.copyWith(selectedRoomId: roomId);
   }
@@ -577,17 +651,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     List<RoomFeature>? features,
     List<String>? hiddenFeatures,
     String? notes,
-    String? photoUrl,
-    Uint8List? photoBytes,
-    String? photoFilename,
   }) {
-    if (photoUrl != null && photoBytes != null) {
-      _repository.cachePhotoBytes(
-        photoUrl,
-        photoBytes,
-        filename: photoFilename,
-      );
-    }
     final updatedRooms = state.rooms.map((room) {
       if (room.id == roomId) {
         return room.copyWith(
@@ -595,12 +659,66 @@ class PropertyViewModel extends Notifier<PropertyState> {
           features: features,
           hiddenFeatures: hiddenFeatures,
           notes: notes,
-          photoUrl: photoUrl,
         );
       }
       return room;
     }).toList();
     state = state.copyWith(rooms: updatedRooms);
+  }
+
+  /// Adds freshly taken photos to a room, up to [Room.maxPhotos]. They stay
+  /// on the device until the Property Features section is saved.
+  void addRoomPhotos(
+    String roomId,
+    List<({String path, Uint8List? bytes, String? filename})> shots,
+  ) {
+    state = state.copyWith(
+      rooms: [
+        for (final room in state.rooms)
+          if (room.id != roomId)
+            room
+          else
+            room.copyWith(
+              photos: [
+                ...room.photos,
+                for (final shot in shots.take(
+                  Room.maxPhotos - room.photos.length,
+                ))
+                  RoomPhoto(path: shot.path),
+              ],
+            ),
+      ],
+    );
+    for (final shot in shots) {
+      final bytes = shot.bytes;
+      if (bytes != null) {
+        _repository.cachePhotoBytes(shot.path, bytes, filename: shot.filename);
+      }
+    }
+  }
+
+  /// Removes one photo; an uploaded one is deleted from the API on save.
+  void removeRoomPhoto(String roomId, String path) {
+    state = state.copyWith(
+      rooms: [
+        for (final room in state.rooms)
+          room.id == roomId
+              ? room.copyWith(
+                  photos: room.photos.where((p) => p.path != path).toList(),
+                )
+              : room,
+      ],
+    );
+  }
+
+  /// Sets or, with null, clears a room's 0–10 score.
+  void setRoomScore(String roomId, double? score) {
+    state = state.copyWith(
+      rooms: [
+        for (final room in state.rooms)
+          room.id == roomId ? room.copyWith(score: score) : room,
+      ],
+    );
   }
 
   void hideFeatureInRoom(String roomId, String feature) {
@@ -615,17 +733,6 @@ class PropertyViewModel extends Notifier<PropertyState> {
       return room;
     }).toList();
     state = state.copyWith(rooms: updatedRooms);
-  }
-
-  void hideOutdoorFeature(String feature) {
-    final hidden = List<String>.from(state.outdoorHiddenFeatures);
-    if (!hidden.contains(feature)) hidden.add(feature);
-    final features = List<String>.from(state.outdoorFeatures);
-    features.remove(feature);
-    state = state.copyWith(
-      outdoorFeatures: features,
-      outdoorHiddenFeatures: hidden,
-    );
   }
 
   void renameRoom(String roomId, String newName) {
@@ -786,6 +893,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
   }
 
   void reset() {
+    _fullyLoaded = false;
     _exteriorPhotoIds.clear();
     _repository.pendingPhotoBytes.clear();
     state = PropertyState(

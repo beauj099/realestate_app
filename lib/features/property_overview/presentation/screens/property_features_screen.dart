@@ -6,22 +6,30 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
-import '../../../../core/widgets/feature_list_widget.dart';
+import '../../../../core/widgets/multi_select_sheet.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
+import '../../data/models/enums/condition_rating.dart';
 import '../../data/models/enums/outdoor_extra.dart';
+import '../../data/models/enums/room_category.dart';
+import '../../data/models/listing_parking.dart';
+import '../../data/models/property_state.dart';
+import '../../data/models/room.dart';
+import '../../data/models/room_score.dart';
 import '../../providers/property_provider.dart';
-import '../widgets/add_parking_sheet.dart';
 import '../widgets/add_room_sheet.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
+/// Rooms, parking and outdoor features.
+///
+/// Laid out like a settings list: each section has one header with a small
+/// "Add" action, and a single card of compact rows beneath it. Rooms open for
+/// detail and swipe away to delete; parking types carry their own − n +
+/// counter; each outdoor category is one row summarising what is ticked.
 class PropertyFeaturesScreen extends ConsumerWidget {
   const PropertyFeaturesScreen({super.key});
 
-  /// Adds a room, then opens it straight away.
-  ///
-  /// Choosing a room type is only the first half of describing a room — the
-  /// condition rating, features and photo all live on the detail screen — so
-  /// the agent is taken there rather than dropped back on a list.
+  /// Adds a room, then opens it straight away — picking the type is only the
+  /// start of describing it.
   Future<void> _addRoomAndOpen(
     BuildContext context,
     PropertyViewModel viewModel,
@@ -40,20 +48,18 @@ class PropertyFeaturesScreen extends ConsumerWidget {
     context.push(AppRoutes.roomDetails(listingId, roomId));
   }
 
-  void _confirmDeleteRoom(
+  Future<bool> _confirmDeleteRoom(
     BuildContext context,
-    PropertyViewModel viewModel,
-    String roomId,
-    String roomName,
+    Room room,
     RealEstateTheme theme,
     TextTheme textTheme,
-  ) {
-    showRealEstateDialog(
+  ) async {
+    final confirmed = await showRealEstateDialog<bool>(
       context: context,
       title: 'Remove Room',
       theme: theme,
       content: Text(
-        'Are you sure you want to remove "$roomName"?',
+        'Remove "${room.name}"? This takes effect when you save.',
         style: textTheme.bodyLarge,
       ),
       actions: [
@@ -61,13 +67,55 @@ class PropertyFeaturesScreen extends ConsumerWidget {
         dialogActionButton(
           theme: theme,
           text: 'Remove',
-          onPressed: () {
-            viewModel.removeRoom(roomId);
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context, true),
         ),
       ],
     );
+    return confirmed ?? false;
+  }
+
+  Future<void> _addParking(
+    BuildContext context,
+    PropertyViewModel viewModel,
+    RealEstateTheme theme,
+    Map<int, String> parkingTypes,
+    List<ListingParking> current,
+  ) async {
+    final existing = current.map((p) => p.parkingTypeId).toSet();
+    final picked = await showMultiSelectSheet<int>(
+      context: context,
+      theme: theme,
+      title: 'Add Parking',
+      subtitle: 'Tick every kind of parking, then set how many of each.',
+      confirmLabel: 'Continue',
+      options: parkingTypes.keys.where((id) => !existing.contains(id)).toList(),
+      labelOf: (id) => parkingTypes[id] ?? 'Parking type $id',
+      iconOf: (id) => parkingIcon(parkingTypes[id] ?? ''),
+    );
+    if (picked != null) viewModel.addParkingTypes(picked);
+  }
+
+  Future<void> _editOutdoorCategory(
+    BuildContext context,
+    PropertyViewModel viewModel,
+    RealEstateTheme theme,
+    _OutdoorGroup group,
+    List<String> selected,
+  ) async {
+    final picked = await showMultiSelectSheet<String>(
+      context: context,
+      theme: theme,
+      title: group.label,
+      options: group.options,
+      labelOf: (f) => f,
+      initiallySelected: selected,
+      confirmLabel: 'Done',
+      allowEmpty: true,
+      createCustom: group.allowsCustom ? (text) => text : null,
+    );
+    if (picked != null) {
+      viewModel.setOutdoorFeaturesInCategory(group.options, picked);
+    }
   }
 
   @override
@@ -82,6 +130,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
     final parkingTypes = ref
         .watch(parkingTypesProvider)
         .maybeWhen(data: (types) => types, orElse: () => fallbackParkingTypes);
+    final outdoorGroups = _OutdoorGroup.all(state.outdoorFeatures);
 
     return WizardSectionScaffold(
       title: 'Property Features',
@@ -94,467 +143,615 @@ class PropertyFeaturesScreen extends ConsumerWidget {
             : friendlySaveMessage(error, 'property features');
       },
       child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Rooms, parking and outdoor features',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.textPrimary,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            title: 'Rooms',
+            detail: rooms.isEmpty
+                ? null
+                : '${state.ratedRoomCount} of ${rooms.length} rated',
+            theme: theme,
+            textTheme: textTheme,
+            onAdd: () => _addRoomAndOpen(
+              context,
+              viewModel,
+              theme,
+              textTheme,
+              listingId,
+            ),
+          ),
+          _RowsCard(
+            theme: theme,
+            emptyText: 'No rooms yet. Tap Add to list the first one.',
+            children: [
+              for (final room in rooms)
+                Dismissible(
+                  key: ValueKey(room.id),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) =>
+                      _confirmDeleteRoom(context, room, theme, textTheme),
+                  onDismissed: (_) => viewModel.removeRoom(room.id),
+                  background: Container(
+                    color: theme.error,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Icon(Icons.delete_outline, color: theme.onPrimary),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Text(
-                      'ROOMS',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.textLabel,
-                        fontSize: 13,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${rooms.length}',
-                        style: textTheme.labelLarge?.copyWith(
-                          color: theme.primaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.borderLight),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (rooms.isEmpty) ...[
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'No rooms added yet.',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: theme.textSecondary.withValues(
-                                  alpha: 0.7,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _addRoomAndOpen(
-                              context,
-                              viewModel,
-                              theme,
-                              textTheme,
-                              listingId,
-                            ),
-                            icon: const Icon(Icons.add, size: 20),
-                            label: const Text('Add Room'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.primaryColor,
-                              foregroundColor: theme.onPrimary,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: rooms.length,
-                          itemBuilder: (context, idx) {
-                            final room = rooms[idx];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8.0),
-                              child: InkWell(
-                                onTap: () {
-                                  viewModel.selectRoomForEditing(room.id);
-                                  context.push(
-                                    AppRoutes.roomDetails(listingId!, room.id),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.backgroundColor.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: theme.borderLight.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              room.name,
-                                              style: textTheme.titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: theme.textPrimary,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              room.conditionRating != null
-                                                  ? 'Condition: Level ${room.conditionRating}'
-                                                  : 'Condition: Not rated',
-                                              style: textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                    color:
-                                                        room.conditionRating !=
-                                                            null
-                                                        ? theme.completeColor
-                                                        : theme.pendingColor,
-                                                    fontSize: 12,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      GestureDetector(
-                                        onTap: () => _confirmDeleteRoom(
-                                          context,
-                                          viewModel,
-                                          room.id,
-                                          room.name,
-                                          theme,
-                                          textTheme,
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: theme.borderLight.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.delete_outline,
-                                            size: 16,
-                                            color: theme.textSecondary,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Icon(
-                                        Icons.arrow_forward_ios,
-                                        size: 12,
-                                        color: theme.textSecondary.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                  child: _RoomRow(
+                    room: room,
+                    theme: theme,
+                    textTheme: textTheme,
+                    onTap: listingId == null
+                        ? null
+                        : () {
+                            viewModel.selectRoomForEditing(room.id);
+                            context.push(
+                              AppRoutes.roomDetails(listingId, room.id),
                             );
                           },
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _addRoomAndOpen(
-                              context,
-                              viewModel,
-                              theme,
-                              textTheme,
-                              listingId,
-                            ),
-                            icon: const Icon(Icons.add, size: 20),
-                            label: const Text('Add Room'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.primaryColor,
-                              foregroundColor: theme.onPrimary,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                Container(height: 1, color: theme.borderLight),
-                const SizedBox(height: 20),
-                Text(
-                  'PARKING',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.textLabel,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
+            ],
+          ),
+          if (rooms.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+              child: Text(
+                'Swipe a room left to remove it.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.textSecondary.withValues(alpha: 0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          const SizedBox(height: 28),
+          _SectionHeader(
+            title: 'Parking',
+            theme: theme,
+            textTheme: textTheme,
+            onAdd: parkingTypes.length == state.parking.length
+                ? null
+                : () => _addParking(
+                    context,
+                    viewModel,
+                    theme,
+                    parkingTypes,
+                    state.parking,
+                  ),
+          ),
+          _RowsCard(
+            theme: theme,
+            emptyText: 'No parking. Tap Add to choose garages, carports…',
+            children: [
+              for (final p in state.parking)
+                _ParkingRow(
+                  label:
+                      parkingTypes[p.parkingTypeId] ??
+                      'Parking type ${p.parkingTypeId}',
+                  quantity: p.quantity,
+                  theme: theme,
+                  textTheme: textTheme,
+                  onChanged: (qty) =>
+                      viewModel.setParkingQuantity(p.parkingTypeId, qty),
+                ),
+            ],
+          ),
+          if (state.parking.any((p) => p.quantity == 0))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+              child: Text(
+                'Types set to 0 are removed when you save.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.textSecondary.withValues(alpha: 0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          const SizedBox(height: 28),
+          _SectionHeader(
+            title: 'Outdoor & Extras',
+            theme: theme,
+            textTheme: textTheme,
+          ),
+          _RowsCard(
+            theme: theme,
+            children: [
+              for (final group in outdoorGroups)
+                _OutdoorRow(
+                  group: group,
+                  selected: group.selectedFrom(state.outdoorFeatures),
+                  theme: theme,
+                  textTheme: textTheme,
+                  onTap: () => _editOutdoorCategory(
+                    context,
+                    viewModel,
+                    theme,
+                    group,
+                    group.selectedFrom(state.outdoorFeatures),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.borderLight),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (state.parking.isEmpty) ...[
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'No parking added yet.',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: theme.textSecondary.withValues(
-                                  alpha: 0.7,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => AddParkingSheet.show(
-                              context,
-                              viewModel,
-                              theme,
-                              textTheme,
-                              parkingTypes: parkingTypes,
-                              currentParking: state.parking,
-                            ),
-                            icon: const Icon(Icons.add, size: 20),
-                            label: const Text('Add Parking'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.primaryColor,
-                              foregroundColor: theme.onPrimary,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        ...state.parking.map((p) {
-                          final label =
-                              parkingTypes[p.parkingTypeId] ??
-                              'Parking Type ${p.parkingTypeId}';
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.backgroundColor.withValues(
-                                alpha: 0.3,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: theme.borderLight.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        label,
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        p.quantity > 1
-                                            ? 'Qty: ${p.quantity}'
-                                            : '',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: theme.completeColor,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () =>
-                                      viewModel.removeParking(p.parkingTypeId),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: theme.borderLight.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(
-                                      Icons.delete_outline,
-                                      size: 16,
-                                      color: theme.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 12,
-                                  color: theme.textSecondary.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => AddParkingSheet.show(
-                              context,
-                              viewModel,
-                              theme,
-                              textTheme,
-                              parkingTypes: parkingTypes,
-                              currentParking: state.parking,
-                            ),
-                            icon: const Icon(Icons.add, size: 20),
-                            label: const Text('Add Parking'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.primaryColor,
-                              foregroundColor: theme.onPrimary,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icon for a parking type, from its name.
+IconData parkingIcon(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('carport')) return Icons.car_rental_outlined;
+  if (l.contains('garage')) return Icons.garage_outlined;
+  if (l.contains('undercover')) return Icons.umbrella_outlined;
+  return Icons.local_parking_outlined;
+}
+
+/// Section title with an optional count/detail and a compact Add action.
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String? detail;
+  final VoidCallback? onAdd;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _SectionHeader({
+    required this.title,
+    required this.theme,
+    required this.textTheme,
+    this.detail,
+    this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textPrimary,
+            ),
+          ),
+          if (detail != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              detail!,
+              style: textTheme.bodyMedium?.copyWith(
+                color: theme.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+          const Spacer(),
+          if (onAdd != null)
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: Icon(Icons.add, size: 18, color: theme.primaryColor),
+              label: Text(
+                'Add',
+                style: textTheme.labelLarge?.copyWith(
+                  color: theme.primaryColor,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 32),
-                Container(height: 1, color: theme.borderLight),
-                const SizedBox(height: 20),
-                Text(
-                  'OUTDOOR FEATURES',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.textLabel,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
-                  ),
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One card holding divider-separated rows, or a quiet line when empty.
+class _RowsCard extends StatelessWidget {
+  final List<Widget> children;
+  final String? emptyText;
+  final RealEstateTheme theme;
+
+  const _RowsCard({
+    required this.children,
+    required this.theme,
+    this.emptyText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = theme.toThemeData().textTheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.borderLight),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: children.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              child: Text(
+                emptyText ?? '',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.textSecondary.withValues(alpha: 0.8),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.cardBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.borderLight),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ...OutdoorExtraCategory.values
-                          .where((c) => c != OutdoorExtraCategory.parking)
-                          .map((category) {
-                            final extras = OutdoorExtra.values
-                                .where((e) => e.category == category)
-                                .map((e) => e.displayString)
-                                .toList();
-                            final selectedForCategory = state.outdoorFeatures
-                                .where((f) => extras.contains(f))
-                                .toList();
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    category.displayString,
-                                    style: textTheme.labelLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.textPrimary,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  FeatureListWidget(
-                                    selectedFeatures: selectedForCategory,
-                                    availableDefaults: extras,
-                                    onAdd: (f) =>
-                                        viewModel.addOutdoorFeature(f),
-                                    onRemove: (f) =>
-                                        viewModel.removeOutdoorFeature(f),
-                                    categoryLabel: category.displayString,
-                                    theme: theme,
-                                    textTheme: textTheme,
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                    ],
-                  ),
-                ),
+              ),
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (i > 0)
+                    Divider(
+                      height: 1,
+                      indent: 64,
+                      color: theme.borderLight.withValues(alpha: 0.7),
+                    ),
+                  children[i],
+                ],
               ],
             ),
     );
   }
+}
+
+/// Leading glyph in a soft brand-tinted circle, shared by every row.
+class _RowIcon extends StatelessWidget {
+  final IconData icon;
+  final RealEstateTheme theme;
+  final bool muted;
+
+  const _RowIcon({required this.icon, required this.theme, this.muted = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: muted
+            ? theme.borderLight.withValues(alpha: 0.5)
+            : theme.primaryColor.withValues(alpha: 0.08),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        size: 19,
+        color: muted ? theme.textSecondary : theme.primaryColor,
+      ),
+    );
+  }
+}
+
+class _RoomRow extends StatelessWidget {
+  final Room room;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final VoidCallback? onTap;
+
+  const _RoomRow({
+    required this.room,
+    required this.theme,
+    required this.textTheme,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rated = PropertyState.isRoomRated(room);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        child: Row(
+          children: [
+            _RowIcon(
+              icon: RoomCategoryExtension.categoryForRoomTypeId(
+                room.roomTypeId,
+              ).icon,
+              theme: theme,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    room.name,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.textPrimary,
+                      fontSize: 15,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _roomSummary(room),
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: rated ? theme.textSecondary : theme.pendingColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              rated ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+              size: 20,
+              color: rated ? theme.completeColor : theme.pendingColor,
+              semanticLabel: rated ? 'Rated' : 'Not rated',
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, color: theme.textSecondary, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ParkingRow extends StatelessWidget {
+  final String label;
+  final int quantity;
+  final ValueChanged<int> onChanged;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _ParkingRow({
+    required this.label,
+    required this.quantity,
+    required this.onChanged,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final removed = quantity == 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      child: Row(
+        children: [
+          _RowIcon(icon: parkingIcon(label), theme: theme, muted: removed),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: removed ? theme.textSecondary : theme.textPrimary,
+                decoration: removed ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          _Stepper(
+            value: quantity,
+            onChanged: onChanged,
+            theme: theme,
+            textTheme: textTheme,
+            semanticsLabel: label,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// − n + counter, like the guest/bed counters in booking apps.
+class _Stepper extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final String semanticsLabel;
+
+  static const int max = 20;
+
+  const _Stepper({
+    required this.value,
+    required this.onChanged,
+    required this.theme,
+    required this.textTheme,
+    required this.semanticsLabel,
+  });
+
+  Widget _button(IconData icon, VoidCallback? onPressed, String tooltip) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: IconButton.outlined(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        icon: Icon(icon),
+        style: IconButton.styleFrom(
+          foregroundColor: theme.primaryColor,
+          disabledForegroundColor: theme.borderLight,
+          side: BorderSide(
+            color: onPressed == null
+                ? theme.borderLight
+                : theme.primaryColor.withValues(alpha: 0.4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _button(
+          Icons.remove,
+          value > 0 ? () => onChanged(value - 1) : null,
+          'Fewer $semanticsLabel',
+        ),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textPrimary,
+            ),
+          ),
+        ),
+        _button(
+          Icons.add,
+          value < max ? () => onChanged(value + 1) : null,
+          'More $semanticsLabel',
+        ),
+      ],
+    );
+  }
+}
+
+/// One outdoor category — or "Other" for custom entries — as a single row.
+class _OutdoorGroup {
+  final String label;
+  final IconData icon;
+  final List<String> options;
+  final bool allowsCustom;
+
+  const _OutdoorGroup({
+    required this.label,
+    required this.icon,
+    required this.options,
+    this.allowsCustom = false,
+  });
+
+  List<String> selectedFrom(List<String> features) =>
+      features.where(options.contains).toList();
+
+  static IconData _iconFor(OutdoorExtraCategory category) {
+    switch (category) {
+      case OutdoorExtraCategory.outdoorLiving:
+        return Icons.deck_outlined;
+      case OutdoorExtraCategory.extraStructures:
+        return Icons.cottage_outlined;
+      case OutdoorExtraCategory.security:
+        return Icons.security_outlined;
+      case OutdoorExtraCategory.energyWater:
+        return Icons.solar_power_outlined;
+      case OutdoorExtraCategory.parking:
+        return Icons.local_parking_outlined;
+    }
+  }
+
+  /// The listed categories, then "Other" holding anything the agent typed.
+  /// Parking has its own section with counts.
+  static List<_OutdoorGroup> all(List<String> features) {
+    final known = OutdoorExtra.values.map((e) => e.displayString).toSet();
+    return [
+      for (final category in OutdoorExtraCategory.values)
+        if (category != OutdoorExtraCategory.parking)
+          _OutdoorGroup(
+            label: category.displayString,
+            icon: _iconFor(category),
+            options: category.displayStrings,
+          ),
+      _OutdoorGroup(
+        label: 'Other',
+        icon: Icons.more_horiz,
+        options: features.where((f) => !known.contains(f)).toList(),
+        allowsCustom: true,
+      ),
+    ];
+  }
+}
+
+class _OutdoorRow extends StatelessWidget {
+  final _OutdoorGroup group;
+  final List<String> selected;
+  final VoidCallback onTap;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _OutdoorRow({
+    required this.group,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAny = selected.isNotEmpty;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        child: Row(
+          children: [
+            _RowIcon(icon: group.icon, theme: theme, muted: !hasAny),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.label,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasAny
+                        ? selected.join(', ')
+                        : group.allowsCustom
+                        ? 'Add anything not listed above'
+                        : 'None',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: theme.textSecondary.withValues(
+                        alpha: hasAny ? 1 : 0.7,
+                      ),
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (hasAny)
+              Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Text(
+                  '${selected.length}',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            Icon(Icons.chevron_right, color: theme.textSecondary, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Good · Score 7.5", "Score 6", "Good" or "Not rated yet".
+String _roomSummary(Room room) {
+  final condition = ConditionRating.fromStored(room.conditionRating)?.label;
+  final score = room.score;
+  final parts = [
+    ?condition,
+    if (score != null) 'Score ${RoomScore.format(score)}',
+  ];
+  return parts.isEmpty ? 'Not rated yet' : parts.join(' · ');
 }

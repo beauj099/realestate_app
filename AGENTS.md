@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (114 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (147 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -42,7 +42,14 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - Pickers with more than a handful of options use `showSearchablePicker` (`core/widgets/searchable_picker.dart`) — a type-to-filter bottom sheet — not a dedicated screen or a wall of chips. All bottom sheets go through `showRealEstateBottomSheet`, which applies safe-area, keyboard-inset and max-height handling.
 - Models are plain Dart classes with `fromJson`/`toJson`; enums live under `data/models/enums/`.
 - `PropertyType` ordinal position is the backend id (index + 1) — do not reorder or insert entries. Slot 4 reads "Commercial Property" while the database still seeds it as "Vacant Land"; see `docs/BACKEND_CHANGES.md`.
-- Reference/lookup data (property types, features, etc.) is fetched via `ReferenceDataProvider` / `LookupApiService`; `lib/features/property_overview/data/default_features.dart` supplies offline defaults.
+- Reference/lookup data (property types, features, etc.) is fetched via `ReferenceDataProvider` / `LookupApiService`.
+- New rooms start with **nothing ticked**. Which amenities a room offers is `StandardAmenity.relevantForCategory`; whole-house items (alarm, CCTV, fibre) are never offered per room. Amenity `displayString`s are matched by name against the API's feature lookup — do not reword existing ones.
+- Section completeness (`isAddressComplete`, `isOwnerComplete`, …) and the house score live on `PropertyState`, so the overview and each screen's validation agree.
+- Discard prompts compare **content** (`PropertyState.sameContentAs`), never object identity. A listing left with nothing captured (`hasMeaningfulContent`) is deleted on leaving the overview (`discardIfEmpty`), and only when it was fully loaded.
+- Each room has a 0–10 `score` (slider at the end of the room), stored in `Condition.Score`, and up to 20 photos (`Room.photos`, first = cover; `/rooms/{id}/photos`).
+- **House score** is a percentage saved on the listing (`PUT /api/listings/{id}/house-score`). The app suggests a *weighted* average of room scores (`RoomScore.weightFor` — kitchens, main bedrooms, bathrooms count more) and saves it after Property Features; once the agent sets their own (`houseScoreIsManual`) the suggestion no longer overwrites it.
+- Property Features is complete when there is ≥1 room and every room has a condition rating or a score.
+- Multi-pick lists use `showMultiSelectSheet` (`core/widgets/multi_select_sheet.dart`): tick several, confirm once. Parking uses it, then − n + steppers; a type left at 0 is dropped on save.
 
 ## White-labelling
 

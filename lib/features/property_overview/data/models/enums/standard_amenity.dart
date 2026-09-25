@@ -1,22 +1,49 @@
 import 'room_category.dart';
 
-enum AmenityCategory { kitchen, bedroomBathroom, livingAreas, generalInterior }
+/// Heading a room amenity is listed under on the room screen.
+enum AmenityCategory {
+  kitchen,
+  bathroom,
+  storage,
+  layout,
+  living,
+  floors,
+  climateFinishes,
+
+  /// Whole-house items once offered per room (alarm, CCTV, fibre, …). They
+  /// belong on the property — see the outdoor Security section — so they are
+  /// never offered for a room, only shown on older rooms that already have one.
+  legacyWholeHouse,
+}
 
 extension AmenityCategoryExtension on AmenityCategory {
   String get displayString {
     switch (this) {
       case AmenityCategory.kitchen:
-        return 'Kitchen';
-      case AmenityCategory.bedroomBathroom:
-        return 'Bedroom / Bathroom';
-      case AmenityCategory.livingAreas:
-        return 'Living Areas';
-      case AmenityCategory.generalInterior:
-        return 'General Interior';
+        return 'Kitchen & Utility';
+      case AmenityCategory.bathroom:
+        return 'Bathroom';
+      case AmenityCategory.storage:
+        return 'Storage';
+      case AmenityCategory.layout:
+        return 'Layout & Access';
+      case AmenityCategory.living:
+        return 'Living & Entertainment';
+      case AmenityCategory.floors:
+        return 'Floors';
+      case AmenityCategory.climateFinishes:
+        return 'Climate & Finishes';
+      case AmenityCategory.legacyWholeHouse:
+        return 'Whole House';
     }
   }
 }
 
+/// A predefined room feature.
+///
+/// [displayString] is also how the API matches a feature to its lookup row,
+/// so existing strings must not be reworded. New entries without a lookup row
+/// are saved as custom features.
 enum StandardAmenity {
   builtInCupboards('Built-in Cupboards', AmenityCategory.kitchen),
   graniteCountertops('Granite / Stone Countertops', AmenityCategory.kitchen),
@@ -31,26 +58,33 @@ enum StandardAmenity {
     AmenityCategory.kitchen,
   ),
   breakfastNook('Breakfast Nook', AmenityCategory.kitchen),
-  walkInCloset('Walk-in Closet', AmenityCategory.bedroomBathroom),
-  ensuiteBathroom('En-suite Bathroom', AmenityCategory.bedroomBathroom),
-  ceilingFan('Ceiling Fan', AmenityCategory.bedroomBathroom),
-  balconyAccess('Balcony Access', AmenityCategory.bedroomBathroom),
-  fireplace('Fireplace', AmenityCategory.livingAreas),
-  underfloorHeating('Underfloor Heating', AmenityCategory.livingAreas),
-  builtInBraai('Built-in Braai', AmenityCategory.livingAreas),
-  builtInBar('Built-in Bar', AmenityCategory.livingAreas),
-  airConditioning('Air Conditioning', AmenityCategory.livingAreas),
-  tiledFloors('Tiled Floors', AmenityCategory.livingAreas),
-  woodenLaminateFloors('Wooden / Laminate Floors', AmenityCategory.livingAreas),
+  bath('Bath', AmenityCategory.bathroom),
+  shower('Shower', AmenityCategory.bathroom),
+  doubleVanity('Double Vanity', AmenityCategory.bathroom),
+  heatedTowelRail('Heated Towel Rail', AmenityCategory.bathroom),
+  separateToilet('Separate Toilet', AmenityCategory.bathroom),
+  walkInCloset('Walk-in Closet', AmenityCategory.storage),
+  builtInWardrobes('Built-in Wardrobes', AmenityCategory.storage),
+  ensuiteBathroom('En-suite Bathroom', AmenityCategory.layout),
+  balconyAccess('Balcony Access', AmenityCategory.layout),
+  fireplace('Fireplace', AmenityCategory.living),
+  builtInBraai('Built-in Braai', AmenityCategory.living),
+  builtInBar('Built-in Bar', AmenityCategory.living),
+  tiledFloors('Tiled Floors', AmenityCategory.floors),
+  woodenLaminateFloors('Wooden / Laminate Floors', AmenityCategory.floors),
+  carpets('Carpets', AmenityCategory.floors),
+  airConditioning('Air Conditioning', AmenityCategory.climateFinishes),
+  ceilingFan('Ceiling Fan', AmenityCategory.climateFinishes),
+  underfloorHeating('Underfloor Heating', AmenityCategory.climateFinishes),
   highCeilings(
     'High Ceilings / Exposed Beams / Exposed Trusses',
-    AmenityCategory.livingAreas,
+    AmenityCategory.climateFinishes,
   ),
-  fibreReady('Fibre Ready / Fibre Installed', AmenityCategory.generalInterior),
-  alarmSystem('Alarm System', AmenityCategory.generalInterior),
-  intercom('Intercom', AmenityCategory.generalInterior),
-  cctv('CCTV / Security Cameras', AmenityCategory.generalInterior),
-  safetyGates('Safety Gates', AmenityCategory.generalInterior);
+  fibreReady('Fibre Ready / Fibre Installed', AmenityCategory.legacyWholeHouse),
+  alarmSystem('Alarm System', AmenityCategory.legacyWholeHouse),
+  intercom('Intercom', AmenityCategory.legacyWholeHouse),
+  cctv('CCTV / Security Cameras', AmenityCategory.legacyWholeHouse),
+  safetyGates('Safety Gates', AmenityCategory.legacyWholeHouse);
 
   final String displayString;
   final AmenityCategory category;
@@ -66,90 +100,58 @@ enum StandardAmenity {
     return null;
   }
 
-  /// Amenities relevant to one room category.
-  ///
-  /// Previously every room rendered every [AmenityCategory], so a Bedroom
-  /// showed the full Kitchen block. Each room now only sees its own
-  /// amenities plus cross-cutting finishes (floors, climate, security).
+  static List<StandardAmenity> _inCategories(Set<AmenityCategory> categories) =>
+      StandardAmenity.values
+          .where((a) => categories.contains(a.category))
+          .toList();
+
+  /// Amenities offered for one room category — only what can actually be
+  /// found in that kind of room. Whole-house items are never offered.
   static List<StandardAmenity> relevantForCategory(RoomCategory category) {
     switch (category) {
       case RoomCategory.bedroom:
-        return const [
-          StandardAmenity.walkInCloset,
-          StandardAmenity.ensuiteBathroom,
-          StandardAmenity.ceilingFan,
-          StandardAmenity.balconyAccess,
-          StandardAmenity.tiledFloors,
-          StandardAmenity.woodenLaminateFloors,
-          StandardAmenity.airConditioning,
-          StandardAmenity.underfloorHeating,
-          StandardAmenity.highCeilings,
-          StandardAmenity.fibreReady,
-          StandardAmenity.alarmSystem,
-          StandardAmenity.intercom,
-          StandardAmenity.cctv,
-          StandardAmenity.safetyGates,
-        ];
+        return _inCategories({
+          AmenityCategory.storage,
+          AmenityCategory.layout,
+          AmenityCategory.floors,
+          AmenityCategory.climateFinishes,
+        });
       case RoomCategory.bathroom:
-        return const [
+        return [
+          ..._inCategories({AmenityCategory.bathroom}),
           StandardAmenity.tiledFloors,
           StandardAmenity.underfloorHeating,
-          StandardAmenity.airConditioning,
-          StandardAmenity.highCeilings,
-          StandardAmenity.fibreReady,
-          StandardAmenity.alarmSystem,
-          StandardAmenity.intercom,
-          StandardAmenity.cctv,
-          StandardAmenity.safetyGates,
         ];
       case RoomCategory.livingSpaces:
       case RoomCategory.entertainment:
-        return StandardAmenity.values
-            .where(
-              (a) =>
-                  a.category == AmenityCategory.livingAreas ||
-                  a.category == AmenityCategory.generalInterior,
-            )
-            .toList();
+        return [
+          ..._inCategories({
+            AmenityCategory.living,
+            AmenityCategory.floors,
+            AmenityCategory.climateFinishes,
+          }),
+          StandardAmenity.balconyAccess,
+        ];
       case RoomCategory.kitchenAndUtility:
-        return const [
-          StandardAmenity.builtInCupboards,
-          StandardAmenity.graniteCountertops,
-          StandardAmenity.gasHob,
-          StandardAmenity.eyeLevelOven,
-          StandardAmenity.undercounterOvenHob,
-          StandardAmenity.extractorFan,
-          StandardAmenity.kitchenIsland,
-          StandardAmenity.dishwasherConnection,
-          StandardAmenity.washingMachineConnection,
-          StandardAmenity.breakfastNook,
+        return [
+          ..._inCategories({AmenityCategory.kitchen}),
           StandardAmenity.tiledFloors,
           StandardAmenity.woodenLaminateFloors,
-          StandardAmenity.airConditioning,
           StandardAmenity.underfloorHeating,
-          StandardAmenity.fibreReady,
-          StandardAmenity.alarmSystem,
-          StandardAmenity.intercom,
-          StandardAmenity.cctv,
-          StandardAmenity.safetyGates,
         ];
       case RoomCategory.workAndStudy:
-        return const [
-          StandardAmenity.fibreReady,
-          StandardAmenity.alarmSystem,
-          StandardAmenity.intercom,
-          StandardAmenity.cctv,
-          StandardAmenity.safetyGates,
-          StandardAmenity.airConditioning,
-          StandardAmenity.tiledFloors,
-          StandardAmenity.woodenLaminateFloors,
-          StandardAmenity.underfloorHeating,
-          StandardAmenity.highCeilings,
+        return [
           StandardAmenity.balconyAccess,
-          StandardAmenity.ceilingFan,
+          ..._inCategories({
+            AmenityCategory.floors,
+            AmenityCategory.climateFinishes,
+          }),
         ];
       case RoomCategory.additional:
-        return StandardAmenity.values;
+        // Lofts, storerooms, flatlets: too varied to narrow down.
+        return StandardAmenity.values
+            .where((a) => a.category != AmenityCategory.legacyWholeHouse)
+            .toList();
     }
   }
 
