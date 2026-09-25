@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/network/platform_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/auth/providers/agent_profile_provider.dart';
@@ -20,6 +21,8 @@ void main() async {
   } on EmptyEnvFileError {
     // .env exists but is empty — treat as not provided.
   }
+  // Photos are served by the API, which runs on a self-signed dev cert.
+  allowApiImagesWithDevCert(resolveDefaultBaseUrl());
   await SharedPreferences.getInstance();
   runApp(const ProviderScope(child: MyApp()));
 }

@@ -175,6 +175,7 @@ class _AddAgencySheetState extends State<_AddAgencySheet> {
             CustomTextInput(
               theme: theme,
               label: 'Agency name',
+              textCapitalization: TextCapitalization.words,
               placeholder: 'e.g. Bay Realty',
               controller: _nameController,
               isRequired: true,

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/themes.dart';
+import '../../../../core/locale/countries.dart';
+import '../../../../core/validation/phone_format.dart';
+import '../../../../core/validation/sa_formats.dart';
 import '../../../../core/widgets/custom_text_input.dart';
+import '../../../../core/widgets/field_prefixes.dart';
 import '../../data/models/contact.dart';
 
 /// Owner capture form.
@@ -19,22 +23,24 @@ class ContactFields extends StatelessWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
   final Contact contact;
+
+  /// The agent's country: sets the phone prefix and rules, and whether the
+  /// South African ID format applies.
+  final Country country;
   final ValueChanged<Contact> onChanged;
-  final String? fullNameError;
-  final String? companyNameError;
-  final String? emailError;
-  final String? phoneError;
+
+  /// Field errors keyed `name`, `company`, `id`, `email`, `phone` — see
+  /// [validateContact].
+  final Map<String, String> errors;
 
   const ContactFields({
     super.key,
     required this.theme,
     required this.textTheme,
     required this.contact,
+    required this.country,
     required this.onChanged,
-    this.fullNameError,
-    this.companyNameError,
-    this.emailError,
-    this.phoneError,
+    this.errors = const {},
   });
 
   @override
@@ -56,15 +62,17 @@ class ContactFields extends StatelessWidget {
           CustomTextInput(
             theme: theme,
             label: 'COMPANY NAME',
+            textCapitalization: TextCapitalization.words,
             placeholder: 'Acme Properties Pty Ltd',
             initialValue: contact.companyName,
-            errorText: companyNameError,
+            errorText: errors['company'],
             onChanged: (val) => onChanged(contact.copyWith(companyName: val)),
           ),
           const SizedBox(height: 16),
           CustomTextInput(
             theme: theme,
             label: 'REGISTRATION NUMBER',
+            keyboardType: TextInputType.datetime,
             placeholder: 'e.g. 2021/123456/07',
             initialValue: contact.companyRegistrationNumber,
             onChanged: (val) =>
@@ -74,16 +82,18 @@ class ContactFields extends StatelessWidget {
           CustomTextInput(
             theme: theme,
             label: 'CONTACT PERSON',
+            textCapitalization: TextCapitalization.words,
             placeholder: 'Who signs for the company',
             initialValue: contact.fullName,
             autofillHints: const [AutofillHints.name],
-            errorText: fullNameError,
+            errorText: errors['name'],
             onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
           ),
           const SizedBox(height: 16),
           CustomTextInput(
             theme: theme,
             label: 'CAPACITY',
+            textCapitalization: TextCapitalization.words,
             placeholder: 'e.g. Director, Trustee, Member',
             initialValue: contact.role,
             onChanged: (val) => onChanged(contact.copyWith(role: val)),
@@ -92,21 +102,46 @@ class ContactFields extends StatelessWidget {
           CustomTextInput(
             theme: theme,
             label: 'FULL NAME',
+            textCapitalization: TextCapitalization.words,
             placeholder: 'John Doe',
             initialValue: contact.fullName,
             autofillHints: const [AutofillHints.name],
-            errorText: fullNameError,
+            errorText: errors['name'],
             onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
           ),
           const SizedBox(height: 16),
-          CustomTextInput(
-            theme: theme,
-            label: 'ID NUMBER',
-            placeholder: 'e.g. 8001015009087',
-            initialValue: contact.idNumber,
-            keyboardType: TextInputType.number,
-            onChanged: (val) => onChanged(contact.copyWith(idNumber: val)),
-          ),
+          // South African ID: typed as digits only, shown as YYMMDD GGGG CCC
+          // and checked. Other countries: any ID or passport, as typed.
+          if (country.isoCode == Country.defaultIsoCode)
+            CustomTextInput(
+              theme: theme,
+              label: 'ID NUMBER',
+              placeholder: 'YYMMDD GGGG CCC',
+              initialValue: SaIdNumber.format(contact.idNumber),
+              keyboardType: TextInputType.number,
+              autocorrect: false,
+              enableSuggestions: false,
+              inputFormatters: [
+                GroupedDigitsFormatter(const [6, 4, 3]),
+              ],
+              errorText: errors['id'],
+              subtext: _idSummary(contact.idNumber),
+              onChanged: (val) => onChanged(
+                contact.copyWith(idNumber: SaIdNumber.digitsOnly(val)),
+              ),
+            )
+          else
+            CustomTextInput(
+              theme: theme,
+              label: 'ID / PASSPORT NUMBER',
+              initialValue: contact.idNumber,
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
+              enableSuggestions: false,
+              errorText: errors['id'],
+              onChanged: (val) =>
+                  onChanged(contact.copyWith(idNumber: val.trim())),
+            ),
         ],
         const SizedBox(height: 16),
         CustomTextInput(
@@ -116,19 +151,25 @@ class ContactFields extends StatelessWidget {
           initialValue: contact.emailAddress,
           keyboardType: TextInputType.emailAddress,
           autofillHints: const [AutofillHints.email],
-          errorText: emailError,
+          autocorrect: false,
+          enableSuggestions: false,
+          errorText: errors['email'],
           onChanged: (val) => onChanged(contact.copyWith(emailAddress: val)),
         ),
         const SizedBox(height: 16),
         CustomTextInput(
           theme: theme,
           label: 'PHONE NUMBER',
-          placeholder: '+27 82 000 0000',
-          initialValue: contact.mobilePhone,
+          placeholder: '82 123 4567',
+          initialValue: CountryPhone.format(contact.mobilePhone, country),
           keyboardType: TextInputType.phone,
-          autofillHints: const [AutofillHints.telephoneNumber],
-          errorText: phoneError,
-          onChanged: (val) => onChanged(contact.copyWith(mobilePhone: val)),
+          autofillHints: const [AutofillHints.telephoneNumberNational],
+          inputFormatters: [CountryPhone.inputFormatter(country)],
+          prefixIcon: PhonePrefix(country: country, theme: theme),
+          errorText: errors['phone'],
+          onChanged: (val) => onChanged(
+            contact.copyWith(mobilePhone: CountryPhone.toStored(val, country)),
+          ),
         ),
       ],
     );
@@ -209,4 +250,73 @@ class _OwnerTypeToggle extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Born 6 Dec 1983 · Female · SA citizen" once the ID number is valid.
+String? _idSummary(String idNumber) {
+  final info = SaIdNumber.parse(idNumber);
+  if (info == null) return null;
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final dob = info.dateOfBirth;
+  return [
+    'Born ${dob.day} ${months[dob.month - 1]} ${dob.year}',
+    info.isFemale ? 'Female' : 'Male',
+    info.isCitizen ? 'SA citizen' : 'Permanent resident',
+  ].join(' · ');
+}
+
+/// Field errors for one owner, keyed `name`, `company`, `id`, `email`,
+/// `phone`; empty when the owner is fine.
+///
+/// The primary owner must have a name, email and phone (and a company name
+/// for a business). For every owner, whatever *is* filled in must be valid.
+Map<String, String> validateContact(
+  Contact c, {
+  required bool isPrimary,
+  Country? country,
+}) {
+  final region = country ?? Country.southAfrica;
+  final errors = <String, String>{};
+  final isBusiness = c.ownerType == OwnerType.business;
+  if (isPrimary) {
+    if (c.fullName.trim().isEmpty) {
+      errors['name'] = isBusiness
+          ? 'Contact person is required'
+          : 'Full name is required';
+    }
+    if (isBusiness && c.companyName.trim().isEmpty) {
+      errors['company'] = 'Company name is required';
+    }
+    if (c.emailAddress.trim().isEmpty) errors['email'] = 'Email is required';
+    if (c.mobilePhone.trim().isEmpty) errors['phone'] = 'Phone is required';
+  }
+  // The ID checks are South Africa's; elsewhere any ID/passport is kept as
+  // typed.
+  if (!isBusiness &&
+      c.idNumber.trim().isNotEmpty &&
+      region.isoCode == Country.defaultIsoCode) {
+    final idError = SaIdNumber.validate(c.idNumber);
+    if (idError != null) errors['id'] = idError;
+  }
+  if (c.emailAddress.trim().isNotEmpty && !isValidEmail(c.emailAddress)) {
+    errors['email'] = 'Enter a valid email address';
+  }
+  if (c.mobilePhone.trim().isNotEmpty) {
+    final phoneError = CountryPhone.validate(c.mobilePhone, region);
+    if (phoneError != null) errors['phone'] = phoneError;
+  }
+  return errors;
 }

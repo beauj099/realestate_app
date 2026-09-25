@@ -26,7 +26,10 @@ class CustomTextInput extends StatelessWidget {
   /// silently changes what the agent typed.
   final bool autocorrect;
   final bool enableSuggestions;
-  final TextCapitalization textCapitalization;
+
+  /// Defaults by field kind (see [_capitalization]) so the keyboard starts
+  /// with a capital where one is expected; pass a value to override.
+  final TextCapitalization? textCapitalization;
 
   const CustomTextInput({
     super.key,
@@ -49,8 +52,24 @@ class CustomTextInput extends StatelessWidget {
     this.theme,
     this.autocorrect = true,
     this.enableSuggestions = true,
-    this.textCapitalization = TextCapitalization.none,
+    this.textCapitalization,
   });
+
+  /// Plain text starts with a capital (the agent can still switch to lower
+  /// case); names capitalise each word; emails, numbers, phone numbers and
+  /// passwords never capitalise.
+  TextCapitalization get _capitalization {
+    final explicit = textCapitalization;
+    if (explicit != null) return explicit;
+    if (obscureText) return TextCapitalization.none;
+    if (keyboardType == TextInputType.name) return TextCapitalization.words;
+    if (keyboardType == TextInputType.text ||
+        keyboardType == TextInputType.multiline ||
+        keyboardType == TextInputType.streetAddress) {
+      return TextCapitalization.sentences;
+    }
+    return TextCapitalization.none;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +97,7 @@ class CustomTextInput extends StatelessWidget {
       inputFormatters: inputFormatters,
       autocorrect: autocorrect,
       enableSuggestions: enableSuggestions,
-      textCapitalization: textCapitalization,
+      textCapitalization: _capitalization,
       style: textTheme.bodyLarge?.copyWith(
         fontWeight: FontWeight.w600,
         color: resolvedTheme.textPrimary,

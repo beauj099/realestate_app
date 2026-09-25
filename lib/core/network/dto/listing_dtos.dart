@@ -23,6 +23,14 @@ class ListingSummaryDto {
   /// House score saved on the listing, as a percentage; null until set.
   final double? houseScore;
 
+  /// When the agent archived the listing; null while it is active.
+  final DateTime? archivedAt;
+
+  /// Every owner's name, primary owner first. Empty when none captured.
+  final List<String> ownerNames;
+
+  bool get isArchived => archivedAt != null;
+
   const ListingSummaryDto({
     required this.id,
     required this.referenceNumber,
@@ -41,7 +49,30 @@ class ListingSummaryDto {
     this.primaryPhotoUrl,
     this.roomCount = 0,
     this.houseScore,
+    this.archivedAt,
+    this.ownerNames = const [],
   });
+
+  /// Owners for a card: "Jane", "Jane & John", or "Jane, John +1".
+  String get ownersLine {
+    final names = ownerNames.isNotEmpty
+        ? ownerNames
+        : [if ((primaryOwnerName ?? '').trim().isNotEmpty) primaryOwnerName!];
+    if (names.isEmpty) return '';
+    if (names.length == 1) return names.first;
+    if (names.length == 2) return '${names[0]} & ${names[1]}';
+    return '${names[0]}, ${names[1]} +${names.length - 2}';
+  }
+
+  /// Lower-cased text the archive search matches against: address, every
+  /// owner, reference and P24 numbers.
+  String get searchText => [
+    addressLine,
+    ...ownerNames,
+    primaryOwnerName ?? '',
+    referenceNumber,
+    p24Ref ?? '',
+  ].join(' ').toLowerCase();
 
   /// "12 Main Road, Suburb, City" — empty when no address captured yet.
   String get addressLine {

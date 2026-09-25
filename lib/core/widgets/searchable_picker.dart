@@ -179,6 +179,9 @@ class _SearchablePickerSheetState<T> extends State<_SearchablePickerSheet<T>> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _searchController,
+                    // Typed text can become a custom entry (e.g. a room
+                    // name), so start it with a capital.
+                    textCapitalization: TextCapitalization.sentences,
                     autofocus: false,
                     onChanged: (v) => setState(() => _query = v),
                     style: textTheme.bodyLarge?.copyWith(

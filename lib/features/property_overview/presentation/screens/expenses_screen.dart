@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/providers/api_providers.dart';
+import '../../../../core/locale/region_provider.dart';
+import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../providers/property_provider.dart';
@@ -23,6 +25,7 @@ class ExpensesScreen extends ConsumerWidget {
     final state = ref.watch(propertyViewModelProvider);
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final theme = ref.watch(themeConfigProvider);
+    final currency = ref.watch(regionProvider).currencySymbol;
     final textTheme = theme.toThemeData().textTheme;
 
     List<TextInputFormatter> currencyOnly() => [
@@ -50,60 +53,66 @@ class ExpensesScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           CustomTextInput(
             theme: theme,
-            label: 'Monthly Levy (ZAR)',
+            label: 'Monthly Levy',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 1500',
             initialValue: state.propertyRunningCosts.monthlyLevy,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(monthlyLevy: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Monthly Rates (ZAR)',
+            label: 'Monthly Rates',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 800',
             initialValue: state.propertyRunningCosts.monthlyRates,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(monthlyRates: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Electricity (ZAR/month)',
+            label: 'Electricity (per month)',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 1200',
             initialValue: state.propertyRunningCosts.electricity,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(electricity: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Water (ZAR/month)',
+            label: 'Water (per month)',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 400',
             initialValue: state.propertyRunningCosts.water,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(water: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Sewage (ZAR/month)',
+            label: 'Sewage (per month)',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 350',
             initialValue: state.propertyRunningCosts.sewage,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(sewage: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Refuse (ZAR/month)',
+            label: 'Refuse (per month)',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 250',
             initialValue: state.propertyRunningCosts.refuse,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(refuse: val),
           ),

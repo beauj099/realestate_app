@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (147 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (169 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -17,7 +17,8 @@ The app is useless without the local .NET backend. Source lives in a **separate 
 - Base URL is platform-dependent, set in `lib/core/constants/api_constants.dart`:
   - Android emulator: `https://10.0.2.2:7063`
   - Desktop: `https://localhost:7063`
-- Dev HTTPS uses self-signed certs: `ApiClient` (`lib/core/network/api_client.dart:38`) disables certificate validation via `badCertificateCallback`. Do NOT "fix" this — the backend runs on a self-signed dev cert.
+- Dev HTTPS uses self-signed certs: `ApiClient` (`lib/core/network/api_client.dart:38`) disables certificate validation via `badCertificateCallback`. Do NOT "fix" this — the backend runs on a self-signed dev cert. `Image.network` uses its own client, so `main.dart` also installs `allowApiImagesWithDevCert` (an `HttpOverrides` that accepts the bad cert **only for the API host**); without it every server photo shows "Unavailable".
+- Photo paths: only `http(s)://…` and `/uploads/…` are server photos (`isRemotePhoto`). Device paths also start with `/` — never treat a bare `/` as remote.
 - All endpoints are under `/api/...`; see `lib/core/network/api_endpoints.dart`.
 
 ## Platform scope
@@ -49,6 +50,10 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - Each room has a 0–10 `score` (slider at the end of the room), stored in `Condition.Score`, and up to 20 photos (`Room.photos`, first = cover; `/rooms/{id}/photos`).
 - **House score** is a percentage saved on the listing (`PUT /api/listings/{id}/house-score`). The app suggests a *weighted* average of room scores (`RoomScore.weightFor` — kitchens, main bedrooms, bathrooms count more) and saves it after Property Features; once the agent sets their own (`houseScoreIsManual`) the suggestion no longer overwrites it.
 - Property Features is complete when there is ≥1 room and every room has a condition rating or a score.
+- **Country & currency** (`lib/core/locale/`): `regionProvider` holds the agent's country and currency (device-local, default South Africa); Settings picks each, registration sets both. `country_data.dart` is **generated** from CLDR + libphonenumber — regenerate, don't hand-edit. Phone fields use `CountryPhone` + `PhonePrefix` (flag + dial code); money fields use `CurrencyPrefix` and `regionProvider.currencySymbol` — never hardcode "R"/"ZAR". The SA ID format only applies when the country is South Africa.
+- **SA formats** (`lib/core/validation/sa_formats.dart`): ID numbers (13 digits, YYMMDD date, citizenship digit 0/1, Luhn check; shown `YYMMDD GGGG CCC`) and phone numbers (fixed `+27` prefix via `SaPhonePrefix`, 9 digits shown `82 123 4567`, stored `+27…`). Entry uses `GroupedDigitsFormatter` — digits only, spaces inserted automatically. Owner validation is `validateContact`.
+- **Keyboards:** `CustomTextInput` picks capitalisation from the keyboard type (plain text → sentence case, `TextInputType.name` → words, email/number/phone/password → none); set `keyboardType` correctly and override `textCapitalization` only when needed (e.g. `characters` for licence numbers, `TextInputType.datetime` for `2021/123456/07` registration numbers).
+- **Home:** Active/Archived tabs; swipe a card to archive/restore (`PUT /api/listings/{id}/archive`); archived tab has a search over address, all owners and reference; lists are newest first. Leave the property screen with `pop()` (`_exitToHome`), not `go()`.
 - Multi-pick lists use `showMultiSelectSheet` (`core/widgets/multi_select_sheet.dart`): tick several, confirm once. Parking uses it, then − n + steppers; a type left at 0 is dropped on save.
 
 ## White-labelling

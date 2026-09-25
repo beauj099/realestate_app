@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/locale/region_provider.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/country_picker.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../widgets/agency_logo.dart';
 
@@ -87,6 +90,10 @@ class SettingsScreen extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _RegionCard(theme: theme),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Material(
               color: theme.cardBackgroundColor,
               shape: RoundedRectangleBorder(
@@ -161,6 +168,95 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Country (phone numbers, ID format) and currency (money fields). Each is
+/// chosen from the flag list and takes effect straight away.
+class _RegionCard extends ConsumerWidget {
+  final RealEstateTheme theme;
+
+  const _RegionCard({required this.theme});
+
+  Future<void> _pick(
+    BuildContext context,
+    WidgetRef ref,
+    CountryPickerMode mode,
+  ) async {
+    final region = ref.read(regionProvider);
+    final isCurrency = mode == CountryPickerMode.currency;
+    final picked = await showCountryPicker(
+      context: context,
+      theme: theme,
+      mode: mode,
+      selected: isCurrency ? region.currencyCountry : region.country,
+    );
+    if (picked == null) return;
+    final notifier = ref.read(regionProvider.notifier);
+    if (isCurrency) {
+      await notifier.setCurrency(picked);
+    } else {
+      await notifier.setCountry(picked);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isCurrency
+              ? 'Currency set to ${picked.currencyName} (${picked.currencySymbol})'
+              : 'Country set to ${picked.name}',
+        ),
+        backgroundColor: theme.primaryColor,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final textTheme = theme.toThemeData().textTheme;
+    final region = ref.watch(regionProvider);
+
+    Widget row({
+      required String flag,
+      required String title,
+      required String value,
+      required VoidCallback onTap,
+    }) {
+      return ListTile(
+        onTap: onTap,
+        leading: Text(flag, style: const TextStyle(fontSize: 26)),
+        title: Text(title, style: textTheme.titleMedium),
+        subtitle: Text(value, style: textTheme.bodyMedium),
+        trailing: Icon(Icons.keyboard_arrow_down, color: theme.textSecondary),
+      );
+    }
+
+    return Material(
+      color: theme.cardBackgroundColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.borderLight),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          row(
+            flag: region.country.flag,
+            title: 'Country',
+            value: '${region.country.name} · ${region.country.dialPrefix}',
+            onTap: () => _pick(context, ref, CountryPickerMode.country),
+          ),
+          Divider(height: 1, color: theme.borderLight),
+          row(
+            flag: region.currencyCountry.flag,
+            title: 'Currency',
+            value:
+                '${region.currencySymbol} · ${region.currencyCountry.currencyName}',
+            onTap: () => _pick(context, ref, CountryPickerMode.currency),
           ),
         ],
       ),

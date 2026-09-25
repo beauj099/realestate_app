@@ -711,6 +711,36 @@ class PropertyViewModel extends Notifier<PropertyState> {
     );
   }
 
+  /// Replaces a room's ticked features within one group — [options] is
+  /// everything the group offers, [selected] what the agent left ticked.
+  /// Features that stay ticked keep their saved ids.
+  void setRoomFeaturesInGroup(
+    String roomId,
+    Iterable<String> options,
+    Iterable<String> selected,
+  ) {
+    final optionSet = options.toSet();
+    state = state.copyWith(
+      rooms: [
+        for (final room in state.rooms)
+          if (room.id != roomId)
+            room
+          else
+            room.copyWith(
+              features: [
+                for (final f in room.features)
+                  if (!optionSet.contains(f.description) ||
+                      selected.contains(f.description))
+                    f,
+                for (final name in selected)
+                  if (!room.features.any((f) => f.description == name))
+                    RoomFeature(description: name),
+              ],
+            ),
+      ],
+    );
+  }
+
   /// Sets or, with null, clears a room's 0–10 score.
   void setRoomScore(String roomId, double? score) {
     state = state.copyWith(

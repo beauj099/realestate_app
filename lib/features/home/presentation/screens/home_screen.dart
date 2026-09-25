@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
@@ -34,6 +37,55 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isCreating = false;
+
+  /// Which tab is showing. Active is where the agent works; Archived holds
+  /// listings they have put away, searchable.
+  bool _showArchived = false;
+
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Archives or restores a listing, with Undo. Returns whether it worked,
+  /// so a swiped card only leaves the list once the API agreed.
+  Future<bool> _setArchived(ListingSummaryDto listing, bool archived) async {
+    final theme = ref.read(themeConfigProvider);
+    final repo = ref.read(propertyRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await repo.setArchived(listing.id, archived: archived);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(mapFailure(e).message),
+          backgroundColor: theme.error,
+        ),
+      );
+      return false;
+    }
+    ref.invalidate(listingsProvider);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(archived ? 'Moved to Archived' : 'Moved back to Active'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            try {
+              await repo.setArchived(listing.id, archived: !archived);
+            } finally {
+              if (mounted) ref.invalidate(listingsProvider);
+            }
+          },
+        ),
+      ),
+    );
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,17 +124,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   viewModel.reset();
                   final listingId = await viewModel.createNewListing();
                   if (context.mounted) {
-                    await context.push(AppRoutes.property(listingId));
-                    // Defer past the pop transition: invalidating the
-                    // autoDispose listingsProvider synchronously swaps the
-                    // ListView slivers while the outgoing route is still
-                    // hit-testable (viewport.dart:1034 on web/desktop).
-                    // Navigator.pop completes the future before the animation
-                    // starts, so we wait 400ms for it to finish.
-                    await Future.delayed(const Duration(milliseconds: 400));
-                    if (context.mounted) {
-                      ref.invalidate(listingsProvider);
-                    }
+                    // Not awaited: the busy flag only guards creating the
+                    // listing. Awaiting the visit kept the button disabled
+                    // for as long as that future stayed open — and a route
+                    // left with go() rather than pop() never completes it,
+                    // which is what left Add Property dead after a save.
+                    unawaited(
+                      context.push(AppRoutes.property(listingId)).then((
+                        _,
+                      ) async {
+                        // Defer past the pop transition: invalidating the
+                        // autoDispose listingsProvider synchronously swaps
+                        // the ListView slivers while the outgoing route is
+                        // still hit-testable (viewport.dart:1034).
+                        await Future.delayed(const Duration(milliseconds: 400));
+                        if (mounted) ref.invalidate(listingsProvider);
+                      }),
+                    );
                   }
                 } catch (e, st) {
                   // TEMPORARY diagnostics: print the full failure so the
@@ -105,18 +163,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
               },
       ),
-      // A wash of the agency colour fading into the page keeps the screen
-      // on-brand without competing with the listing photos.
-      body: DecoratedBox(
+      // The agency colour continues from the logo panel down both sides and
+      // along the bottom, framing the page.
+      body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: const [0, 0.4],
-            colors: [
-              theme.primaryColor.withValues(alpha: 0.07),
-              theme.backgroundColor,
-            ],
+          color: theme.backgroundColor,
+          border: Border(
+            left: BorderSide(color: theme.primaryColor, width: _frameWidth),
+            right: BorderSide(color: theme.primaryColor, width: _frameWidth),
+            bottom: BorderSide(color: theme.primaryColor, width: _frameWidth),
           ),
         ),
         child: Column(
@@ -124,15 +179,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             _HomeHeader(
               agency: agency,
               firstName: firstName,
-              listings: listingsAsync.value,
               theme: theme,
               textTheme: textTheme,
             ),
+            _ListingTabs(
+              showArchived: _showArchived,
+              listings: listingsAsync.value,
+              theme: theme,
+              textTheme: textTheme,
+              onChanged: (archived) => setState(() {
+                _showArchived = archived;
+                _searchController.clear();
+                _query = '';
+              }),
+            ),
+            if (_showArchived)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: _ArchiveSearchField(
+                  controller: _searchController,
+                  theme: theme,
+                  textTheme: textTheme,
+                  onChanged: (v) => setState(() => _query = v),
+                ),
+              ),
             Expanded(child: _buildListings(listingsAsync, theme, textTheme)),
           ],
         ),
       ),
     );
+  }
+
+  static const double _frameWidth = 6;
+
+  /// The listings for the current tab, newest first, filtered by the archive
+  /// search.
+  List<ListingSummaryDto> _visible(List<ListingSummaryDto> all) {
+    final needle = _query.trim().toLowerCase();
+    return all.where((l) => l.isArchived == _showArchived).where((l) {
+      if (needle.isEmpty) return true;
+      final haystack = l.searchText;
+      // Every word typed must appear somewhere, so "cinsaut white"
+      // finds Walter White's house on Cinsaut Street.
+      return needle.split(RegExp(r'\s+')).every(haystack.contains);
+    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   Widget _buildListings(
@@ -141,18 +231,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     TextTheme textTheme,
   ) {
     return listingsAsync.when(
-      data: (listings) {
-        if (listings.isEmpty) return _buildEmptyState(theme, textTheme);
+      data: (all) {
+        final listings = _visible(all);
+        if (listings.isEmpty) {
+          if (_showArchived) {
+            return _buildArchiveEmpty(theme, textTheme);
+          }
+          return _buildEmptyState(theme, textTheme);
+        }
         return RefreshIndicator(
           onRefresh: () => ref.refresh(listingsProvider.future),
           child: ListView.separated(
             // Bottom padding clears the floating action button so the last
             // card is never hidden behind it.
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: listings.length,
+            itemCount: listings.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) =>
-                _ListingCard(listing: listings[index]),
+            itemBuilder: (context, index) {
+              if (index == listings.length) {
+                return Text(
+                  _showArchived
+                      ? 'Swipe a property left to restore it.'
+                      : 'Swipe a property left to archive it.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: theme.textSecondary.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                );
+              }
+              final listing = listings[index];
+              return Dismissible(
+                key: ValueKey('listing-${listing.id}-$_showArchived'),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (_) => _setArchived(listing, !_showArchived),
+                background: _SwipeBackground(
+                  archiving: !_showArchived,
+                  theme: theme,
+                  textTheme: textTheme,
+                ),
+                child: _ListingCard(
+                  listing: listing,
+                  showCreatedDate: _showArchived,
+                ),
+              );
+            },
           ),
         );
       },
@@ -175,6 +298,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onRetry: () => ref.invalidate(listingsProvider),
         );
       },
+    );
+  }
+
+  Widget _buildArchiveEmpty(RealEstateTheme theme, TextTheme textTheme) {
+    final searching = _query.trim().isNotEmpty;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Text(
+          searching
+              ? 'No archived property matches "${_query.trim()}".'
+              : 'Nothing archived yet. Swipe a property left on the Active '
+                    'tab to archive it.',
+          textAlign: TextAlign.center,
+          style: textTheme.bodyMedium?.copyWith(
+            color: theme.textSecondary,
+            height: 1.5,
+          ),
+        ),
+      ),
     );
   }
 
@@ -257,7 +400,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _ListingCard extends ConsumerWidget {
   final ListingSummaryDto listing;
 
-  const _ListingCard({required this.listing});
+  /// Archived cards show when the listing was created, since that is how an
+  /// agent tells old listings of the same house apart.
+  final bool showCreatedDate;
+
+  const _ListingCard({required this.listing, this.showCreatedDate = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -271,7 +418,7 @@ class _ListingCard extends ConsumerWidget {
     // Served inline by `GET /api/listings` — no per-card request. Older API
     // builds omit these fields, in which case the card shows placeholders.
     final addressLine = listing.addressLine;
-    final ownerName = (listing.primaryOwnerName ?? '').trim();
+    final ownerName = listing.ownersLine;
     final hasAddress = addressLine.isNotEmpty;
 
     return InkWell(
@@ -367,7 +514,29 @@ class _ListingCard extends ConsumerWidget {
                           ],
                         ),
                       ],
+                      if (showCreatedDate) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_outlined,
+                              size: 12,
+                              color: theme.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Created ${DateFormat('d MMM yyyy').format(listing.createdAt.toLocal())}',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: theme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 8),
+                      // The status and type shrink (with an ellipsis) so the
+                      // score badge always keeps its place on narrow phones.
                       Row(
                         children: [
                           Icon(
@@ -378,32 +547,36 @@ class _ListingCard extends ConsumerWidget {
                             color: statusColor,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            isSubmitted ? 'Submitted' : 'In progress',
-                            style: textTheme.labelMedium?.copyWith(
-                              color: statusColor,
-                              fontWeight: FontWeight.w600,
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: isSubmitted
+                                        ? 'Submitted'
+                                        : 'In progress',
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (propertyType != null)
+                                    TextSpan(
+                                      text:
+                                          '  ·  ${propertyType.displayString}',
+                                      style: TextStyle(
+                                        color: theme.textSecondary,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              style: textTheme.labelMedium,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (propertyType != null) ...[
-                            Text(
-                              '  ·  ',
-                              style: textTheme.labelMedium?.copyWith(
-                                color: theme.textSecondary,
-                              ),
-                            ),
-                            Flexible(
-                              child: Text(
-                                propertyType.displayString,
-                                style: textTheme.labelMedium?.copyWith(
-                                  color: theme.textSecondary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
                           if (listing.houseScore case final score?) ...[
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             _HouseScoreBadge(percent: score, theme: theme),
                           ],
                         ],
@@ -492,30 +665,17 @@ class _HomeHeader extends StatelessWidget {
   final Agency agency;
   final String? firstName;
 
-  /// Loaded listings, for the summary line; null while loading.
-  final List<ListingSummaryDto>? listings;
-
   final RealEstateTheme theme;
   final TextTheme textTheme;
 
   const _HomeHeader({
     required this.agency,
     required this.firstName,
-    required this.listings,
     required this.theme,
     required this.textTheme,
   });
 
   static const double _bannerHeight = 132;
-
-  /// "3 properties · 1 submitted", or null while loading or when empty.
-  String? get _summary {
-    final all = listings;
-    if (all == null || all.isEmpty) return null;
-    final submitted = all.where((l) => l.status == 'submitted').length;
-    final count = '${all.length} propert${all.length == 1 ? 'y' : 'ies'}';
-    return submitted == 0 ? count : '$count · $submitted submitted';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -554,16 +714,9 @@ class _HomeHeader extends StatelessWidget {
                 ),
               ),
             ),
-            // Accent stripe in the agency's two brand colours, framing the
-            // logo panel.
-            Container(
-              height: 4,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [agency.primaryColor, agency.secondaryColor],
-                ),
-              ),
-            ),
+            // A solid bar in the agency's accent colour (e.g. Pam Golding's
+            // gold) under the logo panel, running the full width.
+            Container(height: 4, color: agency.secondaryColor),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Column(
@@ -596,22 +749,177 @@ class _HomeHeader extends StatelessWidget {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  if (_summary case final summary?) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      summary,
-                      style: textTheme.labelMedium?.copyWith(
-                        color: theme.primaryColor,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Active / Archived switch with counts.
+class _ListingTabs extends StatelessWidget {
+  final bool showArchived;
+  final List<ListingSummaryDto>? listings;
+  final ValueChanged<bool> onChanged;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _ListingTabs({
+    required this.showArchived,
+    required this.listings,
+    required this.onChanged,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final all = listings;
+    String label(String name, bool archived) {
+      if (all == null) return name;
+      final n = all.where((l) => l.isArchived == archived).length;
+      return '$name ($n)';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<bool>(
+          segments: [
+            ButtonSegment(
+              value: false,
+              label: Text(label('Active', false)),
+              icon: const Icon(Icons.home_work_outlined, size: 18),
+            ),
+            ButtonSegment(
+              value: true,
+              label: Text(label('Archived', true)),
+              icon: const Icon(Icons.inventory_2_outlined, size: 18),
+            ),
+          ],
+          selected: {showArchived},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => onChanged(s.first),
+          style: SegmentedButton.styleFrom(
+            selectedBackgroundColor: theme.primaryColor,
+            selectedForegroundColor: theme.onPrimary,
+            foregroundColor: theme.textSecondary,
+            backgroundColor: theme.cardBackgroundColor,
+            side: BorderSide(color: theme.borderLight),
+            textStyle: textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Type-to-filter box for the archive: matches address, any owner, and the
+/// reference numbers, updating the list as the agent types.
+class _ArchiveSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _ArchiveSearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      autocorrect: false,
+      style: textTheme.bodyLarge?.copyWith(color: theme.textPrimary),
+      decoration: InputDecoration(
+        hintText: 'Search address, owner or reference',
+        hintStyle: textTheme.bodyMedium?.copyWith(
+          color: theme.textSecondary.withValues(alpha: 0.7),
+        ),
+        prefixIcon: Icon(Icons.search, color: theme.textSecondary),
+        suffixIcon: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (_, value, _) => value.text.isEmpty
+              ? const SizedBox.shrink()
+              : IconButton(
+                  tooltip: 'Clear',
+                  icon: Icon(Icons.close, color: theme.textSecondary),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                ),
+        ),
+        isDense: true,
+        filled: true,
+        fillColor: theme.cardBackgroundColor,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.primaryColor, width: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+/// What shows behind a card while it is swiped.
+class _SwipeBackground extends StatelessWidget {
+  final bool archiving;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _SwipeBackground({
+    required this.archiving,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 24),
+      decoration: BoxDecoration(
+        color: archiving ? theme.textSecondary : theme.primaryColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            archiving ? Icons.inventory_2_outlined : Icons.unarchive_outlined,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            archiving ? 'Archive' : 'Restore',
+            style: textTheme.labelLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

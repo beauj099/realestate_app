@@ -8,6 +8,9 @@ import '../../../../core/theme/custom_agencies.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/locale/region_provider.dart';
+import '../../../../core/validation/phone_format.dart';
+import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
@@ -115,7 +118,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _firstNameController.text = first;
     _lastNameController.text = last;
     _emailController.text = profile.email;
-    _mobileController.text = profile.mobile;
+    _mobileController.text = CountryPhone.format(
+      profile.mobile,
+      ref.read(regionProvider).country,
+    );
     _agencyRegNoController.text = profile.agencyRegistrationNumber;
     _licenceController.text = profile.licenceNumber;
     _populating = false;
@@ -135,7 +141,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final email = _emailController.text.trim();
     final mobile = _mobileController.text.trim();
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    final phoneRegex = RegExp(r'^[\d\+\-\s\(\)]{7,20}$');
 
     final errors = <String, String>{
       if (_firstNameController.text.trim().isEmpty)
@@ -146,8 +151,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         'email': 'Enter a valid email address',
       if (mobile.isEmpty)
         'mobile': 'Mobile number is required'
-      else if (!phoneRegex.hasMatch(mobile))
-        'mobile': 'Enter a valid mobile number',
+      else
+        'mobile': ?CountryPhone.validate(
+          mobile,
+          ref.read(regionProvider).country,
+        ),
     };
     setState(() {
       _errors
@@ -180,7 +188,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
-      mobile: _mobileController.text.trim(),
+      mobile: CountryPhone.toStored(
+        _mobileController.text,
+        ref.read(regionProvider).country,
+      ),
       agencyName: _agency.name,
       agencySlug: _agency.slug,
       agencyRegistrationNumber: _agencyRegNoController.text.trim(),
@@ -270,6 +281,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ? RealEstateTheme.fromAgencyDark(_agency)
         : RealEstateTheme.fromAgency(_agency);
     final textTheme = theme.toThemeData().textTheme;
+    final country = ref.watch(regionProvider).country;
 
     return ScopedBrandTheme(
       theme: theme,
@@ -340,8 +352,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     CustomTextInput(
                       theme: theme,
                       label: 'Mobile number',
+                      placeholder: '82 123 4567',
                       controller: _mobileController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [CountryPhone.inputFormatter(country)],
+                      prefixIcon: PhonePrefix(country: country, theme: theme),
                       isRequired: true,
                       errorText: _errors['mobile'],
                     ),
@@ -356,6 +371,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     CustomTextInput(
                       theme: theme,
                       label: 'Agency registration number',
+                      keyboardType: TextInputType.datetime,
                       controller: _agencyRegNoController,
                       autocorrect: false,
                       errorText: _errors['agencyRegistrationNumber'],
@@ -364,6 +380,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     CustomTextInput(
                       theme: theme,
                       label: 'Licence / FFC number',
+                      textCapitalization: TextCapitalization.characters,
                       controller: _licenceController,
                       autocorrect: false,
                       subtext:

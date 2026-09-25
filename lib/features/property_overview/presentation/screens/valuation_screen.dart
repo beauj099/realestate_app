@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/locale/region_provider.dart';
+import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../providers/property_provider.dart';
@@ -23,6 +25,7 @@ class ValuationScreen extends ConsumerWidget {
     final state = ref.watch(propertyViewModelProvider);
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final theme = ref.watch(themeConfigProvider);
+    final currency = ref.watch(regionProvider).currencySymbol;
     final textTheme = theme.toThemeData().textTheme;
 
     List<TextInputFormatter> currencyOnly() => [
@@ -51,9 +54,7 @@ class ValuationScreen extends ConsumerWidget {
       onSave: () async {
         await viewModel.saveValuation();
         final error = ref.read(propertyViewModelProvider).errorMessage;
-        return error == null
-            ? null
-            : friendlySaveMessage(error, 'valuation');
+        return error == null ? null : friendlySaveMessage(error, 'valuation');
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,20 +69,22 @@ class ValuationScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           CustomTextInput(
             theme: theme,
-            label: "Owner's Net Price (ZAR)",
+            label: "Owner's Net Price",
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 2500000',
             initialValue: state.listingValuation.ownersNetPrice,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateValuation(ownersNetPrice: val),
           ),
           const SizedBox(height: 14),
           CustomTextInput(
             theme: theme,
-            label: 'Agent Valuation (ZAR)',
+            label: 'Agent Valuation',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
             placeholder: 'e.g. 2750000',
             initialValue: state.listingValuation.agentValuation,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateValuation(agentValuation: val),
           ),
@@ -101,6 +104,7 @@ class ValuationScreen extends ConsumerWidget {
             _CommissionSummary(
               netPrice: netPrice,
               commissionPercent: commission,
+              currencySymbol: currency,
               theme: theme,
               textTheme: textTheme,
             ),
@@ -121,9 +125,12 @@ class _CommissionSummary extends StatelessWidget {
   final dynamic theme;
   final TextTheme textTheme;
 
+  final String currencySymbol;
+
   const _CommissionSummary({
     required this.netPrice,
     required this.commissionPercent,
+    required this.currencySymbol,
     required this.theme,
     required this.textTheme,
   });
@@ -135,7 +142,7 @@ class _CommissionSummary extends StatelessWidget {
       if (i > 0 && (rounded.length - i) % 3 == 0) buffer.write(' ');
       buffer.write(rounded[i]);
     }
-    return 'R $buffer';
+    return '$currencySymbol $buffer';
   }
 
   @override

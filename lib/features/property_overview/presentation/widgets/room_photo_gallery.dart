@@ -203,9 +203,7 @@ class RoomPhotoGallery extends StatelessWidget {
             const Spacer(),
             Text(
               '${photos.length} / ${Room.maxPhotos}',
-              style: textTheme.bodyMedium?.copyWith(
-                color: theme.textSecondary,
-              ),
+              style: textTheme.bodyMedium?.copyWith(color: theme.textSecondary),
             ),
           ],
         ),

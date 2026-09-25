@@ -13,6 +13,9 @@ String resolveDefaultBaseUrl() {
   return ApiConstants.baseUrlWeb;
 }
 
+/// No-op: the browser loads images and owns the TLS handshake on the web.
+void allowApiImagesWithDevCert(String baseUrl) {}
+
 /// No-op: the browser manages the TLS handshake on the web. Web traffic is
 /// routed over HTTP instead (see [resolveDefaultBaseUrl]).
 void applyDebugTlsBypass(Dio dio) {}

@@ -5,11 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
-import '../../../../core/widgets/condition_selector.dart';
 import '../../../../core/widgets/custom_button.dart';
-import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_text_input.dart';
-import '../../../../core/widgets/feature_list_widget.dart';
+import '../../../../core/widgets/multi_select_sheet.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../data/models/enums/condition_rating.dart';
@@ -18,7 +16,13 @@ import '../../data/models/room.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/room_photo_gallery.dart';
 import '../widgets/room_score_slider.dart';
+import '../widgets/section_list.dart';
 
+/// One room: photos, condition, features, notes and score.
+///
+/// Laid out like Property Features — section headers over compact cards —
+/// with the room's name in the app bar instead of a card of its own. Edits
+/// go into the shared property state and are saved with Property Features.
 class RoomDetailsScreen extends ConsumerWidget {
   final String roomId;
 
@@ -35,6 +39,8 @@ class RoomDetailsScreen extends ConsumerWidget {
       (r) => r.id == roomId,
       orElse: () => state.rooms.first,
     );
+    final groups = _FeatureGroup.forRoom(room);
+    final featureCount = room.features.length;
 
     return PopScope(
       canPop: false,
@@ -47,16 +53,31 @@ class RoomDetailsScreen extends ConsumerWidget {
         backgroundColor: theme.backgroundColor,
         appBar: WizardAppBar(
           title: room.name,
-          onBack: () {
-            Navigator.maybePop(context);
-          },
+          onBack: () => Navigator.maybePop(context),
           theme: theme,
           actions: [
             IconButton(
+              tooltip: 'Rename room',
+              icon: Icon(Icons.edit_outlined, color: theme.textSecondary),
+              onPressed: () => _showRenameDialog(
+                context,
+                viewModel,
+                room.id,
+                room.name,
+                theme,
+                textTheme,
+              ),
+            ),
+            IconButton(
               tooltip: 'Remove room',
               icon: Icon(Icons.delete_outline, color: theme.error),
-              onPressed: () =>
-                  _confirmRemoveRoom(context, viewModel, room, theme, textTheme),
+              onPressed: () => _confirmRemoveRoom(
+                context,
+                viewModel,
+                room,
+                theme,
+                textTheme,
+              ),
             ),
           ],
         ),
@@ -65,59 +86,10 @@ class RoomDetailsScreen extends ConsumerWidget {
             onTap: () => FocusScope.of(context).unfocus(),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(
-                left: 20.0,
-                right: 20.0,
-                top: 24.0,
-                bottom: 40.0,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'ROOM IDENTITY',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textLabel,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  CustomCard(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20.0,
-                      vertical: 16.0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          room.name,
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.textPrimary,
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.edit_outlined,
-                            color: theme.textSecondary,
-                            size: 20,
-                          ),
-                          onPressed: () => _showRenameDialog(
-                            context,
-                            viewModel,
-                            room.id,
-                            room.name,
-                            theme,
-                            textTheme,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   RoomPhotoGallery(
                     room: room,
                     baseUrl: ref.watch(apiClientProvider).baseUrl,
@@ -127,24 +99,13 @@ class RoomDetailsScreen extends ConsumerWidget {
                     onRemove: (path) =>
                         viewModel.removeRoomPhoto(room.id, path),
                   ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Room Condition Rating',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.textPrimary,
-                      fontSize: 16,
-                    ),
+                  const SizedBox(height: 24),
+                  SectionHeader(
+                    title: 'Condition',
+                    theme: theme,
+                    textTheme: textTheme,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Rate the current state of the space.',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: theme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ConditionSelector(
+                  _ConditionChips(
                     selected: ConditionRating.fromStored(room.conditionRating),
                     theme: theme,
                     textTheme: textTheme,
@@ -154,228 +115,59 @@ class RoomDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Container(height: 1, color: theme.borderLight),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  SectionHeader(
+                    title: 'Features',
+                    detail: featureCount == 0 ? null : '$featureCount ticked',
+                    theme: theme,
+                    textTheme: textTheme,
+                  ),
+                  RowsCard(
+                    theme: theme,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Features & Amenities',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.textPrimary,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Select all that apply to this space.',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: theme.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
+                      for (final group in groups)
+                        _FeatureGroupRow(
+                          group: group,
+                          selected: group.selectedFrom(room),
+                          theme: theme,
+                          textTheme: textTheme,
+                          onTap: () async {
+                            final picked = await showMultiSelectSheet<String>(
+                              context: context,
+                              theme: theme,
+                              title: group.label,
+                              options: group.options,
+                              labelOf: (f) => f,
+                              initiallySelected: group.selectedFrom(room),
+                              confirmLabel: 'Done',
+                              allowEmpty: true,
+                              createCustom: group.allowsCustom
+                                  ? (text) => text
+                                  : null,
+                            );
+                            if (picked != null) {
+                              viewModel.setRoomFeaturesInGroup(
+                                room.id,
+                                group.options,
+                                picked,
+                              );
+                            }
+                          },
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  () {
-                    final allStandardAmenities = StandardAmenity.values
-                        .map((a) => a.displayString)
-                        .toSet();
-                    // Only amenities relevant to this room type are offered.
-                    // Already-selected standard features are kept visible too,
-                    // so legacy rooms never lose a checked item after the fix.
-                    final relevant = StandardAmenity.relevantForRoomTypeId(
-                      room.roomTypeId,
-                    ).map((a) => a.displayString).toSet();
-                    final selectedStandard = room.features
-                        .map((f) => f.description)
-                        .where(allStandardAmenities.contains)
-                        .toSet();
-                    final visible = {...relevant, ...selectedStandard};
-                    final visibleCategories = AmenityCategory.values
-                        .where(
-                          (c) => StandardAmenity.values.any(
-                            (a) =>
-                                a.category == c &&
-                                visible.contains(a.displayString),
-                          ),
-                        )
-                        .toList();
-                    return Column(
-                      children: [
-                        ...visibleCategories.map((category) {
-                          final amenities = StandardAmenity.values
-                              .where(
-                                (a) =>
-                                    a.category == category &&
-                                    visible.contains(a.displayString),
-                              )
-                              .map((a) => a.displayString)
-                              .toList();
-                          final selectedForCategory = room.features
-                              .where((f) => amenities.contains(f.description))
-                              .map((f) => f.description)
-                              .toList();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  category.displayString,
-                                  style: textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.textPrimary,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                FeatureListWidget(
-                                  selectedFeatures: selectedForCategory,
-                                  availableDefaults: amenities,
-                                  onAdd: (f) =>
-                                      viewModel.addFeatureToRoom(room.id, f),
-                                  onRemove: (f) => viewModel
-                                      .removeFeatureFromRoom(room.id, f),
-                                  categoryLabel: category.displayString,
-                                  theme: theme,
-                                  textTheme: textTheme,
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        () {
-                          final customFeatures = room.features
-                              .where(
-                                (f) => !allStandardAmenities.contains(
-                                  f.description,
-                                ),
-                              )
-                              .toList();
-                          if (customFeatures.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Custom',
-                                  style: textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.textPrimary,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ...customFeatures.map(
-                                  (f) => Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.cardBackgroundColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: theme.borderLight,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.build_outlined,
-                                          size: 18,
-                                          color: theme.textSecondary,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            f.description,
-                                            style: textTheme.bodyLarge
-                                                ?.copyWith(
-                                                  color: theme.textPrimary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: Icon(
-                                            Icons.close,
-                                            size: 18,
-                                            color: theme.textSecondary,
-                                          ),
-                                          onPressed: () =>
-                                              viewModel.removeFeatureFromRoom(
-                                                room.id,
-                                                f.description,
-                                              ),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(
-                                            minWidth: 36,
-                                            minHeight: 36,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }(),
-                      ],
-                    );
-                  }(),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showAddFeatureDialog(
-                        context,
-                        viewModel,
-                        room.id,
-                        theme,
-                        textTheme,
-                      ),
-                      icon: const Icon(Icons.add, size: 22),
-                      label: const Text('ADD CUSTOM FEATURE'),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: theme.cardBackgroundColor,
-                        foregroundColor: theme.primaryColor,
-                        side: BorderSide(
-                          color: theme.primaryColor.withValues(alpha: 0.4),
-                          width: 1.5,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 24),
+                  SectionHeader(
+                    title: 'Notes',
+                    theme: theme,
+                    textTheme: textTheme,
                   ),
-                  const SizedBox(height: 20),
-                  Container(height: 1, color: theme.borderLight),
-                  const SizedBox(height: 20),
                   CustomTextInput(
                     theme: theme,
                     label: 'Room notes',
                     placeholder:
-                        'Add specific details about the condition or layout of this room...',
+                        'Anything specific about the condition or layout…',
                     initialValue: room.notes,
-                    maxLines: 4,
+                    maxLines: 3,
                     onChanged: (val) => viewModel.updateRoomDetails(
                       roomId: room.id,
                       notes: val,
@@ -395,8 +187,7 @@ class RoomDetailsScreen extends ConsumerWidget {
             ),
           ),
         ),
-        // Pinned so the agent can commit the room without scrolling back down
-        // past the whole amenity list.
+        // Pinned so the agent can finish the room without scrolling back.
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: theme.cardBackgroundColor,
@@ -475,6 +266,7 @@ class RoomDetailsScreen extends ConsumerWidget {
       content: CustomTextInput(
         theme: theme,
         label: 'Room Name',
+        textCapitalization: TextCapitalization.words,
         placeholder: 'e.g. Master Bedroom Suite',
         initialValue: currentName,
         onChanged: (val) => name = val,
@@ -494,39 +286,213 @@ class RoomDetailsScreen extends ConsumerWidget {
       ],
     );
   }
+}
 
-  void _showAddFeatureDialog(
-    BuildContext context,
-    PropertyViewModel viewModel,
-    String roomId,
-    RealEstateTheme theme,
-    TextTheme textTheme,
-  ) {
-    String feature = '';
+/// The six condition bands as one wrap of compact chips.
+class _ConditionChips extends StatelessWidget {
+  final ConditionRating? selected;
+  final ValueChanged<ConditionRating> onChanged;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
 
-    showRealEstateDialog(
-      context: context,
-      title: 'Add Amenity / Feature',
-      theme: theme,
-      content: CustomTextInput(
-        theme: theme,
-        label: 'Feature Name',
-        placeholder: 'e.g. USB Outlets, Underfloor Heating',
-        onChanged: (val) => feature = val,
-      ),
-      actions: [
-        dialogCancelButton(context: context, theme: theme),
-        dialogActionButton(
-          theme: theme,
-          text: 'Add',
-          onPressed: () {
-            if (feature.trim().isNotEmpty) {
-              viewModel.addFeatureToRoom(roomId, feature.trim());
-              Navigator.pop(context);
-            }
-          },
-        ),
+  const _ConditionChips({
+    required this.selected,
+    required this.onChanged,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final rating in ConditionRating.values)
+          ChoiceChip(
+            label: Text(rating.label),
+            selected: rating == selected,
+            onSelected: (_) => onChanged(rating),
+            showCheckmark: false,
+            selectedColor: theme.primaryColor,
+            backgroundColor: theme.cardBackgroundColor,
+            side: BorderSide(
+              color: rating == selected
+                  ? theme.primaryColor
+                  : theme.borderLight,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            labelStyle: textTheme.bodyMedium?.copyWith(
+              color: rating == selected ? theme.onPrimary : theme.textPrimary,
+              fontWeight: rating == selected
+                  ? FontWeight.bold
+                  : FontWeight.w500,
+            ),
+          ),
       ],
+    );
+  }
+}
+
+/// One group of room features, or "Other" for anything custom.
+class _FeatureGroup {
+  final String label;
+  final IconData icon;
+  final List<String> options;
+  final bool allowsCustom;
+
+  const _FeatureGroup({
+    required this.label,
+    required this.icon,
+    required this.options,
+    this.allowsCustom = false,
+  });
+
+  List<String> selectedFrom(Room room) => [
+    for (final f in room.features)
+      if (options.contains(f.description)) f.description,
+  ];
+
+  static IconData _iconFor(AmenityCategory category) {
+    switch (category) {
+      case AmenityCategory.kitchen:
+        return Icons.kitchen_outlined;
+      case AmenityCategory.bathroom:
+        return Icons.bathtub_outlined;
+      case AmenityCategory.storage:
+        return Icons.checkroom_outlined;
+      case AmenityCategory.layout:
+        return Icons.door_sliding_outlined;
+      case AmenityCategory.living:
+        return Icons.fireplace_outlined;
+      case AmenityCategory.floors:
+        return Icons.layers_outlined;
+      case AmenityCategory.climateFinishes:
+        return Icons.ac_unit_outlined;
+      case AmenityCategory.legacyWholeHouse:
+        return Icons.home_outlined;
+    }
+  }
+
+  /// The groups this kind of room offers, in catalogue order, then "Other".
+  /// A legacy whole-house feature already on the room still gets its group,
+  /// so it can be seen and removed.
+  static List<_FeatureGroup> forRoom(Room room) {
+    final relevant = StandardAmenity.relevantForRoomTypeId(room.roomTypeId);
+    final ticked = room.features.map((f) => f.description).toSet();
+    final known = StandardAmenity.values.map((a) => a.displayString).toSet();
+
+    return [
+      for (final category in AmenityCategory.values)
+        if (StandardAmenity.values
+                .where(
+                  (a) =>
+                      a.category == category &&
+                      (relevant.contains(a) ||
+                          ticked.contains(a.displayString)),
+                )
+                .map((a) => a.displayString)
+                .toList()
+            case final options when options.isNotEmpty)
+          _FeatureGroup(
+            label: category.displayString,
+            icon: _iconFor(category),
+            options: options,
+          ),
+      _FeatureGroup(
+        label: 'Other',
+        icon: Icons.more_horiz,
+        options: [
+          for (final f in room.features)
+            if (!known.contains(f.description)) f.description,
+        ],
+        allowsCustom: true,
+      ),
+    ];
+  }
+}
+
+class _FeatureGroupRow extends StatelessWidget {
+  final _FeatureGroup group;
+  final List<String> selected;
+  final VoidCallback onTap;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _FeatureGroupRow({
+    required this.group,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAny = selected.isNotEmpty;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
+        child: Row(
+          children: [
+            RowIcon(icon: group.icon, theme: theme, muted: !hasAny),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.label,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasAny
+                        ? selected.join(', ')
+                        : group.allowsCustom
+                        ? 'Add anything not listed above'
+                        : 'None',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: theme.textSecondary.withValues(
+                        alpha: hasAny ? 1 : 0.7,
+                      ),
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (hasAny) ...[
+              const SizedBox(width: 12),
+              Container(
+                constraints: const BoxConstraints(minWidth: 26),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${selected.length}',
+                  textAlign: TextAlign.center,
+                  style: textTheme.labelLarge?.copyWith(
+                    color: theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

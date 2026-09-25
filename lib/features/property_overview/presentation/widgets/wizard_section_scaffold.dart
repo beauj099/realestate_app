@@ -38,6 +38,10 @@ class WizardSectionScaffold extends ConsumerStatefulWidget {
   /// Blocks saving and explains why, e.g. a validation failure.
   final String? Function()? validate;
 
+  /// Space above the content. List-style sections use less, so more of the
+  /// list is visible without scrolling.
+  final double topPadding;
+
   const WizardSectionScaffold({
     super.key,
     required this.title,
@@ -46,6 +50,7 @@ class WizardSectionScaffold extends ConsumerStatefulWidget {
     required this.sectionName,
     this.saveLabel = 'Save',
     this.validate,
+    this.topPadding = 24,
   });
 
   @override
@@ -199,7 +204,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
                     physics: const ClampingScrollPhysics(),
                     // Bottom padding clears the pinned action bar so the last
                     // field is never trapped underneath it.
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                    padding: EdgeInsets.fromLTRB(20, widget.topPadding, 20, 24),
                     child: widget.child,
                   ),
                 ),
