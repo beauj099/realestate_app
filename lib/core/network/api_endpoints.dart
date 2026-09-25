@@ -25,6 +25,7 @@ class ApiEndpoints {
 
   static String listing(int id) => '/api/listings/$id';
   static String listingSubmit(int id) => '/api/listings/$id/submit';
+  static String listingHouseScore(int id) => '/api/listings/$id/house-score';
   static String listingAddress(int id) => '/api/listings/$id/address';
 
   static String listingBuildingInfo(int id) =>
@@ -51,8 +52,12 @@ class ApiEndpoints {
   ) =>
       '/api/listings/$listingId/rooms/$roomId/custom-features/$customFeatureId';
 
-  static String listingRoomPhoto(int listingId, int roomId) =>
-      '/api/listings/$listingId/rooms/$roomId/photo';
+  static String listingRoomPhotos(int listingId, int roomId) =>
+      '/api/listings/$listingId/rooms/$roomId/photos';
+
+  static String listingRoomPhotoById(int listingId, int roomId, int photoId) =>
+      '/api/listings/$listingId/rooms/$roomId/photos/$photoId';
+
 
   static String listingPhotos(int id) => '/api/listings/$id/photos';
 

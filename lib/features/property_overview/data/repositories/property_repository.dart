@@ -106,6 +106,7 @@ class PropertyRepository {
           // rather than crashing the home screen when one slips through.
           referenceNumber: j['referenceNumber'] as String? ?? '',
           p24Ref: j['p24Ref'] as String?,
+          houseScore: (j['houseScore'] as num?)?.toDouble(),
           propertyTypeId: (j['propertyTypeId'] as num?)?.toInt() ?? 0,
           listingValuationId: (j['listingValuationId'] as num?)?.toInt(),
           listDate: j['listDate'] != null
@@ -184,6 +185,8 @@ class PropertyRepository {
       propertyTypeId: j['propertyTypeId'] as int? ?? 0,
       referenceNumber: j['referenceNumber'] as String? ?? '',
       p24Ref: j['p24Ref'] as String?,
+      savedHouseScore: (j['houseScore'] as num?)?.toDouble(),
+      houseScoreIsManual: j['houseScoreIsManual'] as bool? ?? false,
       streetNumber: address?['streetNumber'] as String? ?? '',
       street: address?['street'] as String? ?? '',
       unitNumber: address?['unitNumber'] as String? ?? '',
@@ -231,9 +234,10 @@ class PropertyRepository {
           roomTypeId: r['roomTypeId'] as int? ?? 1,
           roomTypeOther: r['roomTypeOther'] as String?,
           conditionRating: _parseConditionRating(condition?['conditionRating']),
+          score: (condition?['score'] as num?)?.toDouble(),
           features: [...features, ...customFeatures],
           notes: condition?['notes'] as String? ?? '',
-          photoUrl: r['photoUrl'] as String?,
+          photos: _parseRoomPhotos(r),
           createdAt: r['createdAt'] != null
               ? DateTime.parse(r['createdAt'] as String)
               : null,
@@ -404,21 +408,22 @@ class PropertyRepository {
   Future<Room> _createRoomWithDetails(int listingId, Room room) async {
     final createdJson = await _createRoom(listingId, room);
     final createdId = createdJson['id'] as int;
-    var photoUrl = room.photoUrl;
+    final photos = await _uploadPendingRoomPhotos(
+      listingId,
+      createdId,
+      room.photos,
+    );
 
-    if (photoUrl != null && !isRemotePhoto(photoUrl)) {
-      try {
-        photoUrl = await _uploadRoomPhoto(listingId, createdId, photoUrl);
-      } catch (e) {
-        developer.log('Room photo upload failed: $e');
-      }
-    }
-
-    if (room.conditionRating != null) {
+    // Rating, score and notes share one Condition row; write it when any of
+    // them is set (notes alone used to be dropped for an unrated room).
+    if (room.conditionRating != null ||
+        room.score != null ||
+        room.notes.isNotEmpty) {
       await _upsertRoomCondition(
         listingId,
         createdId,
         conditionRating: room.conditionRating,
+        score: room.score,
         notes: room.notes.isNotEmpty ? room.notes : null,
       );
     }
@@ -431,7 +436,7 @@ class PropertyRepository {
       await _addCustomFeature(listingId, createdId, description);
     }
 
-    return room.copyWith(id: createdId.toString(), photoUrl: photoUrl);
+    return room.copyWith(id: createdId.toString(), photos: photos);
   }
 
   Future<Room> _syncExistingRoom(
@@ -440,29 +445,34 @@ class PropertyRepository {
     Room room,
     Map<String, dynamic> existing,
   ) async {
-    var photoUrl = room.photoUrl;
-
     await _updateRoom(listingId, apiId, room);
 
-    final existingPhotoUrl = existing['photoUrl'] as String?;
-    if (existingPhotoUrl != null && (photoUrl == null || photoUrl.isEmpty)) {
-      await _client.delete(ApiEndpoints.listingRoomPhoto(listingId, apiId));
-    } else if (photoUrl != null && !isRemotePhoto(photoUrl)) {
-      try {
-        photoUrl = await _uploadRoomPhoto(listingId, apiId, photoUrl);
-      } catch (e) {
-        developer.log('Room photo upload failed: $e');
+    // Photos the agent removed are deleted; new shots are uploaded.
+    final keptIds = room.photos.map((p) => p.id).whereType<int>().toSet();
+    for (final existingPhoto in _parseRoomPhotos(existing)) {
+      final id = existingPhoto.id;
+      if (id != null && !keptIds.contains(id)) {
+        await _client.delete(
+          ApiEndpoints.listingRoomPhotoById(listingId, apiId, id),
+        );
       }
     }
+    final photos = await _uploadPendingRoomPhotos(
+      listingId,
+      apiId,
+      room.photos,
+    );
 
     final existingCondition = existing['condition'] as Map<String, dynamic>?;
     if (room.conditionRating !=
             _parseConditionRating(existingCondition?['conditionRating']) ||
+        room.score != (existingCondition?['score'] as num?)?.toDouble() ||
         room.notes != (existingCondition?['notes'] as String? ?? '')) {
       await _upsertRoomCondition(
         listingId,
         apiId,
         conditionRating: room.conditionRating,
+        score: room.score,
         notes: room.notes.isNotEmpty ? room.notes : null,
       );
     }
@@ -504,7 +514,7 @@ class PropertyRepository {
       }
     }
 
-    return room.copyWith(photoUrl: photoUrl);
+    return room.copyWith(photos: photos);
   }
 
   Future<void> upsertParking(
@@ -622,20 +632,21 @@ class PropertyRepository {
     developer.log('Listing submitted: ID=$listingId');
   }
 
+  /// Saves the house score (a percentage, or null to clear it).
+  Future<void> updateHouseScore(
+    int listingId, {
+    required double? score,
+    required bool isManual,
+  }) async {
+    await _client.put(
+      ApiEndpoints.listingHouseScore(listingId),
+      data: {'score': score, 'isManual': isManual},
+    );
+  }
+
   Future<void> deleteListing(int listingId) async {
     await _client.delete(ApiEndpoints.listing(listingId));
     developer.log('Listing deleted: ID=$listingId');
-  }
-
-  Future<String?> uploadRoomPhoto(
-    int listingId,
-    int roomId,
-    String filePath, {
-    Uint8List? bytes,
-    String? filename,
-  }) {
-    if (bytes != null) cachePhotoBytes(filePath, bytes, filename: filename);
-    return _uploadRoomPhoto(listingId, roomId, filePath);
   }
 
   /// Listing-level (exterior) photos, ordered primary-first by the API.
@@ -716,9 +727,6 @@ class PropertyRepository {
       'roomTypeId': room.roomTypeId,
     };
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
-    if (room.photoUrl != null && isRemotePhoto(room.photoUrl!)) {
-      data['photoUrl'] = room.photoUrl;
-    }
     final response = await _client.post(
       ApiEndpoints.listingRooms(listingId),
       data: data,
@@ -730,10 +738,9 @@ class PropertyRepository {
     final data = <String, dynamic>{};
     if (room.name.isNotEmpty) data['name'] = room.name;
     data['roomTypeId'] = room.roomTypeId;
+    // The cover photo is kept in step by the API as photos are added and
+    // removed, so it is not sent here.
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
-    if (room.photoUrl != null && isRemotePhoto(room.photoUrl!)) {
-      data['photoUrl'] = room.photoUrl;
-    }
     await _client.put(ApiEndpoints.listingRoom(listingId, roomId), data: data);
   }
 
@@ -741,10 +748,14 @@ class PropertyRepository {
     int listingId,
     int roomId, {
     int? conditionRating,
+    double? score,
     String? notes,
   }) async {
     final data = <String, dynamic>{
       'conditionCategoryId': await _resolveConditionCategoryId(),
+      // Always sent: the API upsert overwrites the row, so omitting it would
+      // clear a stored score.
+      'score': score,
     };
     if (conditionRating != null) data['conditionRating'] = conditionRating;
     if (notes != null) data['notes'] = notes;
@@ -796,21 +807,57 @@ class PropertyRepository {
     );
   }
 
-  Future<String?> _uploadRoomPhoto(
+  /// Room photos from a room DTO: the `photos` list, or — from an API that
+  /// predates multiple photos — the single `photoUrl` as the only photo.
+  static List<RoomPhoto> _parseRoomPhotos(Map<String, dynamic> room) {
+    final list = room['photos'] as List<dynamic>?;
+    if (list != null) {
+      final photos = list.cast<Map<String, dynamic>>().toList()
+        ..sort(
+          (a, b) => ((a['sortOrder'] as int?) ?? 0).compareTo(
+            (b['sortOrder'] as int?) ?? 0,
+          ),
+        );
+      return [
+        for (final p in photos)
+          RoomPhoto(id: p['id'] as int?, path: p['url'] as String),
+      ];
+    }
+    final legacy = room['photoUrl'] as String?;
+    return legacy == null ? const [] : [RoomPhoto(path: legacy)];
+  }
+
+  /// Uploads every photo still held as a local file and returns the list with
+  /// server ids and URLs in their place. A failed upload stays local so the
+  /// next save retries it.
+  Future<List<RoomPhoto>> _uploadPendingRoomPhotos(
     int listingId,
     int roomId,
-    String filePath,
+    List<RoomPhoto> photos,
   ) async {
-    final formData = FormData.fromMap({
-      'file': await _photoMultipartFile(filePath),
-    });
-    final response = await _client.post(
-      ApiEndpoints.listingRoomPhoto(listingId, roomId),
-      data: formData,
-    );
-    pendingPhotoBytes.remove(filePath);
-    final json = response.data as Map<String, dynamic>?;
-    return json?['url'] as String?;
+    final result = <RoomPhoto>[];
+    for (final photo in photos) {
+      if (photo.isUploaded || isRemotePhoto(photo.path)) {
+        result.add(photo);
+        continue;
+      }
+      try {
+        final formData = FormData.fromMap({
+          'file': await _photoMultipartFile(photo.path),
+        });
+        final response = await _client.post(
+          ApiEndpoints.listingRoomPhotos(listingId, roomId),
+          data: formData,
+        );
+        pendingPhotoBytes.remove(photo.path);
+        final json = response.data as Map<String, dynamic>;
+        result.add(RoomPhoto(id: json['id'] as int?, path: json['url'] as String));
+      } catch (e) {
+        developer.log('Room photo upload failed: $e');
+        result.add(photo);
+      }
+    }
+    return result;
   }
 
   Future<List<Map<String, dynamic>>> _getParkingJson(int listingId) async {

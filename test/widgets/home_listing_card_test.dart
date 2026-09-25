@@ -40,6 +40,7 @@ void main() {
     // The reference number means nothing to an agent scanning the list.
     expect(find.text('LST-2026-00001'), findsNothing);
     expect(find.text('No address yet'), findsOneWidget);
+    expect(find.text('In progress'), findsOneWidget);
   });
 
   testWidgets('Home screen lays out a fully populated listing card', (
@@ -65,6 +66,6 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Jane Owner'), findsOneWidget);
-    expect(find.text('SUBMITTED'), findsOneWidget);
+    expect(find.text('Submitted'), findsOneWidget);
   });
 }

@@ -14,6 +14,7 @@ import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/listing_photo.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../property_overview/data/models/enums/property_type.dart';
+import '../../../property_overview/data/models/room_score.dart';
 import '../../../property_overview/providers/property_provider.dart';
 import '../../../settings/presentation/widgets/agency_logo.dart';
 
@@ -104,16 +105,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
               },
       ),
-      body: Column(
-        children: [
-          _HomeHeader(
-            agency: agency,
-            firstName: firstName,
-            theme: theme,
-            textTheme: textTheme,
+      // A wash of the agency colour fading into the page keeps the screen
+      // on-brand without competing with the listing photos.
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0, 0.4],
+            colors: [
+              theme.primaryColor.withValues(alpha: 0.07),
+              theme.backgroundColor,
+            ],
           ),
-          Expanded(child: _buildListings(listingsAsync, theme, textTheme)),
-        ],
+        ),
+        child: Column(
+          children: [
+            _HomeHeader(
+              agency: agency,
+              firstName: firstName,
+              listings: listingsAsync.value,
+              theme: theme,
+              textTheme: textTheme,
+            ),
+            Expanded(child: _buildListings(listingsAsync, theme, textTheme)),
+          ],
+        ),
       ),
     );
   }
@@ -248,7 +265,7 @@ class _ListingCard extends ConsumerWidget {
     final textTheme = theme.toThemeData().textTheme;
 
     final isSubmitted = listing.status == 'submitted';
-    final statusLabel = isSubmitted ? 'Submitted' : 'Incomplete';
+    final statusColor = isSubmitted ? theme.completeColor : theme.pendingColor;
     final propertyType = PropertyTypeExtension.fromId(listing.propertyTypeId);
 
     // Served inline by `GET /api/listings` — no per-card request. Older API
@@ -267,12 +284,19 @@ class _ListingCard extends ConsumerWidget {
           ref.invalidate(listingsProvider);
         }
       },
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
           color: theme.cardBackgroundColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: theme.borderLight),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.borderLight.withValues(alpha: 0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: theme.primaryColor.withValues(alpha: 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         // A ListView gives its items unbounded height, so the stretched Row needs
@@ -283,16 +307,24 @@ class _ListingCard extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Status at a glance down the list: amber in progress, green
+              // submitted.
+              Container(width: 4, color: statusColor),
               SizedBox(
                 width: 104,
                 height: 104,
-                child: listingPhoto(
-                  listing.primaryPhotoUrl,
-                  theme: theme,
-                  textTheme: textTheme,
-                  cacheWidth: 300,
-                  baseUrl: ref.watch(apiClientProvider).baseUrl,
-                ),
+                child: listing.primaryPhotoUrl == null
+                    ? _PhotoPlaceholder(
+                        icon: propertyType?.icon ?? Icons.home_outlined,
+                        theme: theme,
+                      )
+                    : listingPhoto(
+                        listing.primaryPhotoUrl,
+                        theme: theme,
+                        textTheme: textTheme,
+                        cacheWidth: 300,
+                        baseUrl: ref.watch(apiClientProvider).baseUrl,
+                      ),
               ),
               Expanded(
                 child: Padding(
@@ -338,19 +370,41 @@ class _ListingCard extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          _StatusBadge(
-                            label: statusLabel,
-                            isSubmitted: isSubmitted,
-                            theme: theme,
-                            textTheme: textTheme,
+                          Icon(
+                            isSubmitted
+                                ? Icons.check_circle_rounded
+                                : Icons.pending_outlined,
+                            size: 15,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isSubmitted ? 'Submitted' : 'In progress',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           if (propertyType != null) ...[
-                            const SizedBox(width: 8),
-                            Icon(
-                              propertyType.icon,
-                              size: 13,
-                              color: theme.textSecondary,
+                            Text(
+                              '  ·  ',
+                              style: textTheme.labelMedium?.copyWith(
+                                color: theme.textSecondary,
+                              ),
                             ),
+                            Flexible(
+                              child: Text(
+                                propertyType.displayString,
+                                style: textTheme.labelMedium?.copyWith(
+                                  color: theme.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                          if (listing.houseScore case final score?) ...[
+                            const Spacer(),
+                            _HouseScoreBadge(percent: score, theme: theme),
                           ],
                         ],
                       ),
@@ -366,34 +420,63 @@ class _ListingCard extends ConsumerWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final bool isSubmitted;
+/// The listing's house score as a small percentage pill.
+class _HouseScoreBadge extends StatelessWidget {
+  final double percent;
   final RealEstateTheme theme;
-  final TextTheme textTheme;
 
-  const _StatusBadge({
-    required this.label,
-    required this.isSubmitted,
-    required this.theme,
-    required this.textTheme,
-  });
+  const _HouseScoreBadge({required this.percent, required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    final color = isSubmitted ? theme.completeColor : theme.pendingColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
+    final textTheme = theme.toThemeData().textTheme;
+    return Tooltip(
+      message: 'House score',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: theme.primaryColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          RoomScore.percent(percent),
+          style: textTheme.labelMedium?.copyWith(
+            color: theme.primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
+          semanticsLabel: 'House score ${RoomScore.percent(percent)}',
+        ),
       ),
-      child: Text(
-        label.toUpperCase(),
-        style: textTheme.labelLarge?.copyWith(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 10,
+    );
+  }
+}
+
+/// Stand-in for a listing without a photo yet: the property-type glyph on a
+/// wash of the agency colour, rather than a flat grey block.
+class _PhotoPlaceholder extends StatelessWidget {
+  final IconData icon;
+  final RealEstateTheme theme;
+
+  const _PhotoPlaceholder({required this.icon, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.primaryColor.withValues(alpha: 0.16),
+            theme.primaryColor.withValues(alpha: 0.05),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          icon,
+          size: 30,
+          color: theme.primaryColor.withValues(alpha: 0.55),
         ),
       ),
     );
@@ -408,17 +491,31 @@ class _StatusBadge extends StatelessWidget {
 class _HomeHeader extends StatelessWidget {
   final Agency agency;
   final String? firstName;
+
+  /// Loaded listings, for the summary line; null while loading.
+  final List<ListingSummaryDto>? listings;
+
   final RealEstateTheme theme;
   final TextTheme textTheme;
 
   const _HomeHeader({
     required this.agency,
     required this.firstName,
+    required this.listings,
     required this.theme,
     required this.textTheme,
   });
 
   static const double _bannerHeight = 132;
+
+  /// "3 properties · 1 submitted", or null while loading or when empty.
+  String? get _summary {
+    final all = listings;
+    if (all == null || all.isEmpty) return null;
+    final submitted = all.where((l) => l.status == 'submitted').length;
+    final count = '${all.length} propert${all.length == 1 ? 'y' : 'ies'}';
+    return submitted == 0 ? count : '$count · $submitted submitted';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -431,10 +528,7 @@ class _HomeHeader extends StatelessWidget {
           ? SystemUiOverlayStyle.light
           : SystemUiOverlayStyle.dark,
       child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardBackgroundColor,
-          border: Border(bottom: BorderSide(color: theme.borderLight)),
-        ),
+        color: Colors.transparent,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -460,8 +554,18 @@ class _HomeHeader extends StatelessWidget {
                 ),
               ),
             ),
+            // Accent stripe in the agency's two brand colours, framing the
+            // logo panel.
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [agency.primaryColor, agency.secondaryColor],
+                ),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -492,6 +596,17 @@ class _HomeHeader extends StatelessWidget {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
+                  if (_summary case final summary?) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      summary,
+                      style: textTheme.labelMedium?.copyWith(
+                        color: theme.primaryColor,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

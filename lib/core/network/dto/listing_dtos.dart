@@ -20,6 +20,9 @@ class ListingSummaryDto {
   final String? primaryPhotoUrl;
   final int roomCount;
 
+  /// House score saved on the listing, as a percentage; null until set.
+  final double? houseScore;
+
   const ListingSummaryDto({
     required this.id,
     required this.referenceNumber,
@@ -37,6 +40,7 @@ class ListingSummaryDto {
     this.primaryOwnerName,
     this.primaryPhotoUrl,
     this.roomCount = 0,
+    this.houseScore,
   });
 
   /// "12 Main Road, Suburb, City" — empty when no address captured yet.

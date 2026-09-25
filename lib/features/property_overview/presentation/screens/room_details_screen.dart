@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/network/photo_urls.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
@@ -12,13 +10,14 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_card.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/feature_list_widget.dart';
-import '../../../../core/widgets/platform_image.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../data/models/enums/condition_rating.dart';
 import '../../data/models/enums/standard_amenity.dart';
 import '../../data/models/room.dart';
 import '../../providers/property_provider.dart';
+import '../widgets/room_photo_gallery.dart';
+import '../widgets/room_score_slider.dart';
 
 class RoomDetailsScreen extends ConsumerWidget {
   final String roomId;
@@ -52,6 +51,14 @@ class RoomDetailsScreen extends ConsumerWidget {
             Navigator.maybePop(context);
           },
           theme: theme,
+          actions: [
+            IconButton(
+              tooltip: 'Remove room',
+              icon: Icon(Icons.delete_outline, color: theme.error),
+              onPressed: () =>
+                  _confirmRemoveRoom(context, viewModel, room, theme, textTheme),
+            ),
+          ],
         ),
         body: SafeArea(
           child: GestureDetector(
@@ -111,13 +118,14 @@ class RoomDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  _buildRoomGraphic(
-                    context,
-                    theme,
-                    textTheme,
-                    room,
-                    viewModel,
-                    ref.watch(apiClientProvider).baseUrl,
+                  RoomPhotoGallery(
+                    room: room,
+                    baseUrl: ref.watch(apiClientProvider).baseUrl,
+                    theme: theme,
+                    textTheme: textTheme,
+                    onAdd: (shots) => viewModel.addRoomPhotos(room.id, shots),
+                    onRemove: (path) =>
+                        viewModel.removeRoomPhoto(room.id, path),
                   ),
                   const SizedBox(height: 28),
                   Text(
@@ -373,6 +381,15 @@ class RoomDetailsScreen extends ConsumerWidget {
                       notes: val,
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  // Last on purpose: the score sums up everything above it.
+                  RoomScoreSlider(
+                    score: room.score,
+                    theme: theme,
+                    textTheme: textTheme,
+                    onChanged: (score) =>
+                        viewModel.setRoomScore(room.id, score),
+                  ),
                 ],
               ),
             ),
@@ -409,201 +426,36 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRoomGraphic(
+  /// Removes the room (on the next Property Features save) and returns to
+  /// the room list.
+  Future<void> _confirmRemoveRoom(
     BuildContext context,
-    RealEstateTheme theme,
-    TextTheme textTheme,
+    PropertyViewModel viewModel,
     Room room,
-    PropertyViewModel viewModel,
-    String baseUrl,
-  ) {
-    final hasImage = room.photoUrl != null;
-
-    return GestureDetector(
-      onTap: () => _showImagePickerOptions(
-        context,
-        viewModel,
-        room.id,
-        theme,
-        textTheme,
-      ),
-      child: Container(
-        height: 180,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: !hasImage ? theme.imagePlaceholder : null,
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16.0),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (hasImage && isRemotePhoto(room.photoUrl!))
-                Image.network(
-                  resolvePhotoUrl(room.photoUrl!, baseUrl),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: theme.imagePlaceholder,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.broken_image_outlined,
-                            color: theme.mutedIcon,
-                            size: 32,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tap to retry',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: theme.mutedIcon,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else if (hasImage && !isRemotePhoto(room.photoUrl!))
-                localFileImage(
-                  room.photoUrl!,
-                  fit: BoxFit.cover,
-                  cacheWidth: 800,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: theme.imagePlaceholder,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.broken_image_outlined,
-                            color: theme.mutedIcon,
-                            size: 32,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tap to retry',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: theme.mutedIcon,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (!hasImage)
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        theme.shadow.withValues(alpha: 0.5),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(16.0),
-                  alignment: Alignment.bottomLeft,
-                  child: Text(
-                    'Tap to add room photo',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: theme.onPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.shadow.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.camera_alt,
-                    color: theme.onPrimary,
-                    size: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showImagePickerOptions(
-    BuildContext context,
-    PropertyViewModel viewModel,
-    String roomId,
     RealEstateTheme theme,
     TextTheme textTheme,
   ) async {
-    final result = await showRealEstateBottomSheet<String>(
+    final confirmed = await showRealEstateDialog<bool>(
       context: context,
+      title: 'Remove Room',
       theme: theme,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: theme.borderLight,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined),
-                  title: const Text('Camera'),
-                  onTap: () => Navigator.pop(context, 'camera'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Gallery'),
-                  onTap: () => Navigator.pop(context, 'gallery'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      content: Text(
+        'Remove "${room.name}"? This takes effect when you save.',
+        style: textTheme.bodyLarge,
+      ),
+      actions: [
+        dialogCancelButton(context: context, theme: theme),
+        dialogActionButton(
+          theme: theme,
+          text: 'Remove',
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
     );
-
-    if (result == null) return;
-
-    final ImageSource source = result == 'camera'
-        ? ImageSource.camera
-        : ImageSource.gallery;
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-
-    if (picked != null) {
-      // Cache bytes at pick time: on the web the path is only a blob URL
-      // and the upload must use `MultipartFile.fromBytes`.
-      final bytes = await picked.readAsBytes();
-      viewModel.updateRoomDetails(
-        roomId: roomId,
-        photoUrl: picked.path,
-        photoBytes: bytes,
-        photoFilename: picked.name,
-      );
-    }
+    if (confirmed != true || !context.mounted) return;
+    viewModel.selectRoomForEditing(null);
+    context.pop();
+    viewModel.removeRoom(room.id);
   }
 
   void _showRenameDialog(

@@ -9,10 +9,13 @@ import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/searchable_picker.dart';
 import '../../../home/presentation/screens/home_screen.dart'
     show listingsProvider;
 import '../../data/models/enums/property_type.dart';
+import '../../data/models/property_state.dart';
+import '../../data/models/room_score.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/exterior_photos_section.dart';
 import '../widgets/section_card.dart';
@@ -63,7 +66,7 @@ class _PropertyOverviewScreenState
             : 'Not provided',
         icon: Icons.location_on_outlined,
         route: AppRoutes.address(propertyId),
-        isComplete: state.street.isNotEmpty && state.city.isNotEmpty,
+        isComplete: state.isAddressComplete,
       ),
       _SectionData(
         title: 'Building Info',
@@ -72,27 +75,25 @@ class _PropertyOverviewScreenState
             : 'Not provided',
         icon: Icons.architecture_outlined,
         route: AppRoutes.buildingInfo(propertyId),
-        isComplete: state.erfSize.isNotEmpty || state.floorArea.isNotEmpty,
+        isComplete: state.isBuildingInfoComplete,
       ),
       _SectionData(
         title: 'Property Features',
-        subtitle: state.rooms.isNotEmpty
-            ? '${state.rooms.length} room(s)'
-            : 'Not provided',
+        subtitle: state.rooms.isEmpty
+            ? 'Not provided'
+            : state.isFeaturesComplete
+            ? '${state.rooms.length} room${state.rooms.length == 1 ? '' : 's'}'
+            : '${state.ratedRoomCount} of ${state.rooms.length} rooms rated',
         icon: Icons.meeting_room_outlined,
         route: AppRoutes.propertyFeatures(propertyId),
-        isComplete: state.rooms.isNotEmpty,
+        isComplete: state.isFeaturesComplete,
       ),
       _SectionData(
         title: 'Expenses',
-        subtitle: state.propertyRunningCosts.monthlyRates.isNotEmpty
-            ? 'Rates R ${state.propertyRunningCosts.monthlyRates}/month'
-            : 'Not provided',
+        subtitle: _expensesSummary(state),
         icon: Icons.account_balance_wallet_outlined,
         route: AppRoutes.expenses(propertyId),
-        // Valuation moved out of this section, so completion now tracks the
-        // running costs the agent actually captures on site.
-        isComplete: state.propertyRunningCosts.monthlyRates.isNotEmpty,
+        isComplete: state.isExpensesComplete,
       ),
       _SectionData(
         title: 'Owner Details',
@@ -101,7 +102,7 @@ class _PropertyOverviewScreenState
             : 'Not provided',
         icon: Icons.contacts_outlined,
         route: AppRoutes.ownerDetails(propertyId),
-        isComplete: state.primaryContact.fullName.isNotEmpty,
+        isComplete: state.isOwnerComplete,
       ),
       // Last on purpose: pricing is settled once the property has been walked.
       _SectionData(
@@ -111,7 +112,7 @@ class _PropertyOverviewScreenState
             : 'Not provided',
         icon: Icons.sell_outlined,
         route: AppRoutes.valuation(propertyId),
-        isComplete: state.listingValuation.ownersNetPrice.isNotEmpty,
+        isComplete: state.isValuationComplete,
       ),
     ];
 
@@ -119,161 +120,231 @@ class _PropertyOverviewScreenState
     final allComplete =
         selectedType != null && sections.every((s) => s.isComplete);
 
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.cardBackgroundColor,
-        surfaceTintColor: theme.cardBackgroundColor,
-        title: Text(
-          'Property Details',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.textPrimary,
-          ),
-        ),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new,
-            color: theme.textPrimary,
-            size: 20,
-          ),
-          onPressed: () {
-            // The overview sits on the root navigator above the shell; if
-            // there is nothing to pop (e.g. deep link), go home instead of
-            // leaving the agent stuck on a dead back button.
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(AppRoutes.homePath);
-            }
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.delete_outline, color: theme.error),
-            onPressed: () =>
-                _confirmDelete(context, ref, viewModel, propertyId),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: theme.borderLight, height: 1),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              // Clamping (not bouncing) so a pointer/hover landing mid-pop
-              // never hit-tests overscroll geometry on a detaching viewport
-              // (viewport.dart:1034 "Unexpected null value" on web/desktop).
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Reference: ${state.referenceNumber}',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: theme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _PropertyTypeField(
-                      selected: selectedType,
-                      theme: theme,
-                      textTheme: textTheme,
-                      onSelected: (type) async {
-                        viewModel.selectPropertyType(type.id);
-                        await viewModel.savePropertyType();
-                        final error = ref
-                            .read(propertyViewModelProvider)
-                            .errorMessage;
-                        if (error != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                friendlySaveMessage(error, 'property type'),
-                              ),
-                              backgroundColor: theme.error,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    ExteriorPhotosSection(
-                      photos: state.exteriorPhotos,
-                      theme: theme,
-                      textTheme: textTheme,
-                      viewModel: viewModel,
-                      baseUrl: ref.watch(apiClientProvider).baseUrl,
-                    ),
-                    const SizedBox(height: 24),
-                    ...sections.map(
-                      (section) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SectionCard(
-                          title: section.title,
-                          subtitle: section.subtitle,
-                          icon: section.icon,
-                          isComplete: section.isComplete,
-                          theme: theme,
-                          textTheme: textTheme,
-                          onTap: () => context.push(section.route),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    final completeCount = sections.where((s) => s.isComplete).length;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        backgroundColor: theme.backgroundColor,
+        appBar: AppBar(
+          backgroundColor: theme.cardBackgroundColor,
+          surfaceTintColor: theme.cardBackgroundColor,
+          title: Text(
+            'Property Details',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textPrimary,
             ),
-            _BottomActions(
-              theme: theme,
-              isSaving: _isSaving,
-              canSubmit: allComplete,
-              onSave: _saveAndExit,
-              onSubmit: () async {
-                final success = await viewModel.submitAndSave();
-                if (!context.mounted) return;
-                if (success) {
-                  viewModel.reset();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Evaluation submitted successfully!'),
-                      backgroundColor: theme.primaryColor,
-                    ),
-                  );
-                  context.go(AppRoutes.homePath);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        ref.read(propertyViewModelProvider).errorMessage ??
-                            'Failed to submit evaluation',
-                      ),
-                      backgroundColor: theme.error,
-                    ),
-                  );
-                }
-              },
+          ),
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              color: theme.textPrimary,
+              size: 20,
+            ),
+            onPressed: _leave,
+          ),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: theme.error),
+              onPressed: () =>
+                  _confirmDelete(context, ref, viewModel, propertyId),
             ),
           ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(color: theme.borderLight, height: 1),
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                // Clamping (not bouncing) so a pointer/hover landing mid-pop
+                // never hit-tests overscroll geometry on a detaching viewport
+                // (viewport.dart:1034 "Unexpected null value" on web/desktop).
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reference: ${state.referenceNumber}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: theme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _PropertyTypeField(
+                        selected: selectedType,
+                        theme: theme,
+                        textTheme: textTheme,
+                        onSelected: (type) async {
+                          viewModel.selectPropertyType(type.id);
+                          await viewModel.savePropertyType();
+                          final error = ref
+                              .read(propertyViewModelProvider)
+                              .errorMessage;
+                          if (error != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  friendlySaveMessage(error, 'property type'),
+                                ),
+                                backgroundColor: theme.error,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      ExteriorPhotosSection(
+                        photos: state.exteriorPhotos,
+                        theme: theme,
+                        textTheme: textTheme,
+                        viewModel: viewModel,
+                        baseUrl: ref.watch(apiClientProvider).baseUrl,
+                      ),
+                      const SizedBox(height: 24),
+                      _ProgressSummary(
+                        completeCount: completeCount,
+                        totalCount: sections.length,
+                        houseScore: state.houseScore,
+                        isManual: state.houseScoreIsManual,
+                        theme: theme,
+                        textTheme: textTheme,
+                        onAdjustScore: () => _adjustHouseScore(state),
+                      ),
+                      const SizedBox(height: 16),
+                      ...sections.map(
+                        (section) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SectionCard(
+                            title: section.title,
+                            subtitle: section.subtitle,
+                            icon: section.icon,
+                            isComplete: section.isComplete,
+                            theme: theme,
+                            textTheme: textTheme,
+                            onTap: () => context.push(section.route),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _BottomActions(
+                theme: theme,
+                isSaving: _isSaving,
+                canSubmit: allComplete,
+                onSave: _saveAndExit,
+                onSubmit: () async {
+                  final success = await viewModel.submitAndSave();
+                  if (!context.mounted) return;
+                  if (success) {
+                    viewModel.reset();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text(
+                          'Evaluation submitted successfully!',
+                        ),
+                        backgroundColor: theme.primaryColor,
+                      ),
+                    );
+                    context.go(AppRoutes.homePath);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          ref.read(propertyViewModelProvider).errorMessage ??
+                              'Failed to submit evaluation',
+                        ),
+                        backgroundColor: theme.error,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  /// Lets the agent set the house score themselves, starting from the app's
+  /// weighted suggestion, or go back to the suggestion.
+  Future<void> _adjustHouseScore(PropertyState state) async {
+    final theme = ref.read(themeConfigProvider);
+    final result = await showRealEstateBottomSheet<_HouseScoreChoice>(
+      context: context,
+      theme: theme,
+      builder: (_) => _HouseScoreSheet(
+        current: state.houseScore ?? state.suggestedHouseScore ?? 70,
+        suggested: state.suggestedHouseScore,
+        isManual: state.houseScoreIsManual,
+        theme: theme,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final error = await ref
+        .read(propertyViewModelProvider.notifier)
+        .setHouseScore(result.useSuggested ? null : result.value);
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: theme.error),
+      );
+    }
+  }
+
+  /// Back arrow / back gesture. A listing left without anything worth keeping
+  /// is deleted rather than lingering on the home screen as an empty card.
+  Future<void> _leave() async {
+    final discarded = await ref
+        .read(propertyViewModelProvider.notifier)
+        .discardIfEmpty();
+    if (!mounted) return;
+    if (discarded) {
+      ref.invalidate(listingsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nothing was captured, so it was not kept.'),
+        ),
+      );
+    }
+    // The overview sits on the root navigator above the shell; if there is
+    // nothing to pop (e.g. deep link), go home instead of a dead back button.
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.homePath);
+    }
+  }
+
   /// Saves anything the overview still holds, then returns to the home list.
   Future<void> _saveAndExit() async {
     setState(() => _isSaving = true);
-    final error = await ref
-        .read(propertyViewModelProvider.notifier)
-        .saveOverview();
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    if (await viewModel.discardIfEmpty()) {
+      if (!mounted) return;
+      ref.invalidate(listingsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nothing to save yet, so it was not kept.'),
+        ),
+      );
+      context.go(AppRoutes.homePath);
+      return;
+    }
+    final error = await viewModel.saveOverview();
     if (!mounted) return;
     setState(() => _isSaving = false);
     final theme = ref.read(themeConfigProvider);
@@ -530,6 +601,267 @@ class _BottomActions extends StatelessWidget {
                     ],
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "3 costs captured" / "Rates R 800/month" / "Not provided".
+String _expensesSummary(PropertyState state) {
+  final c = state.propertyRunningCosts;
+  final filled = [
+    c.monthlyLevy,
+    c.monthlyRates,
+    c.electricity,
+    c.water,
+    c.sewage,
+    c.refuse,
+  ].where((v) => v.trim().isNotEmpty).length;
+  if (filled == 0) return 'Not provided';
+  if (filled == 1 && c.monthlyRates.trim().isNotEmpty) {
+    return 'Rates R ${c.monthlyRates}/month';
+  }
+  return '$filled cost${filled == 1 ? '' : 's'} captured';
+}
+
+/// Section progress and the house score.
+class _ProgressSummary extends StatelessWidget {
+  final int completeCount;
+  final int totalCount;
+  final double? houseScore;
+  final bool isManual;
+  final VoidCallback onAdjustScore;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _ProgressSummary({
+    required this.completeCount,
+    required this.totalCount,
+    required this.houseScore,
+    required this.isManual,
+    required this.onAdjustScore,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = totalCount == 0 ? 0.0 : completeCount / totalCount;
+    final score = houseScore;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.borderLight),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$completeCount of $totalCount sections complete',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 6,
+                        backgroundColor: theme.borderLight,
+                        color: completeCount == totalCount
+                            ? theme.completeColor
+                            : theme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            VerticalDivider(width: 1, color: theme.borderLight),
+            InkWell(
+              onTap: onAdjustScore,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          score == null ? '–' : RoomScore.percent(score),
+                          style: textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: score == null
+                                ? theme.textSecondary
+                                : theme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.tune, size: 16, color: theme.textSecondary),
+                      ],
+                    ),
+                    Text(
+                      score == null
+                          ? 'House score'
+                          : isManual
+                          ? 'House score · set by you'
+                          : 'House score · suggested',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HouseScoreChoice {
+  final double? value;
+  final bool useSuggested;
+
+  const _HouseScoreChoice.value(double this.value) : useSuggested = false;
+  const _HouseScoreChoice.suggested() : value = null, useSuggested = true;
+}
+
+/// House score editor: a 0–100 slider starting at the current score, the
+/// app's suggestion for reference, and a way back to it.
+class _HouseScoreSheet extends StatefulWidget {
+  final double current;
+  final double? suggested;
+  final bool isManual;
+  final RealEstateTheme theme;
+
+  const _HouseScoreSheet({
+    required this.current,
+    required this.suggested,
+    required this.isManual,
+    required this.theme,
+  });
+
+  @override
+  State<_HouseScoreSheet> createState() => _HouseScoreSheetState();
+}
+
+class _HouseScoreSheetState extends State<_HouseScoreSheet> {
+  late double _value = widget.current.clamp(0, 100).roundToDouble();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final textTheme = theme.toThemeData().textTheme;
+    final suggested = widget.suggested;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: theme.borderLight,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              'House Score',
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              suggested == null
+                  ? 'Score the rooms and the app suggests one, weighting '
+                        'kitchens, bathrooms and main rooms more heavily.'
+                  : 'Suggested ${RoomScore.percent(suggested)} from the room '
+                        'scores, weighting kitchens, bathrooms and main rooms '
+                        'more heavily. Adjust it if the whole house tells a '
+                        'different story.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: theme.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: Text(
+                RoomScore.percent(_value),
+                style: textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.primaryColor,
+                ),
+              ),
+            ),
+            Slider(
+              value: _value,
+              min: 0,
+              max: 100,
+              divisions: 100,
+              label: RoomScore.percent(_value),
+              activeColor: theme.primaryColor,
+              onChanged: (v) => setState(() => _value = v),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (suggested != null && widget.isManual)
+                  TextButton(
+                    onPressed: () => Navigator.pop(
+                      context,
+                      const _HouseScoreChoice.suggested(),
+                    ),
+                    child: Text(
+                      'Use suggested',
+                      style: TextStyle(color: theme.textSecondary),
+                    ),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, _HouseScoreChoice.value(_value)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.primaryColor,
+                    foregroundColor: theme.onPrimary,
+                    minimumSize: const Size(120, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Save score'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
