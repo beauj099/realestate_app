@@ -102,4 +102,28 @@ void main() {
     expect(find.text('Visible to buyers'), findsOneWidget);
     expect(find.text('Enter a valid email'), findsOneWidget);
   });
+
+  testWidgets('a shown password is never capitalised or autocorrected', (
+    tester,
+  ) async {
+    for (final obscure in [true, false]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomTextInput(
+              theme: RealEstateTheme.crimson(),
+              label: 'Password',
+              obscureText: obscure,
+              isPassword: true,
+            ),
+          ),
+        ),
+      );
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.textCapitalization, TextCapitalization.none);
+      expect(field.autocorrect, isFalse);
+      expect(field.enableSuggestions, isFalse);
+      expect(field.keyboardType, TextInputType.visiblePassword);
+    }
+  });
 }

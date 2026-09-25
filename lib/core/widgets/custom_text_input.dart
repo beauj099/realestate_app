@@ -31,6 +31,11 @@ class CustomTextInput extends StatelessWidget {
   /// with a capital where one is expected; pass a value to override.
   final TextCapitalization? textCapitalization;
 
+  /// A password field. It never capitalises, autocorrects or suggests, even
+  /// while the password is shown ([obscureText] false), so the keyboard can
+  /// never change what the agent typed.
+  final bool isPassword;
+
   const CustomTextInput({
     super.key,
     required this.label,
@@ -53,6 +58,7 @@ class CustomTextInput extends StatelessWidget {
     this.autocorrect = true,
     this.enableSuggestions = true,
     this.textCapitalization,
+    this.isPassword = false,
   });
 
   /// Plain text starts with a capital (the agent can still switch to lower
@@ -60,8 +66,8 @@ class CustomTextInput extends StatelessWidget {
   /// passwords never capitalise.
   TextCapitalization get _capitalization {
     final explicit = textCapitalization;
+    if (isPassword || obscureText) return TextCapitalization.none;
     if (explicit != null) return explicit;
-    if (obscureText) return TextCapitalization.none;
     if (keyboardType == TextInputType.name) return TextCapitalization.words;
     if (keyboardType == TextInputType.text ||
         keyboardType == TextInputType.multiline ||
@@ -90,13 +96,13 @@ class CustomTextInput extends StatelessWidget {
       controller: controller,
       initialValue: controller == null ? initialValue : null,
       onChanged: onChanged,
-      keyboardType: keyboardType,
+      keyboardType: isPassword ? TextInputType.visiblePassword : keyboardType,
       obscureText: obscureText,
       maxLines: maxLines,
       autofillHints: autofillHints,
       inputFormatters: inputFormatters,
-      autocorrect: autocorrect,
-      enableSuggestions: enableSuggestions,
+      autocorrect: autocorrect && !isPassword,
+      enableSuggestions: enableSuggestions && !isPassword,
       textCapitalization: _capitalization,
       style: textTheme.bodyLarge?.copyWith(
         fontWeight: FontWeight.w600,
