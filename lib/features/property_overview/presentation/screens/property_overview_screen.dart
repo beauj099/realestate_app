@@ -6,6 +6,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/providers/api_providers.dart';
+import '../../../../core/locale/region_provider.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -56,6 +57,7 @@ class _PropertyOverviewScreenState
     final state = ref.watch(propertyViewModelProvider);
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final theme = ref.watch(themeConfigProvider);
+    final currency = ref.watch(regionProvider).currencySymbol;
     final textTheme = theme.toThemeData().textTheme;
 
     final sections = [
@@ -90,7 +92,7 @@ class _PropertyOverviewScreenState
       ),
       _SectionData(
         title: 'Expenses',
-        subtitle: _expensesSummary(state),
+        subtitle: _expensesSummary(state, currency),
         icon: Icons.account_balance_wallet_outlined,
         route: AppRoutes.expenses(propertyId),
         isComplete: state.isExpensesComplete,
@@ -108,7 +110,7 @@ class _PropertyOverviewScreenState
       _SectionData(
         title: 'Valuation',
         subtitle: state.listingValuation.ownersNetPrice.isNotEmpty
-            ? 'R ${state.listingValuation.ownersNetPrice}'
+            ? '$currency ${state.listingValuation.ownersNetPrice}'
             : 'Not provided',
         icon: Icons.sell_outlined,
         route: AppRoutes.valuation(propertyId),
@@ -259,7 +261,7 @@ class _PropertyOverviewScreenState
                         backgroundColor: theme.primaryColor,
                       ),
                     );
-                    context.go(AppRoutes.homePath);
+                    _exitToHome(context);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -305,6 +307,17 @@ class _PropertyOverviewScreenState
     }
   }
 
+  /// Returns to the home list by popping this screen, so whoever pushed it
+  /// sees its push complete (Home refreshes the list on that). Falls back to
+  /// go() only when there is nothing to pop, e.g. after a deep link.
+  void _exitToHome(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.homePath);
+    }
+  }
+
   /// Back arrow / back gesture. A listing left without anything worth keeping
   /// is deleted rather than lingering on the home screen as an empty card.
   Future<void> _leave() async {
@@ -320,13 +333,7 @@ class _PropertyOverviewScreenState
         ),
       );
     }
-    // The overview sits on the root navigator above the shell; if there is
-    // nothing to pop (e.g. deep link), go home instead of a dead back button.
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(AppRoutes.homePath);
-    }
+    _exitToHome(context);
   }
 
   /// Saves anything the overview still holds, then returns to the home list.
@@ -341,7 +348,7 @@ class _PropertyOverviewScreenState
           content: Text('Nothing to save yet, so it was not kept.'),
         ),
       );
-      context.go(AppRoutes.homePath);
+      _exitToHome(context);
       return;
     }
     final error = await viewModel.saveOverview();
@@ -361,7 +368,7 @@ class _PropertyOverviewScreenState
       ),
     );
     ref.invalidate(listingsProvider);
-    context.go(AppRoutes.homePath);
+    _exitToHome(context);
   }
 
   Future<void> _confirmDelete(
@@ -402,7 +409,7 @@ class _PropertyOverviewScreenState
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Property deleted')));
-        context.go(AppRoutes.homePath);
+        _exitToHome(context);
       }
     } catch (e) {
       if (context.mounted) {
@@ -607,8 +614,9 @@ class _BottomActions extends StatelessWidget {
   }
 }
 
-/// "3 costs captured" / "Rates R 800/month" / "Not provided".
-String _expensesSummary(PropertyState state) {
+/// "3 costs captured" / "Rates R 800/month" / "Not provided", in the
+/// currency chosen in Settings.
+String _expensesSummary(PropertyState state, String currency) {
   final c = state.propertyRunningCosts;
   final filled = [
     c.monthlyLevy,
@@ -620,7 +628,7 @@ String _expensesSummary(PropertyState state) {
   ].where((v) => v.trim().isNotEmpty).length;
   if (filled == 0) return 'Not provided';
   if (filled == 1 && c.monthlyRates.trim().isNotEmpty) {
-    return 'Rates R ${c.monthlyRates}/month';
+    return 'Rates $currency ${c.monthlyRates}/month';
   }
   return '$filled cost${filled == 1 ? '' : 's'} captured';
 }

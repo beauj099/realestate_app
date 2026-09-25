@@ -25,11 +25,12 @@ List<Agency> readCustomAgencies(SharedPreferences prefs) {
   }
 }
 
-/// Agencies the agent added themselves, with an optional logo.
+/// Agencies added on this device that have not reached the API yet.
 ///
-/// Kept on this device: the backend stores an agent's agency as free text and
-/// has nowhere to hold a logo, so an added agency is offered again in every
-/// agency picker on this device but does not follow the agent elsewhere.
+/// Agencies are normally added through `AgencyDirectoryNotifier.add`, which
+/// shares them with every agent. This holds the ones added while the API could
+/// not take them (offline, or during registration before the account exists)
+/// until `syncLocalAgencies` sends them up and [remove]s them.
 class CustomAgenciesNotifier extends Notifier<List<Agency>> {
   @override
   List<Agency> build() {
@@ -77,6 +78,17 @@ class CustomAgenciesNotifier extends Notifier<List<Agency>> {
     return agency;
   }
 
+  /// Drops a pending agency once the API has it.
+  Future<void> remove(String slug) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = readCustomAgencies(prefs);
+    state = current.where((a) => a.slug != slug).toList();
+    await prefs.setString(
+      _customAgenciesPrefsKey,
+      jsonEncode(state.map((a) => a.toJson()).toList()),
+    );
+  }
+
   Future<String?> _storeLogo(String sourcePath, String slug) async {
     try {
       final docs = await getApplicationDocumentsDirectory();
@@ -100,8 +112,3 @@ final customAgenciesProvider =
     NotifierProvider<CustomAgenciesNotifier, List<Agency>>(
       CustomAgenciesNotifier.new,
     );
-
-/// Every agency an agent can pick: the listed brands, then their own.
-final selectableAgenciesProvider = Provider<List<Agency>>((ref) {
-  return [...Agency.all, ...ref.watch(customAgenciesProvider)];
-});

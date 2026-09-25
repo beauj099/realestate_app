@@ -107,6 +107,14 @@ class PropertyRepository {
           referenceNumber: j['referenceNumber'] as String? ?? '',
           p24Ref: j['p24Ref'] as String?,
           houseScore: (j['houseScore'] as num?)?.toDouble(),
+          archivedAt: j['archivedAt'] != null
+              ? DateTime.tryParse(j['archivedAt'] as String)
+              : null,
+          ownerNames: ((j['ownerNames'] as String?) ?? '')
+              .split('|')
+              .map((n) => n.trim())
+              .where((n) => n.isNotEmpty)
+              .toList(),
           propertyTypeId: (j['propertyTypeId'] as num?)?.toInt() ?? 0,
           listingValuationId: (j['listingValuationId'] as num?)?.toInt(),
           listDate: j['listDate'] != null
@@ -630,6 +638,14 @@ class PropertyRepository {
   Future<void> submitListing(int listingId) async {
     await _client.put(ApiEndpoints.listingSubmit(listingId));
     developer.log('Listing submitted: ID=$listingId');
+  }
+
+  /// Moves a listing to the archive, or back to the active list.
+  Future<void> setArchived(int listingId, {required bool archived}) async {
+    await _client.put(
+      ApiEndpoints.listingArchive(listingId),
+      data: {'archived': archived},
+    );
   }
 
   /// Saves the house score (a percentage, or null to clear it).

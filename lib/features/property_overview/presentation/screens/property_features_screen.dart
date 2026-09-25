@@ -17,6 +17,7 @@ import '../../data/models/room.dart';
 import '../../data/models/room_score.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/add_room_sheet.dart';
+import '../widgets/section_list.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
 /// Rooms, parking and outdoor features.
@@ -135,6 +136,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
     return WizardSectionScaffold(
       title: 'Property Features',
       sectionName: 'property features',
+      topPadding: 8,
       onSave: () async {
         await viewModel.savePropertyFeatures();
         final error = ref.read(propertyViewModelProvider).errorMessage;
@@ -145,7 +147,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(
+          SectionHeader(
             title: 'Rooms',
             detail: rooms.isEmpty
                 ? null
@@ -160,7 +162,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
               listingId,
             ),
           ),
-          _RowsCard(
+          RowsCard(
             theme: theme,
             emptyText: 'No rooms yet. Tap Add to list the first one.',
             children: [
@@ -205,7 +207,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 28),
-          _SectionHeader(
+          SectionHeader(
             title: 'Parking',
             theme: theme,
             textTheme: textTheme,
@@ -219,7 +221,7 @@ class PropertyFeaturesScreen extends ConsumerWidget {
                     state.parking,
                   ),
           ),
-          _RowsCard(
+          RowsCard(
             theme: theme,
             emptyText: 'No parking. Tap Add to choose garages, carports…',
             children: [
@@ -248,12 +250,12 @@ class PropertyFeaturesScreen extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 28),
-          _SectionHeader(
+          SectionHeader(
             title: 'Outdoor & Extras',
             theme: theme,
             textTheme: textTheme,
           ),
-          _RowsCard(
+          RowsCard(
             theme: theme,
             children: [
               for (final group in outdoorGroups)
@@ -287,146 +289,6 @@ IconData parkingIcon(String label) {
   return Icons.local_parking_outlined;
 }
 
-/// Section title with an optional count/detail and a compact Add action.
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String? detail;
-  final VoidCallback? onAdd;
-  final RealEstateTheme theme;
-  final TextTheme textTheme;
-
-  const _SectionHeader({
-    required this.title,
-    required this.theme,
-    required this.textTheme,
-    this.detail,
-    this.onAdd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
-          ),
-          if (detail != null) ...[
-            const SizedBox(width: 8),
-            Text(
-              detail!,
-              style: textTheme.bodyMedium?.copyWith(
-                color: theme.textSecondary,
-                fontSize: 13,
-              ),
-            ),
-          ],
-          const Spacer(),
-          if (onAdd != null)
-            TextButton.icon(
-              onPressed: onAdd,
-              icon: Icon(Icons.add, size: 18, color: theme.primaryColor),
-              label: Text(
-                'Add',
-                style: textTheme.labelLarge?.copyWith(
-                  color: theme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One card holding divider-separated rows, or a quiet line when empty.
-class _RowsCard extends StatelessWidget {
-  final List<Widget> children;
-  final String? emptyText;
-  final RealEstateTheme theme;
-
-  const _RowsCard({
-    required this.children,
-    required this.theme,
-    this.emptyText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = theme.toThemeData().textTheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardBackgroundColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.borderLight),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: children.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-              child: Text(
-                emptyText ?? '',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: theme.textSecondary.withValues(alpha: 0.8),
-                ),
-              ),
-            )
-          : Column(
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  if (i > 0)
-                    Divider(
-                      height: 1,
-                      indent: 64,
-                      color: theme.borderLight.withValues(alpha: 0.7),
-                    ),
-                  children[i],
-                ],
-              ],
-            ),
-    );
-  }
-}
-
-/// Leading glyph in a soft brand-tinted circle, shared by every row.
-class _RowIcon extends StatelessWidget {
-  final IconData icon;
-  final RealEstateTheme theme;
-  final bool muted;
-
-  const _RowIcon({required this.icon, required this.theme, this.muted = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: muted
-            ? theme.borderLight.withValues(alpha: 0.5)
-            : theme.primaryColor.withValues(alpha: 0.08),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        size: 19,
-        color: muted ? theme.textSecondary : theme.primaryColor,
-      ),
-    );
-  }
-}
-
 class _RoomRow extends StatelessWidget {
   final Room room;
   final RealEstateTheme theme;
@@ -446,10 +308,10 @@ class _RoomRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
         child: Row(
           children: [
-            _RowIcon(
+            RowIcon(
               icon: RoomCategoryExtension.categoryForRoomTypeId(
                 room.roomTypeId,
               ).icon,
@@ -480,14 +342,13 @@ class _RoomRow extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 12),
             Icon(
               rated ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-              size: 20,
+              size: 22,
               color: rated ? theme.completeColor : theme.pendingColor,
               semanticLabel: rated ? 'Rated' : 'Not rated',
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right, color: theme.textSecondary, size: 22),
           ],
         ),
       ),
@@ -517,7 +378,7 @@ class _ParkingRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
       child: Row(
         children: [
-          _RowIcon(icon: parkingIcon(label), theme: theme, muted: removed),
+          RowIcon(icon: parkingIcon(label), theme: theme, muted: removed),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -690,10 +551,10 @@ class _OutdoorRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
         child: Row(
           children: [
-            _RowIcon(icon: group.icon, theme: theme, muted: !hasAny),
+            RowIcon(icon: group.icon, theme: theme, muted: !hasAny),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -726,18 +587,25 @@ class _OutdoorRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (hasAny)
-              Padding(
-                padding: const EdgeInsets.only(right: 2),
+            if (hasAny) ...[
+              const SizedBox(width: 12),
+              Container(
+                constraints: const BoxConstraints(minWidth: 26),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
                   '${selected.length}',
+                  textAlign: TextAlign.center,
                   style: textTheme.labelLarge?.copyWith(
                     color: theme.primaryColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            Icon(Icons.chevron_right, color: theme.textSecondary, size: 22),
+            ],
           ],
         ),
       ),

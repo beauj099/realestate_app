@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/themes.dart';
+import '../../../../core/locale/countries.dart';
 import '../../data/models/contact.dart';
 import 'contact_fields.dart';
 
@@ -8,28 +9,24 @@ class ContactCard extends StatelessWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
   final Contact contact;
+  final Country country;
   final String label;
   final bool showRemove;
   final ValueChanged<Contact> onChanged;
   final VoidCallback? onRemove;
-  final String? fullNameError;
-  final String? companyNameError;
-  final String? emailError;
-  final String? phoneError;
+  final Map<String, String> errors;
 
   const ContactCard({
     super.key,
     required this.theme,
     required this.textTheme,
     required this.contact,
+    required this.country,
     required this.label,
     required this.showRemove,
     required this.onChanged,
     this.onRemove,
-    this.fullNameError,
-    this.companyNameError,
-    this.emailError,
-    this.phoneError,
+    this.errors = const {},
   });
 
   @override
@@ -76,11 +73,9 @@ class ContactCard extends StatelessWidget {
             theme: theme,
             textTheme: textTheme,
             contact: contact,
+            country: country,
             onChanged: onChanged,
-            fullNameError: fullNameError,
-            companyNameError: companyNameError,
-            emailError: emailError,
-            phoneError: phoneError,
+            errors: errors,
           ),
         ],
       ),

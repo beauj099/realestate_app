@@ -14,6 +14,9 @@ void main() {
     expect(find.text('Email address *'), findsOneWidget);
     expect(find.text('Mobile number *'), findsOneWidget);
     expect(find.text('Agency *'), findsOneWidget);
+    expect(find.text('Country *'), findsOneWidget);
+    expect(find.text('South Africa'), findsOneWidget);
+    expect(find.text('+27'), findsOneWidget);
     expect(find.text('Password *'), findsOneWidget);
     expect(find.text('Confirm password *'), findsOneWidget);
   });

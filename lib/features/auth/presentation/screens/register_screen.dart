@@ -6,6 +6,11 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/agency.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/locale/countries.dart';
+import '../../../../core/locale/region_provider.dart';
+import '../../../../core/validation/phone_format.dart';
+import '../../../../core/widgets/country_picker.dart';
+import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../../settings/presentation/widgets/agency_picker.dart';
@@ -35,6 +40,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _isLoading = false;
 
   Agency? _agency;
+
+  /// Sets the phone prefix here, and the app's country and currency once
+  /// the account exists.
+  Country _country = Country.southAfrica;
 
   /// Inline errors keyed by field. Each clears as soon as its field is edited,
   /// rather than lingering until the next submit.
@@ -77,7 +86,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final password = _passwordController.text;
 
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    final phoneRegex = RegExp(r'^[\d\+\-\s\(\)]{7,20}$');
 
     final errors = <String, String>{
       if (_firstNameController.text.trim().isEmpty)
@@ -90,8 +98,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'email': 'Enter a valid email address',
       if (mobile.isEmpty)
         'mobile': 'Mobile number is required'
-      else if (!phoneRegex.hasMatch(mobile))
-        'mobile': 'Enter a valid mobile number',
+      else
+        'mobile': ?CountryPhone.validate(mobile, _country),
       if (_agency == null) 'agency': 'Select your agency',
       if (password.isEmpty)
         'password': 'Password is required'
@@ -107,6 +115,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ..addAll(errors);
     });
     return errors.isEmpty;
+  }
+
+  Future<void> _pickCountry() async {
+    final country = await showCountryPicker(
+      context: context,
+      theme: ref.read(houseThemeProvider),
+      mode: CountryPickerMode.country,
+      selected: _country,
+    );
+    if (country == null || country == _country) return;
+    setState(() {
+      // Re-read what was typed under the new country's rules.
+      final typed = _mobileController.text;
+      _country = country;
+      _mobileController.text = CountryPhone.format(typed, country);
+      _errors.remove('mobile');
+    });
   }
 
   Future<void> _pickAgency() async {
@@ -132,7 +157,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
-      mobile: _mobileController.text.trim(),
+      mobile: CountryPhone.toStored(_mobileController.text, _country),
       agencyName: agency.name,
       agencySlug: agency.slug,
       agencyRegistrationNumber: _agencyRegNoController.text.trim(),
@@ -162,6 +187,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Brand the app for the new agent; the agency's colours take over on
       // the home screen, not here.
       await ref.read(agencyProvider.notifier).setAgency(agency);
+      // The country answer sets both the country and the currency.
+      await ref.read(regionProvider.notifier).setBoth(_country);
     }
 
     if (!mounted) return;
@@ -280,12 +307,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       theme: theme,
                     ),
                     gap,
+                    CountryField(
+                      country: _country,
+                      label: 'Country *',
+                      theme: theme,
+                      onTap: _pickCountry,
+                    ),
+                    gap,
                     CustomTextInput(
+                      // Rebuilt per country so its formatter follows it.
+                      key: ValueKey('mobile-${_country.isoCode}'),
                       label: 'Mobile number',
-                      placeholder: 'e.g. 082 123 4567',
+                      placeholder: _country.isoCode == Country.defaultIsoCode
+                          ? '82 123 4567'
+                          : null,
                       controller: _mobileController,
                       keyboardType: TextInputType.phone,
-                      autofillHints: const [AutofillHints.telephoneNumber],
+                      autofillHints: const [
+                        AutofillHints.telephoneNumberNational,
+                      ],
+                      inputFormatters: [CountryPhone.inputFormatter(_country)],
+                      prefixIcon: PhonePrefix(country: _country, theme: theme),
                       isRequired: true,
                       errorText: _errors['mobile'],
                       theme: theme,
@@ -306,6 +348,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         Expanded(
                           child: CustomTextInput(
                             label: 'Agency reg. no.',
+                            keyboardType: TextInputType.datetime,
                             controller: _agencyRegNoController,
                             autocorrect: false,
                             theme: theme,
@@ -315,6 +358,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         Expanded(
                           child: CustomTextInput(
                             label: 'Licence / FFC no.',
+                            textCapitalization: TextCapitalization.characters,
                             controller: _licenceController,
                             autocorrect: false,
                             theme: theme,

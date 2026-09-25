@@ -20,12 +20,16 @@ class ApiEndpoints {
   // Agent profile
   static const String agentMe = '/api/agents/me';
 
+  // White-label agencies
+  static const String agencies = '/api/agencies';
+
   // Listings
   static const String listings = '/api/listings';
 
   static String listing(int id) => '/api/listings/$id';
   static String listingSubmit(int id) => '/api/listings/$id/submit';
   static String listingHouseScore(int id) => '/api/listings/$id/house-score';
+  static String listingArchive(int id) => '/api/listings/$id/archive';
   static String listingAddress(int id) => '/api/listings/$id/address';
 
   static String listingBuildingInfo(int id) =>

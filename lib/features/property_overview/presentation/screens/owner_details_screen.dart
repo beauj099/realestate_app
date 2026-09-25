@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/locale/region_provider.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../data/models/contact.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/contact_card.dart';
+import '../widgets/contact_fields.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
 class OwnerDetailsScreen extends ConsumerStatefulWidget {
@@ -19,24 +20,25 @@ class OwnerDetailsScreen extends ConsumerStatefulWidget {
 typedef ContactsScreen = OwnerDetailsScreen;
 
 class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
-  final _errors = <String, String?>{};
+  /// Set by the first Save attempt. From then on errors are recomputed on
+  /// every rebuild, so each one disappears the moment its field is valid.
+  bool _showErrors = false;
 
   String? _validate() {
-    final c = ref.read(propertyViewModelProvider).primaryContact;
-    _errors.clear();
-    final isBusiness = c.ownerType == OwnerType.business;
-    if (c.fullName.trim().isEmpty) {
-      _errors['name'] = isBusiness
-          ? 'Contact person is required'
-          : 'Full name is required';
-    }
-    if (isBusiness && c.companyName.trim().isEmpty) {
-      _errors['company'] = 'Company name is required';
-    }
-    if (c.emailAddress.trim().isEmpty) _errors['email'] = 'Email is required';
-    if (c.mobilePhone.trim().isEmpty) _errors['phone'] = 'Phone is required';
-    setState(() {});
-    if (_errors.isEmpty) return null;
+    final state = ref.read(propertyViewModelProvider);
+    final country = ref.read(regionProvider).country;
+    setState(() => _showErrors = true);
+    final invalid =
+        validateContact(
+          state.primaryContact,
+          isPrimary: true,
+          country: country,
+        ).isNotEmpty ||
+        state.coContacts.any(
+          (c) =>
+              validateContact(c, isPrimary: false, country: country).isNotEmpty,
+        );
+    if (!invalid) return null;
     return friendlySaveMessage(const ValidationFailure().message, 'owners');
   }
 
@@ -53,21 +55,7 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final theme = ref.watch(themeConfigProvider);
     final textTheme = theme.toThemeData().textTheme;
-
-    _errors.removeWhere((k, v) {
-      if (k == 'name') return state.primaryContact.fullName.trim().isNotEmpty;
-      if (k == 'company') {
-        return state.primaryContact.companyName.trim().isNotEmpty ||
-            state.primaryContact.ownerType != OwnerType.business;
-      }
-      if (k == 'email') {
-        return state.primaryContact.emailAddress.trim().isNotEmpty;
-      }
-      if (k == 'phone') {
-        return state.primaryContact.mobilePhone.trim().isNotEmpty;
-      }
-      return true;
-    });
+    final country = ref.watch(regionProvider).country;
 
     return WizardSectionScaffold(
       title: 'Owner Details',
@@ -117,15 +105,19 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
             theme: theme,
             textTheme: textTheme,
             contact: state.primaryContact,
+            country: country,
             label: 'Primary Owner',
             showRemove: false,
             onChanged: (contact) {
               viewModel.updatePrimaryContact(contact);
             },
-            fullNameError: _errors['name'],
-            companyNameError: _errors['company'],
-            emailError: _errors['email'],
-            phoneError: _errors['phone'],
+            errors: _showErrors
+                ? validateContact(
+                    state.primaryContact,
+                    isPrimary: true,
+                    country: country,
+                  )
+                : const {},
           ),
           ...state.coContacts.asMap().entries.map((entry) {
             final index = entry.key;
@@ -136,10 +128,18 @@ class _OwnerDetailsScreenState extends ConsumerState<OwnerDetailsScreen> {
                 theme: theme,
                 textTheme: textTheme,
                 contact: coContact,
+                country: country,
                 label: 'Co-Owner ${index + 1}',
                 showRemove: true,
                 onChanged: (contact) =>
                     viewModel.updateCoContact(index, contact),
+                errors: _showErrors
+                    ? validateContact(
+                        coContact,
+                        isPrimary: false,
+                        country: country,
+                      )
+                    : const {},
                 onRemove: () => viewModel.removeCoContact(coContact.id),
               ),
             );

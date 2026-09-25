@@ -3,11 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/providers/api_providers.dart';
 import '../../../core/theme/agency.dart';
-import '../../../core/theme/custom_agencies.dart';
+import '../../../core/theme/agency_directory.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../data/models/agent_profile.dart';
 import 'auth_provider.dart';
@@ -99,22 +98,23 @@ class AgentProfileNotifier extends Notifier<AgentProfile> {
   }
 
   /// Finds the agency matching the profile's agency name: the cached slug if
-  /// it still fits, then a listed or previously added agency. An unknown name
-  /// — e.g. one added on another device — is added here, without a logo, so
-  /// it stays selectable.
+  /// it still fits, then a listed or agent-added agency. First sends up any
+  /// agency added on this device before sign-up (with its logo). An unknown
+  /// name is added to the directory, without a logo, so it stays selectable.
   Future<Agency?> _resolveAgency(AgentProfile profile) async {
     final name = profile.agencyName.trim();
     if (name.isEmpty) return null;
-    final prefs = await SharedPreferences.getInstance();
-    final custom = readCustomAgencies(prefs);
+    final directory = ref.read(agencyDirectoryProvider.notifier);
+    await directory.syncLocalAgencies();
+    final known = ref.read(selectableAgenciesProvider);
 
     final bySlug = profile.agencySlug == null
         ? null
-        : Agency.fromSlug(profile.agencySlug, custom: custom);
+        : Agency.fromSlug(profile.agencySlug, agencies: known);
     if (bySlug != null && bySlug.name == name) return bySlug;
 
-    return Agency.matchName(name, custom: custom) ??
-        await ref.read(customAgenciesProvider.notifier).add(name: name);
+    return Agency.matchName(name, agencies: known) ??
+        await directory.add(name: name);
   }
 }
 

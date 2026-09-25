@@ -159,6 +159,7 @@ class _MultiSelectSheetState<T> extends State<_MultiSelectSheet<T>> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _customController,
+                  textCapitalization: TextCapitalization.sentences,
                   style: textTheme.bodyLarge?.copyWith(
                     color: theme.textPrimary,
                   ),

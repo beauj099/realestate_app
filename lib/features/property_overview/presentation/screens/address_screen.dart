@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -240,14 +241,6 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         key: ValueKey('address_form_$_detectedAddress'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Where is the property?',
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: _isFetchingLocation
@@ -279,6 +272,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Unit Number (Optional)',
+            textCapitalization: TextCapitalization.characters,
             initialValue: state.unitNumber,
             onChanged: (val) => viewModel.updateAddress(unitNumber: val),
           ),
@@ -286,6 +280,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Street Name',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.street,
             autofillHints: const [AutofillHints.streetAddressLevel1],
             errorText: _errors['street'],
@@ -295,6 +290,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Suburb / District',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.suburb,
             onChanged: (val) => viewModel.updateAddress(suburb: val),
           ),
@@ -302,6 +298,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'City',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.city,
             errorText: _errors['city'],
             onChanged: (val) => viewModel.updateAddress(city: val),
@@ -310,6 +307,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Province / State',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.province,
             onChanged: (val) => viewModel.updateAddress(province: val),
           ),
@@ -317,6 +315,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Country',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.country,
             autofillHints: const [AutofillHints.countryName],
             errorText: _errors['country'],
@@ -326,6 +325,11 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Postal Code',
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
             initialValue: state.postalCode,
             autofillHints: const [AutofillHints.postalCode],
             onChanged: (val) => viewModel.updateAddress(postalCode: val),
@@ -336,6 +340,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Estate Name (Optional)',
+            textCapitalization: TextCapitalization.words,
             initialValue: state.estateName,
             onChanged: (val) => viewModel.updateIdentifiers(estateName: val),
           ),
@@ -343,6 +348,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           CustomTextInput(
             theme: theme,
             label: 'Erf Number',
+            textCapitalization: TextCapitalization.none,
             initialValue: state.erfNumber,
             subtext: 'Found on the municipal rates bill or title deed.',
             onChanged: (val) => viewModel.updateIdentifiers(erfNumber: val),
