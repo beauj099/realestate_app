@@ -23,6 +23,11 @@ class ApiEndpoints {
   // White-label agencies
   static const String agencies = '/api/agencies';
 
+  // Property reports from public municipal data (Cape Town)
+  static const String propertyResolve = '/api/property/resolve';
+  static String propertyReport(String municipality, String erf) =>
+      '/api/property/$municipality/${Uri.encodeComponent(erf)}';
+
   // Listings
   static const String listings = '/api/listings';
 
@@ -64,7 +69,6 @@ class ApiEndpoints {
 
   static String listingRoomPhotoById(int listingId, int roomId, int photoId) =>
       '/api/listings/$listingId/rooms/$roomId/photos/$photoId';
-
 
   static String listingPhotos(int id) => '/api/listings/$id/photos';
 

@@ -244,6 +244,20 @@ class _PropertyOverviewScreenState
                             ),
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        _ValuationReportTile(
+                          theme: theme,
+                          textTheme: textTheme,
+                          hasAddress:
+                              state.street.trim().isNotEmpty ||
+                              state.erfNumber.trim().isNotEmpty ||
+                              state.latitude != null,
+                          onTap: () => context.push(
+                            AppRoutes.propertyReport(
+                              state.listingId ?? propertyId,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -565,6 +579,80 @@ class _PropertyTypeField extends StatelessWidget {
               color: theme.textSecondary,
               size: 22,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the valuation report built from public municipal data.
+class _ValuationReportTile extends StatelessWidget {
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final bool hasAddress;
+  final VoidCallback onTap;
+
+  const _ValuationReportTile({
+    required this.theme,
+    required this.textTheme,
+    required this.hasAddress,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: hasAddress ? onTap : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.primaryColor.withValues(alpha: hasAddress ? 0.08 : 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.primaryColor.withValues(
+              alpha: hasAddress ? 0.35 : 0.15,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: theme.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.query_stats_rounded, color: theme.onPrimary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Valuation report',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasAddress
+                        ? 'Municipal value, comparable sales and a site plan, as a PDF'
+                        : 'Add the address first',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: theme.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: theme.textSecondary),
           ],
         ),
       ),

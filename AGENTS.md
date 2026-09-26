@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (187 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (193 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -57,6 +57,16 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - **Keyboards:** `CustomTextInput` picks capitalisation from the keyboard type (plain text → sentence case, `TextInputType.name` → words, email/number/phone/password → none); set `keyboardType` correctly and override `textCapitalization` only when needed (e.g. `characters` for licence numbers, `TextInputType.datetime` for `2021/123456/07` registration numbers). Password fields must set `isPassword: true`: it forces no capitalisation, autocorrect or suggestions even while the password is shown (the eye icon sets `obscureText: false`).
 - **Home:** Active/Archived tabs; swipe a card to archive/restore (`PUT /api/listings/{id}/archive`); archived tab has a search over address, all owners and reference; lists are newest first. Listings without an address are drafts, grouped in a collapsible "Drafts (n)" section below the Active list (compact rows with delete). The Add Property button shrinks to a round "+" while scrolling down. The side/bottom frame is 3px and left off for pale brand colours (luminance > 0.4). Leave the property screen with `pop()` (`_exitToHome`), not `go()`.
 - Multi-pick lists use `showMultiSelectSheet` (`core/widgets/multi_select_sheet.dart`): tick several, confirm once. Parking uses it, then − n + steppers; a type left at 0 is dropped on save.
+
+## Valuation report (`lib/features/property_report/`)
+
+"Valuation report" on the property screen (`/property/:id/report`) looks the property up in public City of Cape Town data through the API (`POST /api/property/resolve` by the listing's coordinates, then erf, then address; `GET /api/property/{municipality}/{erf}`) and shows the municipal value, site, buildings, suburb trend, filtered comparable sales and an **indicative range, never a single figure**. `ValuationReportPdf` (`report/valuation_report_pdf.dart`, `pdf` package) builds the shareable PDF; `printing` shares or prints it.
+
+- **Imagery licence rules are data, not UI decisions:** the PDF only draws `PropertyReport.printableImagery` (satellite, with its attribution directly beneath, never cropped). Street View is screen-only and must never reach the PDF. Imagery bytes are held in memory only (Google forbids storing them). There is no imagery until the API has a Google key.
+- The site plan is the API's SVG (our drawing from open data, safe to print), rendered with `flutter_svg` / `pw.SvgImage`.
+- Money is Rand in the South African style via `rand()` / `groupDigits()` (non-breaking spaces: "R 7 100 000"), not `regionProvider`: municipal data is always in Rand.
+- The first report for a property can take 10–30 s (the City is slow); the call uses a 90 s timeout and the API caches it for 12 h.
+- Only Cape Town is covered so far; other metros and AfriGIS (ownership, transfers) are API-side providers. Background: the API repo's `Infrastructure/PropertyData/README.md` and `docs/property-data/`.
 
 ## White-labelling
 
