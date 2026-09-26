@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import 'models/address_suggestion.dart';
 import 'models/property_report.dart';
 
 /// What to look a property up by. The API prefers a coordinate (point in the
@@ -35,6 +36,20 @@ class PropertyReportRepository {
   /// valuation roll, area sales) and can take 10–30 seconds; repeats come
   /// from the API's cache.
   static const Duration _reportTimeout = Duration(seconds: 90);
+
+  /// Addresses matching what the agent has typed so far (Cape Town parcel
+  /// records). Fewer than 3 characters returns nothing.
+  Future<List<AddressSuggestion>> suggest(String text) async {
+    if (text.trim().length < 3) return const [];
+    final response = await _client.get(
+      ApiEndpoints.propertySuggest,
+      queryParameters: {'q': text.trim()},
+    );
+    return [
+      for (final e in response.data as List)
+        AddressSuggestion.fromJson(e as Map<String, dynamic>),
+    ];
+  }
 
   Future<List<PropertyCandidate>> resolve(ReportQuery q) async {
     // Most precise first; a miss (e.g. GPS a little off the erf, or a listing

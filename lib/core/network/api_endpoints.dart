@@ -25,6 +25,7 @@ class ApiEndpoints {
 
   // Property reports from public municipal data (Cape Town)
   static const String propertyResolve = '/api/property/resolve';
+  static const String propertySuggest = '/api/property/suggest';
   static String propertyReport(String municipality, String erf) =>
       '/api/property/$municipality/${Uri.encodeComponent(erf)}';
 

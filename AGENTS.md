@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (193 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (201 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -66,6 +66,8 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - The site plan is the API's SVG (our drawing from open data, safe to print), rendered with `flutter_svg` / `pw.SvgImage`.
 - Money is Rand in the South African style via `rand()` / `groupDigits()` (non-breaking spaces: "R 7 100 000"), not `regionProvider`: municipal data is always in Rand.
 - The first report for a property can take 10–30 s (the City is slow); the call uses a 90 s timeout and the API caches it for 12 h.
+- **Address search** (`AddressSearchField`, top of the Address screen): Cape Town suggestions come from the City's parcel records via `GET /api/property/suggest` as the agent types (350 ms pause, 3+ characters, newest answer wins); each numbered one is a real erf with its location. Elsewhere, "Search all of South Africa" runs **one** OpenStreetMap search on tap — never per keystroke (Nominatim's usage policy forbids autocomplete).
+- **Autofill** (`cityRecordsAutofillProvider`): after the address is saved it looks the listing up and fills only **empty** fields (erf number, location, erf size, floor area = the City's dwelling extent or else roof footprint, zoning via `zoningIdFor`), saves them, and the overview confirms what was filled. It never overwrites what the agent entered (`planAutofill`), runs in the background, and is silent outside Cape Town. The report screen offers the same as "Fill in the listing".
 - Only Cape Town is covered so far; other metros and AfriGIS (ownership, transfers) are API-side providers. Background: the API repo's `Infrastructure/PropertyData/README.md` and `docs/property-data/`.
 
 ## White-labelling

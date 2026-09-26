@@ -14,6 +14,7 @@ import '../../../auth/providers/agent_profile_provider.dart';
 import '../../../property_overview/providers/property_provider.dart';
 import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
+import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
 import '../../report/valuation_report_pdf.dart';
 import '../widgets/report_widgets.dart';
@@ -265,6 +266,73 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     ],
   ];
 
+  /// Offers to copy what the listing is missing (erf size, floor area,
+  /// zoning…) from this report. Never overwrites what the agent entered.
+  List<Widget> _fillListing(
+    PropertyReport r,
+    RealEstateTheme theme,
+    TextTheme textTheme,
+  ) {
+    final plan = planAutofill(ref.watch(propertyViewModelProvider), r);
+    if (plan.filled.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () async {
+          final message = await ref
+              .read(cityRecordsAutofillProvider.notifier)
+              .apply(r);
+          ref.read(cityRecordsAutofillProvider.notifier).clearMessage();
+          if (!mounted || message == null) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: theme.primaryColor,
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: theme.cardBackgroundColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: theme.primaryColor.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.auto_fix_high, color: theme.primaryColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fill in the listing',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Adds ${plan.filled.join(', ')}',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: theme.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
   List<Widget> _report(
     PropertyReportState state,
     PropertyReport r,
@@ -305,6 +373,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ),
       gap,
       ValueRangeCard(report: r, theme: theme, textTheme: textTheme),
+      ..._fillListing(r, theme, textTheme),
       gap,
       ReportCard(
         title: 'Site plan',

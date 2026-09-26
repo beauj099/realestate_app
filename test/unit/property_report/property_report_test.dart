@@ -111,7 +111,11 @@ void main() {
 
     test('never prints Street View, even when its bytes are loaded', () async {
       final withStreetView = await build(
-        images: {'/sv': File('test/fixtures/street_view_placeholder.png').readAsBytesSync()},
+        images: {
+          '/sv': File(
+            'test/fixtures/street_view_placeholder.png',
+          ).readAsBytesSync(),
+        },
       );
       final without = await build();
       // Same document either way: the Street View image is not embedded.

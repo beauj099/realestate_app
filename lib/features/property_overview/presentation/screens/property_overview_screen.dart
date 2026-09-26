@@ -18,6 +18,7 @@ import '../../../home/presentation/screens/home_screen.dart'
 import '../../data/models/enums/property_type.dart';
 import '../../data/models/property_state.dart';
 import '../../data/models/room_score.dart';
+import '../../../property_report/providers/city_records_autofill.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/exterior_photos_section.dart';
 import '../widgets/section_card.dart';
@@ -60,6 +61,20 @@ class _PropertyOverviewScreenState
     final theme = ref.watch(themeConfigProvider);
     final currency = ref.watch(regionProvider).currencySymbol;
     final textTheme = theme.toThemeData().textTheme;
+    final autofill = ref.watch(cityRecordsAutofillProvider);
+
+    // Say what the City's records filled in, once.
+    ref.listen(cityRecordsAutofillProvider.select((a) => a.message), (_, msg) {
+      if (msg == null) return;
+      ref.read(cityRecordsAutofillProvider.notifier).clearMessage();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$msg Check them in Building Info.'),
+          backgroundColor: theme.primaryColor,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    });
 
     final sections = [
       _SectionData(
@@ -220,6 +235,31 @@ class _PropertyOverviewScreenState
                           baseUrl: ref.watch(apiClientProvider).baseUrl,
                         ),
                         const SizedBox(height: 24),
+                        if (autofill.running)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Filling in from City of Cape Town records…',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: theme.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         _ProgressSummary(
                           completeCount: completeCount,
                           totalCount: sections.length,
