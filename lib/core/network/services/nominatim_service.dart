@@ -20,6 +20,26 @@ class NominatimService {
             ),
           );
 
+  /// One forward search, run when the agent asks for it (never per
+  /// keystroke: OpenStreetMap's usage policy forbids autocomplete on its
+  /// free service). South Africa only.
+  Future<List<NominatimResult>> search(String query) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/search',
+      queryParameters: {
+        'q': query,
+        'format': 'jsonv2',
+        'addressdetails': 1,
+        'countrycodes': 'za',
+        'limit': 5,
+      },
+    );
+    return [
+      for (final e in response.data ?? const [])
+        NominatimResult.fromJson(e as Map<String, dynamic>),
+    ];
+  }
+
   Future<NominatimResult?> reverseGeocode({
     required double latitude,
     required double longitude,

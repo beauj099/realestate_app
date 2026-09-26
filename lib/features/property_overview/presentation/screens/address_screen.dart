@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,9 @@ import '../../../../core/network/services/nominatim_service.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
+import '../../../property_report/data/models/address_suggestion.dart';
+import '../../../property_report/presentation/widgets/address_search_field.dart';
+import '../../../property_report/providers/city_records_autofill.dart';
 import '../../data/models/nominatim_result.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/wizard_section_scaffold.dart';
@@ -210,11 +215,67 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     }
   }
 
+  /// A Cape Town address picked from the search: a real erf, with its
+  /// location. Filling it replaces the address fields (the agent chose it).
+  void _pickCityAddress(AddressSuggestion s) {
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    final current = ref.read(propertyViewModelProvider);
+    final theme = ref.read(themeConfigProvider);
+    viewModel.updateAddress(
+      streetNumber: s.streetNumber ?? current.streetNumber,
+      street: s.streetName,
+      unitNumber: current.unitNumber,
+      suburb: s.suburb,
+      city: s.city,
+      province: s.province,
+      country: s.country,
+      postalCode: current.postalCode,
+    );
+    if (s.erf != null) viewModel.updateIdentifiers(erfNumber: s.erf);
+    if (s.lat != null && s.lng != null) {
+      viewModel.updateCoordinates(latitude: s.lat, longitude: s.lng);
+    }
+    setState(() => _detectedAddress = s.label);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          s.isProperty
+              ? 'Address filled in. When you save, the erf size, floor area '
+                    'and zoning are filled in from City records.'
+              : 'Street filled in. Add the street number.',
+        ),
+        backgroundColor: s.isProperty ? theme.primaryColor : theme.pendingColor,
+      ),
+    );
+  }
+
+  /// An address found through OpenStreetMap (outside Cape Town, or not in
+  /// the City's list): fill what it knows, keep what the agent typed.
+  void _pickOtherAddress(NominatimResult r) {
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    final current = ref.read(propertyViewModelProvider);
+    viewModel.updateAddress(
+      streetNumber: r.houseNumber ?? current.streetNumber,
+      street: r.road ?? current.street,
+      unitNumber: current.unitNumber,
+      suburb: r.suburb ?? r.neighbourhood ?? current.suburb,
+      city: r.cityOrTown.isNotEmpty ? r.cityOrTown : current.city,
+      province: r.state ?? current.province,
+      country: r.country ?? current.country,
+      postalCode: r.postcode ?? current.postalCode,
+    );
+    viewModel.updateCoordinates(latitude: r.latitude, longitude: r.longitude);
+    setState(() => _detectedAddress = r.displayName);
+  }
+
   Future<String?> _save() async {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     await viewModel.saveAddress();
     final error = ref.read(propertyViewModelProvider).errorMessage;
     if (error != null) return friendlySaveMessage(error, 'address');
+    // Fill what is still empty (erf size, floor area, zoning…) from City of
+    // Cape Town records, in the background: the agent does not wait for it.
+    unawaited(ref.read(cityRecordsAutofillProvider.notifier).fillMissing());
     return null;
   }
 
@@ -241,6 +302,13 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         key: ValueKey('address_form_$_detectedAddress'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AddressSearchField(
+            theme: theme,
+            textTheme: textTheme,
+            onPickCity: _pickCityAddress,
+            onPickElsewhere: _pickOtherAddress,
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: _isFetchingLocation

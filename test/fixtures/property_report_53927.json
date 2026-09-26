@@ -1,0 +1,166 @@
+{
+ "municipality": "coct",
+ "erf": "53927",
+ "valuationRef": "CCT010812600000",
+ "address": "17 PINE ROAD CLAREMONT",
+ "suburb": "CLAREMONT",
+ "township": "CAPE TOWN",
+ "lat": -33.989760362381,
+ "lng": 18.47098799291528,
+ "extentM2": 1085,
+ "extentM2Geodesic": 1076,
+ "zoningCode": "GR2",
+ "zoningDescription": "General Residential 2",
+ "ward": "59",
+ "subCouncil": "20",
+ "legalStatus": "Registered",
+ "dwellingExtentM2": 300,
+ "totalRoofM2": 326,
+ "buildings": [
+  {
+   "roofM2": 258.5,
+   "heightM": 6.5,
+   "estimatedStoreys": 2,
+   "capturedPeriod": "2013-12"
+  },
+  {
+   "roofM2": 67.5,
+   "heightM": 4.1,
+   "estimatedStoreys": 1,
+   "capturedPeriod": "2013-12"
+  }
+ ],
+ "approvedWork": [],
+ "municipalValueZar": 7100000.0,
+ "municipalValueAsAt": "2025-07-01",
+ "ratingCategory": "RESIDENTIAL",
+ "rollVersion": "GV2025",
+ "rollEffectiveFrom": "2026-07-01",
+ "suburbs": {
+  "name": "CLAREMONT",
+  "residentialCount": 4738,
+  "medianLandM2": 484,
+  "medianBuildingM2": 214,
+  "gv2022": 3700000,
+  "gv2025": 4500000,
+  "growthPercent": 21.6,
+  "annualGrowthPercent": 6.74
+ },
+ "comparables": [
+  {
+   "address": "6 ILEX RD CLAREMONT",
+   "erf": "58458",
+   "erfExtentM2": 551,
+   "dwellingExtentM2": 225,
+   "saleDate": "2026-06-04",
+   "salePriceZar": 8750000,
+   "indexedPriceZar": 8930020,
+   "pricePerDwellingM2": 38889,
+   "included": true,
+   "excludedBecause": null
+  },
+  {
+   "address": "51 EDEN ROAD CLAREMONT",
+   "erf": "158957",
+   "erfExtentM2": 700,
+   "dwellingExtentM2": 285,
+   "saleDate": "2026-05-29",
+   "salePriceZar": 15000000,
+   "indexedPriceZar": 15325023,
+   "pricePerDwellingM2": 52632,
+   "included": true,
+   "excludedBecause": null
+  },
+  {
+   "address": "2 SELOUS RD CLAREMONT",
+   "erf": "52364",
+   "erfExtentM2": 484,
+   "dwellingExtentM2": 283,
+   "saleDate": "2026-05-27",
+   "salePriceZar": 7100000,
+   "indexedPriceZar": 7256436,
+   "pricePerDwellingM2": 25088,
+   "included": true,
+   "excludedBecause": null
+  },
+  {
+   "address": "18 BISHOPSCOURT ROAD CLAREMONT",
+   "erf": "56769",
+   "erfExtentM2": 1064,
+   "dwellingExtentM2": 319,
+   "saleDate": "2026-05-22",
+   "salePriceZar": 13950000,
+   "indexedPriceZar": 14270105,
+   "pricePerDwellingM2": 43730,
+   "included": true,
+   "excludedBecause": null
+  },
+  {
+   "address": "18 BROOKE ST CLAREMONT",
+   "erf": "55059",
+   "erfExtentM2": 800,
+   "dwellingExtentM2": 0,
+   "saleDate": "2026-05-21",
+   "salePriceZar": 11000000,
+   "indexedPriceZar": 11254423,
+   "pricePerDwellingM2": null,
+   "included": true,
+   "excludedBecause": null
+  }
+ ],
+ "comparableSummary": {
+  "raw": 2237,
+  "included": 243,
+  "excludedZeroPrice": 66,
+  "excludedImplausible": 12,
+  "excludedTooOld": 0,
+  "excludedDissimilar": 1916,
+  "medianPricePerDwellingM2": 32741,
+  "medianPricePerErfM2": 12801
+ },
+ "indicativeValue": {
+  "low": 8210000,
+  "mid": 9820000,
+  "high": 12940000
+ },
+ "imagery": [],
+ "sitePlanUrl": "/api/property/coct/53927/site-plan.svg?suburb=CLAREMONT",
+ "provenance": [
+  {
+   "field": "boundary",
+   "source": "https://services6.arcgis.com/nyYfO9SxHU2ChQd9/arcgis/rest/services/Property/FeatureServer/0",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "zoning",
+   "source": "https://services6.arcgis.com/nyYfO9SxHU2ChQd9/arcgis/rest/services/Property/FeatureServer/0",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "municipalValuation",
+   "source": "https://web1.capetown.gov.za/web1/gv2025/Results",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "buildings",
+   "source": "https://esapqa.capetown.gov.za/agsext/rest/services/Theme_Based/ODP_SPLIT_6/FeatureServer/2",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "suburbBenchmark",
+   "source": "https://services6.arcgis.com/nyYfO9SxHU2ChQd9/arcgis/rest/services/Valuations_Suburbs_for_2022_and_2025/FeatureServer/0",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "dwellingExtent",
+   "source": "https://web1.capetown.gov.za/web1/gv2025/DetStructRes",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  },
+  {
+   "field": "comparables",
+   "source": "https://web1.capetown.gov.za/web1/gv2025/Sales",
+   "fetchedAtUtc": "2026-09-26T16:32:33.8337375+00:00"
+  }
+ ],
+ "generatedAtUtc": "2026-09-26T16:32:40.2745934+00:00"
+}

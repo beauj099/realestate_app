@@ -19,6 +19,7 @@ abstract final class AppRoutes {
   static const String expensesPath = '/property/:id/expenses';
   static const String valuationPath = '/property/:id/valuation';
   static const String ownerDetailsPath = '/property/:id/owner-details';
+  static const String propertyReportPath = '/property/:id/report';
 
   // Deprecated: use ownerDetailsPath instead
   static const String contactsPath = '/property/:id/contacts';
@@ -41,6 +42,8 @@ abstract final class AppRoutes {
   static String valuationCosts(int id) => expenses(id);
 
   static String ownerDetails(int id) => '/property/$id/owner-details';
+
+  static String propertyReport(int id) => '/property/$id/report';
 
   static String contacts(int id) => ownerDetails(id);
 }

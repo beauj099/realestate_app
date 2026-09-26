@@ -156,11 +156,22 @@ class ApiClient {
   void setOnRefreshToken(Future<bool> Function()? callback) =>
       _onRefreshToken = callback;
 
+  /// [receiveTimeout] overrides the 10-second default for the few calls that
+  /// legitimately take longer (e.g. a property report reading several City
+  /// services); [responseType] fetches bytes or text instead of JSON.
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
+    ResponseType? responseType,
   }) {
-    return _dio.get<T>(path, queryParameters: queryParameters);
+    return _dio.get<T>(
+      path,
+      queryParameters: queryParameters,
+      options: receiveTimeout == null && responseType == null
+          ? null
+          : Options(receiveTimeout: receiveTimeout, responseType: responseType),
+    );
   }
 
   /// Time allowed for uploads (multipart bodies) instead of the 10 seconds

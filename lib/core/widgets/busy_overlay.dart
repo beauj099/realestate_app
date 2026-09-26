@@ -19,12 +19,16 @@ class BusyOverlay extends StatelessWidget {
   /// messages follow it.
   final String? title;
 
+  /// Replaces the default saving messages, e.g. for a lookup.
+  final List<String>? messages;
+
   const BusyOverlay({
     super.key,
     required this.busy,
     required this.child,
     required this.theme,
     this.title,
+    this.messages,
   });
 
   @override
@@ -34,7 +38,7 @@ class BusyOverlay extends StatelessWidget {
         child,
         if (busy)
           Positioned.fill(
-            child: _BusyVeil(theme: theme, title: title),
+            child: _BusyVeil(theme: theme, title: title, messages: messages),
           ),
       ],
     );
@@ -44,8 +48,9 @@ class BusyOverlay extends StatelessWidget {
 class _BusyVeil extends StatefulWidget {
   final RealEstateTheme theme;
   final String? title;
+  final List<String>? messages;
 
-  const _BusyVeil({required this.theme, this.title});
+  const _BusyVeil({required this.theme, this.title, this.messages});
 
   @override
   State<_BusyVeil> createState() => _BusyVeilState();
@@ -53,7 +58,7 @@ class _BusyVeil extends StatefulWidget {
 
 class _BusyVeilState extends State<_BusyVeil> {
   /// Shown in turn after the title, every [_interval].
-  static const messages = [
+  static const savingMessages = [
     'Working on it…',
     'Saving all information…',
     'Uploading photos…',
@@ -87,6 +92,7 @@ class _BusyVeilState extends State<_BusyVeil> {
     final title = widget.title;
     if (title != null && _step == 0) return title;
     final index = title == null ? _step : _step - 1;
+    final messages = widget.messages ?? savingMessages;
     return messages[index % messages.length];
   }
 

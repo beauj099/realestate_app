@@ -18,6 +18,7 @@ import '../../../home/presentation/screens/home_screen.dart'
 import '../../data/models/enums/property_type.dart';
 import '../../data/models/property_state.dart';
 import '../../data/models/room_score.dart';
+import '../../../property_report/providers/city_records_autofill.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/exterior_photos_section.dart';
 import '../widgets/section_card.dart';
@@ -60,6 +61,20 @@ class _PropertyOverviewScreenState
     final theme = ref.watch(themeConfigProvider);
     final currency = ref.watch(regionProvider).currencySymbol;
     final textTheme = theme.toThemeData().textTheme;
+    final autofill = ref.watch(cityRecordsAutofillProvider);
+
+    // Say what the City's records filled in, once.
+    ref.listen(cityRecordsAutofillProvider.select((a) => a.message), (_, msg) {
+      if (msg == null) return;
+      ref.read(cityRecordsAutofillProvider.notifier).clearMessage();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$msg Check them in Building Info.'),
+          backgroundColor: theme.primaryColor,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    });
 
     final sections = [
       _SectionData(
@@ -220,6 +235,31 @@ class _PropertyOverviewScreenState
                           baseUrl: ref.watch(apiClientProvider).baseUrl,
                         ),
                         const SizedBox(height: 24),
+                        if (autofill.running)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: theme.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Filling in from City of Cape Town records…',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: theme.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         _ProgressSummary(
                           completeCount: completeCount,
                           totalCount: sections.length,
@@ -241,6 +281,20 @@ class _PropertyOverviewScreenState
                               theme: theme,
                               textTheme: textTheme,
                               onTap: () => context.push(section.route),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _ValuationReportTile(
+                          theme: theme,
+                          textTheme: textTheme,
+                          hasAddress:
+                              state.street.trim().isNotEmpty ||
+                              state.erfNumber.trim().isNotEmpty ||
+                              state.latitude != null,
+                          onTap: () => context.push(
+                            AppRoutes.propertyReport(
+                              state.listingId ?? propertyId,
                             ),
                           ),
                         ),
@@ -565,6 +619,80 @@ class _PropertyTypeField extends StatelessWidget {
               color: theme.textSecondary,
               size: 22,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the valuation report built from public municipal data.
+class _ValuationReportTile extends StatelessWidget {
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final bool hasAddress;
+  final VoidCallback onTap;
+
+  const _ValuationReportTile({
+    required this.theme,
+    required this.textTheme,
+    required this.hasAddress,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: hasAddress ? onTap : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.primaryColor.withValues(alpha: hasAddress ? 0.08 : 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.primaryColor.withValues(
+              alpha: hasAddress ? 0.35 : 0.15,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: theme.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.query_stats_rounded, color: theme.onPrimary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Valuation report',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasAddress
+                        ? 'Municipal value, comparable sales and a site plan, as a PDF'
+                        : 'Add the address first',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: theme.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: theme.textSecondary),
           ],
         ),
       ),
