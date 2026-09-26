@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/photo_urls.dart';
+import '../../../../core/network/run_limited.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../data/models/contact.dart';
 import '../data/models/listing_document.dart';
@@ -252,11 +254,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     final suggested = state.suggestedHouseScore;
     if (suggested == state.savedHouseScore) return;
     try {
-      await _repository.updateHouseScore(
-        id,
-        score: suggested,
-        isManual: false,
-      );
+      await _repository.updateHouseScore(id, score: suggested, isManual: false);
       if (ref.mounted) state = state.copyWith(savedHouseScore: suggested);
     } catch (e) {
       developer.log('Saving suggested house score failed: $e');
@@ -271,11 +269,7 @@ class PropertyViewModel extends Notifier<PropertyState> {
     final isManual = score != null;
     final value = score ?? state.suggestedHouseScore;
     try {
-      await _repository.updateHouseScore(
-        id,
-        score: value,
-        isManual: isManual,
-      );
+      await _repository.updateHouseScore(id, score: value, isManual: isManual);
       if (ref.mounted) {
         state = state.copyWith(
           savedHouseScore: value,
@@ -507,15 +501,20 @@ class PropertyViewModel extends Notifier<PropertyState> {
         .where((f) => !optionSet.contains(f))
         .toList();
     state = state.copyWith(
-      outdoorFeatures: [
-        ...kept,
-        ...selected.where((f) => !kept.contains(f)),
-      ],
+      outdoorFeatures: [...kept, ...selected.where((f) => !kept.contains(f))],
     );
   }
 
+  /// Most exterior photos a listing holds.
+  static const int maxExteriorPhotos = 20;
+
+  /// The agent reordered while a photo was still uploading; the order is
+  /// saved once every photo has a server id.
+  bool _exteriorOrderPending = false;
+
   void addExteriorPhoto(String path, {Uint8List? bytes, String? filename}) {
     if (state.exteriorPhotos.contains(path)) return;
+    if (state.exteriorPhotos.length >= maxExteriorPhotos) return;
     if (bytes != null) {
       _repository.cachePhotoBytes(path, bytes, filename: filename);
     }
@@ -549,19 +548,53 @@ class PropertyViewModel extends Notifier<PropertyState> {
     unawaited(setMainExteriorPhotoAndSync(path));
   }
 
-  /// Reorders locally and marks the photo primary server-side when uploaded.
+  /// Moves [path] to the front and saves the order server-side.
   Future<void> setMainExteriorPhotoAndSync(String path) async {
     if (!state.exteriorPhotos.contains(path)) return;
-    state = state.copyWith(
-      exteriorPhotos: [path, ...state.exteriorPhotos.where((p) => p != path)],
-    );
+    await reorderExteriorPhotos([
+      path,
+      ...state.exteriorPhotos.where((p) => p != path),
+    ]);
+  }
+
+  /// Applies the agent's drag-and-drop order (first = main photo) and saves
+  /// it. While a photo is still waiting to upload the order is kept locally
+  /// and saved once [saveExteriorPhotos] has uploaded it.
+  Future<void> reorderExteriorPhotos(List<String> order) async {
+    if (order.length != state.exteriorPhotos.length ||
+        !order.every(state.exteriorPhotos.contains)) {
+      return;
+    }
+    state = state.copyWith(exteriorPhotos: List.of(order));
+    await _saveExteriorOrder();
+  }
+
+  /// Saves the current exterior order now, e.g. after a batch of photos
+  /// uploaded in parallel (their server order is arbitrary).
+  Future<void> saveExteriorOrder() => _saveExteriorOrder();
+
+  /// Sends the current exterior order to the API when every photo has a
+  /// server id. Falls back to marking just the main photo on an API that
+  /// predates photo ordering.
+  Future<void> _saveExteriorOrder() async {
     final listingId = state.listingId;
-    final photoId = _exteriorPhotoIds[path];
-    if (listingId == null || photoId == null) return;
+    if (listingId == null || state.exteriorPhotos.isEmpty) return;
+    final ids = [for (final p in state.exteriorPhotos) _exteriorPhotoIds[p]];
+    if (ids.contains(null)) {
+      // Saved by uploadExteriorPhoto once the last pending photo is up.
+      _exteriorOrderPending = true;
+      return;
+    }
+    _exteriorOrderPending = false;
     try {
-      await _repository.setPrimaryListingPhoto(listingId, photoId);
+      await _repository.reorderListingPhotos(listingId, ids.cast<int>());
     } catch (e) {
-      developer.log('Listing photo primary failed: $e');
+      developer.log('Listing photo order failed, setting main only: $e');
+      try {
+        await _repository.setPrimaryListingPhoto(listingId, ids.first!);
+      } catch (e) {
+        developer.log('Listing photo primary failed: $e');
+      }
     }
   }
 
@@ -586,6 +619,10 @@ class PropertyViewModel extends Notifier<PropertyState> {
           for (final p in state.exteriorPhotos) p == localPath ? url : p,
         ],
       );
+      if (_exteriorOrderPending &&
+          state.exteriorPhotos.every(_exteriorPhotoIds.containsKey)) {
+        await _saveExteriorOrder();
+      }
       return true;
     } catch (e) {
       developer.log('Listing photo upload failed: $e');
@@ -593,31 +630,34 @@ class PropertyViewModel extends Notifier<PropertyState> {
     }
   }
 
-  /// Uploads any exterior photos still held as local paths and repairs the
-  /// hero shot when the server primary drifted (e.g. an earlier primary PUT
-  /// failed). Called before submit so a capture-time failure is retried.
+  /// Uploads any exterior photos still held as local paths, then saves the
+  /// order when the server's drifted (e.g. an earlier order save failed).
+  /// Called before submit so a capture-time failure is retried.
   Future<void> saveExteriorPhotos() async {
     final listingId = state.listingId;
     if (listingId == null) return;
     final photos = List<String>.from(state.exteriorPhotos);
     var changed = false;
-    for (var i = 0; i < photos.length; i++) {
-      if (isRemotePhoto(photos[i])) continue;
-      try {
-        final created = await _repository.uploadListingPhoto(
-          listingId,
-          photos[i],
-        );
-        final url = created['url'] as String?;
-        final id = created['id'] as int?;
-        if (url == null || id == null) continue;
-        _exteriorPhotoIds[url] = id;
-        photos[i] = url;
-        changed = true;
-      } catch (e) {
-        developer.log('Listing photo upload failed: $e');
-      }
-    }
+    await runLimited(width: 3, [
+      for (var i = 0; i < photos.length; i++)
+        if (!isRemotePhoto(photos[i]))
+          () async {
+            try {
+              final created = await _repository.uploadListingPhoto(
+                listingId,
+                photos[i],
+              );
+              final url = created['url'] as String?;
+              final id = created['id'] as int?;
+              if (url == null || id == null) return;
+              _exteriorPhotoIds[url] = id;
+              photos[i] = url;
+              changed = true;
+            } catch (e) {
+              developer.log('Listing photo upload failed: $e');
+            }
+          },
+    ]);
     if (changed && ref.mounted) {
       state = state.copyWith(exteriorPhotos: photos);
     }
@@ -628,14 +668,9 @@ class PropertyViewModel extends Notifier<PropertyState> {
       for (final p in server) {
         _exteriorPhotoIds[p['url'] as String] = p['id'] as int;
       }
-      final primary = server.where((p) => p['isPrimary'] == true).toList();
-      if (photos.isNotEmpty &&
-          (primary.isEmpty || primary.first['url'] != photos.first)) {
-        final photoId = _exteriorPhotoIds[photos.first];
-        if (photoId != null) {
-          await _repository.setPrimaryListingPhoto(listingId, photoId);
-        }
-      }
+      final serverOrder = [for (final p in server) p['url'] as String];
+      final current = ref.mounted ? state.exteriorPhotos : photos;
+      if (!listEquals(serverOrder, current)) await _saveExteriorOrder();
     } catch (e) {
       developer.log('Listing photo sync failed: $e');
     }
@@ -695,6 +730,48 @@ class PropertyViewModel extends Notifier<PropertyState> {
         _repository.cachePhotoBytes(shot.path, bytes, filename: shot.filename);
       }
     }
+  }
+
+  /// Photos picked on this device that are not on the server yet, exterior
+  /// and room photos together. They live only in memory, so leaving the
+  /// property loses them.
+  int get pendingPhotoCount =>
+      state.exteriorPhotos.where((p) => !isRemotePhoto(p)).length +
+      state.rooms
+          .expand((r) => r.photos)
+          .where((p) => !p.isUploaded && !isRemotePhoto(p.path))
+          .length;
+
+  /// Applies the agent's drag-and-drop order for a room's photos (first =
+  /// cover). Saved with the Property Features section, like other room edits.
+  void reorderRoomPhotos(String roomId, List<String> order) {
+    state = state.copyWith(
+      rooms: [
+        for (final room in state.rooms)
+          if (room.id != roomId ||
+              order.length != room.photos.length ||
+              !room.photos.every((p) => order.contains(p.path)))
+            room
+          else
+            room.copyWith(
+              photos: [
+                for (final path in order)
+                  room.photos.firstWhere((p) => p.path == path),
+              ],
+            ),
+      ],
+    );
+  }
+
+  /// Makes [path] the room's cover by moving it to the front.
+  void setRoomCoverPhoto(String roomId, String path) {
+    final room = state.rooms.where((r) => r.id == roomId).firstOrNull;
+    if (room == null) return;
+    reorderRoomPhotos(roomId, [
+      path,
+      for (final p in room.photos)
+        if (p.path != path) p.path,
+    ]);
   }
 
   /// Removes one photo; an uploaded one is deleted from the API on save.

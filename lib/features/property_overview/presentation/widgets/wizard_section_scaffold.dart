@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/busy_overlay.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../providers/property_provider.dart';
@@ -121,6 +122,9 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
 
   /// Back gesture: discard, after confirming when there is something to lose.
   Future<void> _handleBack() async {
+    // The busy overlay blocks taps; this also ignores the system back while
+    // a save is running.
+    if (_isSaving) return;
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     if (!viewModel.hasUnsavedSectionChanges) {
       viewModel.discardSectionEdit();
@@ -181,60 +185,70 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
         if (didPop) return;
         await _handleBack();
       },
-      child: Scaffold(
-        backgroundColor: theme.backgroundColor,
-        appBar: WizardAppBar(
-          title: widget.title,
-          onBack: _handleBack,
-          theme: theme,
-        ),
-        body: SafeArea(
-          bottom: false,
-          child: GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            behavior: HitTestBehavior.opaque,
-            child: Stack(
-              children: [
-                Scrollbar(
-                  controller: _scrollController,
-                  child: SingleChildScrollView(
+      child: BusyOverlay(
+        busy: _isSaving,
+        theme: theme,
+        title: 'Saving ${widget.title}…',
+        child: Scaffold(
+          backgroundColor: theme.backgroundColor,
+          appBar: WizardAppBar(
+            title: widget.title,
+            onBack: _handleBack,
+            theme: theme,
+          ),
+          body: SafeArea(
+            bottom: false,
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.opaque,
+              child: Stack(
+                children: [
+                  Scrollbar(
                     controller: _scrollController,
-                    // Clamping matches the overview screen: a shared bounce
-                    // viewport mis-hit-tests during root-navigator pops.
-                    physics: const ClampingScrollPhysics(),
-                    // Bottom padding clears the pinned action bar so the last
-                    // field is never trapped underneath it.
-                    padding: EdgeInsets.fromLTRB(20, widget.topPadding, 20, 24),
-                    child: widget.child,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      // Clamping matches the overview screen: a shared bounce
+                      // viewport mis-hit-tests during root-navigator pops.
+                      physics: const ClampingScrollPhysics(),
+                      // Bottom padding clears the pinned action bar so the last
+                      // field is never trapped underneath it.
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        widget.topPadding,
+                        20,
+                        24,
+                      ),
+                      child: widget.child,
+                    ),
                   ),
-                ),
-                // Fade hinting at content continuing below the action bar.
-                if (_canScrollFurther)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 28,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              theme.backgroundColor.withValues(alpha: 0),
-                              theme.backgroundColor,
-                            ],
+                  // Fade hinting at content continuing below the action bar.
+                  if (_canScrollFurther)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          height: 28,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                theme.backgroundColor.withValues(alpha: 0),
+                                theme.backgroundColor,
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
+          bottomNavigationBar: _buildActionBar(theme, textTheme),
         ),
-        bottomNavigationBar: _buildActionBar(theme, textTheme),
       ),
     );
   }
@@ -259,23 +273,14 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
           child: SizedBox(
             width: double.infinity,
             height: 54,
-            child: _isSaving
-                ? Center(
-                    child: SizedBox(
-                      width: 26,
-                      height: 26,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: theme.primaryColor,
-                      ),
-                    ),
-                  )
-                : CustomButton(
-                    text: widget.saveLabel,
-                    fullWidth: true,
-                    theme: theme,
-                    onTap: _handleSave,
-                  ),
+            // While saving, the busy overlay covers the screen and shows the
+            // progress, so the button simply stays put underneath.
+            child: CustomButton(
+              text: widget.saveLabel,
+              fullWidth: true,
+              theme: theme,
+              onTap: _isSaving ? null : _handleSave,
+            ),
           ),
         ),
       ),

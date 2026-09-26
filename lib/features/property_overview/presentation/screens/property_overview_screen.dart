@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/widgets/busy_overlay.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
@@ -127,155 +128,162 @@ class _PropertyOverviewScreenState
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _leave();
+        if (!didPop && !_isSaving) _leave();
       },
-      child: Scaffold(
-        backgroundColor: theme.backgroundColor,
-        appBar: AppBar(
-          backgroundColor: theme.cardBackgroundColor,
-          surfaceTintColor: theme.cardBackgroundColor,
-          title: Text(
-            'Property Details',
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
-          ),
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new,
-              color: theme.textPrimary,
-              size: 20,
-            ),
-            onPressed: _leave,
-          ),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: theme.error),
-              onPressed: () =>
-                  _confirmDelete(context, ref, viewModel, propertyId),
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(color: theme.borderLight, height: 1),
-          ),
-        ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                // Clamping (not bouncing) so a pointer/hover landing mid-pop
-                // never hit-tests overscroll geometry on a detaching viewport
-                // (viewport.dart:1034 "Unexpected null value" on web/desktop).
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 24,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Reference: ${state.referenceNumber}',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: theme.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _PropertyTypeField(
-                        selected: selectedType,
-                        theme: theme,
-                        textTheme: textTheme,
-                        onSelected: (type) async {
-                          viewModel.selectPropertyType(type.id);
-                          await viewModel.savePropertyType();
-                          final error = ref
-                              .read(propertyViewModelProvider)
-                              .errorMessage;
-                          if (error != null && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  friendlySaveMessage(error, 'property type'),
-                                ),
-                                backgroundColor: theme.error,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      ExteriorPhotosSection(
-                        photos: state.exteriorPhotos,
-                        theme: theme,
-                        textTheme: textTheme,
-                        viewModel: viewModel,
-                        baseUrl: ref.watch(apiClientProvider).baseUrl,
-                      ),
-                      const SizedBox(height: 24),
-                      _ProgressSummary(
-                        completeCount: completeCount,
-                        totalCount: sections.length,
-                        houseScore: state.houseScore,
-                        isManual: state.houseScoreIsManual,
-                        theme: theme,
-                        textTheme: textTheme,
-                        onAdjustScore: () => _adjustHouseScore(state),
-                      ),
-                      const SizedBox(height: 16),
-                      ...sections.map(
-                        (section) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: SectionCard(
-                            title: section.title,
-                            subtitle: section.subtitle,
-                            icon: section.icon,
-                            isComplete: section.isComplete,
-                            theme: theme,
-                            textTheme: textTheme,
-                            onTap: () => context.push(section.route),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+      child: BusyOverlay(
+        busy: _isSaving,
+        theme: theme,
+        title: 'Saving the property…',
+        child: Scaffold(
+          backgroundColor: theme.backgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.cardBackgroundColor,
+            surfaceTintColor: theme.cardBackgroundColor,
+            title: Text(
+              'Property Details',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.textPrimary,
               ),
-              _BottomActions(
-                theme: theme,
-                isSaving: _isSaving,
-                canSubmit: allComplete,
-                onSave: _saveAndExit,
-                onSubmit: () async {
-                  final success = await viewModel.submitAndSave();
-                  if (!context.mounted) return;
-                  if (success) {
-                    viewModel.reset();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                          'Evaluation submitted successfully!',
-                        ),
-                        backgroundColor: theme.primaryColor,
-                      ),
-                    );
-                    _exitToHome(context);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          ref.read(propertyViewModelProvider).errorMessage ??
-                              'Failed to submit evaluation',
-                        ),
-                        backgroundColor: theme.error,
-                      ),
-                    );
-                  }
-                },
+            ),
+            leading: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios_new,
+                color: theme.textPrimary,
+                size: 20,
+              ),
+              onPressed: _leave,
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: theme.error),
+                onPressed: () =>
+                    _confirmDelete(context, ref, viewModel, propertyId),
               ),
             ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(color: theme.borderLight, height: 1),
+            ),
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  // Clamping (not bouncing) so a pointer/hover landing mid-pop
+                  // never hit-tests overscroll geometry on a detaching viewport
+                  // (viewport.dart:1034 "Unexpected null value" on web/desktop).
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 24,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reference: ${state.referenceNumber}',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: theme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _PropertyTypeField(
+                          selected: selectedType,
+                          theme: theme,
+                          textTheme: textTheme,
+                          onSelected: (type) async {
+                            viewModel.selectPropertyType(type.id);
+                            await viewModel.savePropertyType();
+                            final error = ref
+                                .read(propertyViewModelProvider)
+                                .errorMessage;
+                            if (error != null && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    friendlySaveMessage(error, 'property type'),
+                                  ),
+                                  backgroundColor: theme.error,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        ExteriorPhotosSection(
+                          photos: state.exteriorPhotos,
+                          theme: theme,
+                          textTheme: textTheme,
+                          viewModel: viewModel,
+                          baseUrl: ref.watch(apiClientProvider).baseUrl,
+                        ),
+                        const SizedBox(height: 24),
+                        _ProgressSummary(
+                          completeCount: completeCount,
+                          totalCount: sections.length,
+                          houseScore: state.houseScore,
+                          isManual: state.houseScoreIsManual,
+                          theme: theme,
+                          textTheme: textTheme,
+                          onAdjustScore: () => _adjustHouseScore(state),
+                        ),
+                        const SizedBox(height: 16),
+                        ...sections.map(
+                          (section) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: SectionCard(
+                              title: section.title,
+                              subtitle: section.subtitle,
+                              icon: section.icon,
+                              isComplete: section.isComplete,
+                              theme: theme,
+                              textTheme: textTheme,
+                              onTap: () => context.push(section.route),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _BottomActions(
+                  theme: theme,
+                  isSaving: _isSaving,
+                  canSubmit: allComplete,
+                  onSave: _saveAndExit,
+                  onSubmit: () async {
+                    setState(() => _isSaving = true);
+                    final success = await viewModel.submitAndSave();
+                    if (!context.mounted) return;
+                    setState(() => _isSaving = false);
+                    if (success) {
+                      viewModel.reset();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text(
+                            'Evaluation submitted successfully!',
+                          ),
+                          backgroundColor: theme.primaryColor,
+                        ),
+                      );
+                      _exitToHome(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            ref.read(propertyViewModelProvider).errorMessage ??
+                                'Failed to submit evaluation',
+                          ),
+                          backgroundColor: theme.error,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -318,12 +326,22 @@ class _PropertyOverviewScreenState
     }
   }
 
-  /// Back arrow / back gesture. A listing left without anything worth keeping
-  /// is deleted rather than lingering on the home screen as an empty card.
+  /// Back arrow / back gesture. Photos still waiting to upload are retried
+  /// first, and the agent is warned before leaving loses any that failed. A
+  /// listing left without anything worth keeping is deleted rather than
+  /// lingering on the home screen as an empty card.
   Future<void> _leave() async {
-    final discarded = await ref
-        .read(propertyViewModelProvider.notifier)
-        .discardIfEmpty();
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    if (viewModel.pendingPhotoCount > 0) {
+      await viewModel.saveExteriorPhotos();
+      if (!mounted) return;
+      final pending = viewModel.pendingPhotoCount;
+      if (pending > 0 && !await _confirmLeaveWithPendingPhotos(pending)) {
+        return;
+      }
+      if (!mounted) return;
+    }
+    final discarded = await viewModel.discardIfEmpty();
     if (!mounted) return;
     if (discarded) {
       ref.invalidate(listingsProvider);
@@ -334,6 +352,35 @@ class _PropertyOverviewScreenState
       );
     }
     _exitToHome(context);
+  }
+
+  /// Photos not on the server live only in memory, so leaving loses them.
+  Future<bool> _confirmLeaveWithPendingPhotos(int count) async {
+    final photos = count == 1 ? '1 photo has' : '$count photos have';
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Photos not uploaded'),
+        content: Text(
+          "$photos not uploaded yet, so they aren't saved. If you leave now "
+          'they will be lost. Stay, check your connection, and save again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stay'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Leave anyway'),
+          ),
+        ],
+      ),
+    );
+    return leave == true;
   }
 
   /// Saves anything the overview still holds, then returns to the home list.

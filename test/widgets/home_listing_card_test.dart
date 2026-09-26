@@ -8,12 +8,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Regression test: the card's stretched Row inside the ListView used to throw
 // "BoxConstraints forces an infinite height", freezing the home screen as soon
 // as one listing existed.
-Future<void> _pumpHome(WidgetTester tester, ListingSummaryDto listing) async {
+Future<void> _pumpHome(
+  WidgetTester tester,
+  ListingSummaryDto listing, {
+  List<ListingSummaryDto> more = const [],
+}) async {
   SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        listingsProvider.overrideWith((ref) async => [listing]),
+        listingsProvider.overrideWith((ref) async => [listing, ...more]),
       ],
       child: const MaterialApp(home: HomeScreen()),
     ),
@@ -23,7 +27,7 @@ Future<void> _pumpHome(WidgetTester tester, ListingSummaryDto listing) async {
 }
 
 void main() {
-  testWidgets('Home screen lays out a bare listing card', (tester) async {
+  testWidgets('a listing without an address shows as a draft', (tester) async {
     await _pumpHome(
       tester,
       ListingSummaryDto(
@@ -37,13 +41,53 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    // The reference number means nothing to an agent scanning the list.
-    expect(find.text('LST-2026-00001'), findsNothing);
-    expect(find.text('No address yet'), findsOneWidget);
+    // With nothing else to show, the drafts group is open.
     expect(
-      find.textContaining('In progress', findRichText: true),
+      find.textContaining('Drafts (1)', findRichText: true),
       findsOneWidget,
     );
+    expect(find.text('LST-2026-00001'), findsOneWidget);
+    expect(find.byTooltip('Delete draft'), findsOneWidget);
+  });
+
+  testWidgets('drafts collapse below listings that have an address', (
+    tester,
+  ) async {
+    await _pumpHome(
+      tester,
+      ListingSummaryDto(
+        id: 3,
+        referenceNumber: 'LST-2026-00003',
+        propertyTypeId: 1,
+        status: 'incomplete',
+        createdAt: DateTime(2026, 9, 22),
+        updatedAt: DateTime(2026, 9, 22),
+        streetNumber: '9',
+        street: 'Cinsaut Street',
+      ),
+      more: [
+        ListingSummaryDto(
+          id: 4,
+          referenceNumber: 'LST-2026-00004',
+          propertyTypeId: 1,
+          status: 'incomplete',
+          createdAt: DateTime(2026, 9, 23),
+          updatedAt: DateTime(2026, 9, 23),
+        ),
+      ],
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Cinsaut Street'), findsOneWidget);
+    expect(
+      find.textContaining('Drafts (1)', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.text('LST-2026-00004'), findsNothing);
+
+    await tester.tap(find.textContaining('Drafts (1)', findRichText: true));
+    await tester.pump();
+    expect(find.text('LST-2026-00004'), findsOneWidget);
   });
 
   testWidgets('Home screen lays out a fully populated listing card', (

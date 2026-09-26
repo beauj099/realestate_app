@@ -1,10 +1,12 @@
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/run_limited.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/dto/listing_dtos.dart';
 import '../../../../core/network/photo_urls.dart';
@@ -391,26 +393,23 @@ class PropertyRepository {
         .whereType<int>()
         .toSet();
 
-    for (final apiId in existingMap.keys.where(
-      (id) => !desiredApiIds.contains(id),
-    )) {
-      await _client.delete(ApiEndpoints.listingRoom(listingId, apiId));
-    }
+    await runLimited([
+      for (final apiId in existingMap.keys.where(
+        (id) => !desiredApiIds.contains(id),
+      ))
+        () => _client.delete(ApiEndpoints.listingRoom(listingId, apiId)),
+    ]);
 
-    final syncedRooms = <Room>[];
-
-    for (final room in rooms) {
-      final apiId = int.tryParse(room.id);
-      if (apiId != null && existingMap.containsKey(apiId)) {
-        syncedRooms.add(
-          await _syncExistingRoom(listingId, apiId, room, existingMap[apiId]!),
-        );
-      } else {
-        syncedRooms.add(await _createRoomWithDetails(listingId, room));
-      }
-    }
-
-    return syncedRooms;
+    // Rooms are independent, so a few save at once.
+    return runLimited(width: 3, [
+      for (final room in rooms)
+        () {
+          final apiId = int.tryParse(room.id);
+          return apiId != null && existingMap.containsKey(apiId)
+              ? _syncExistingRoom(listingId, apiId, room, existingMap[apiId]!)
+              : _createRoomWithDetails(listingId, room);
+        },
+    ]);
   }
 
   Future<Room> _createRoomWithDetails(int listingId, Room room) async {
@@ -420,6 +419,13 @@ class PropertyRepository {
       listingId,
       createdId,
       room.photos,
+    );
+    await _saveRoomPhotoOrder(
+      listingId,
+      createdId,
+      photos,
+      const [],
+      uploadedNew: true,
     );
 
     // Rating, score and notes share one Condition row; write it when any of
@@ -437,12 +443,12 @@ class PropertyRepository {
     }
 
     final partitioned = await _partitionFeatures(room.features);
-    for (final featureId in partitioned.linkedIds) {
-      await _linkRoomFeature(listingId, createdId, featureId);
-    }
-    for (final description in partitioned.customDescriptions) {
-      await _addCustomFeature(listingId, createdId, description);
-    }
+    await runLimited([
+      for (final featureId in partitioned.linkedIds)
+        () => _linkRoomFeature(listingId, createdId, featureId),
+      for (final description in partitioned.customDescriptions)
+        () => _addCustomFeature(listingId, createdId, description),
+    ]);
 
     return room.copyWith(id: createdId.toString(), photos: photos);
   }
@@ -457,18 +463,28 @@ class PropertyRepository {
 
     // Photos the agent removed are deleted; new shots are uploaded.
     final keptIds = room.photos.map((p) => p.id).whereType<int>().toSet();
-    for (final existingPhoto in _parseRoomPhotos(existing)) {
-      final id = existingPhoto.id;
-      if (id != null && !keptIds.contains(id)) {
-        await _client.delete(
-          ApiEndpoints.listingRoomPhotoById(listingId, apiId, id),
-        );
-      }
-    }
+    await runLimited([
+      for (final existingPhoto in _parseRoomPhotos(existing))
+        if (existingPhoto.id case final id?)
+          if (!keptIds.contains(id))
+            () => _client.delete(
+              ApiEndpoints.listingRoomPhotoById(listingId, apiId, id),
+            ),
+    ]);
+    final hadPending = room.photos.any(
+      (p) => !p.isUploaded && !isRemotePhoto(p.path),
+    );
     final photos = await _uploadPendingRoomPhotos(
       listingId,
       apiId,
       room.photos,
+    );
+    await _saveRoomPhotoOrder(
+      listingId,
+      apiId,
+      photos,
+      _parseRoomPhotos(existing).map((p) => p.id).whereType<int>().toList(),
+      uploadedNew: hadPending,
     );
 
     final existingCondition = existing['condition'] as Map<String, dynamic>?;
@@ -505,22 +521,19 @@ class PropertyRepository {
     final desiredFeatureIds = partitioned.linkedIds;
     final desiredCustomDescriptions = partitioned.customDescriptions;
 
-    for (final fid in desiredFeatureIds.difference(existingFeatureIds)) {
-      await _linkRoomFeature(listingId, apiId, fid);
-    }
-    for (final fid in existingFeatureIds.difference(desiredFeatureIds)) {
-      await _unlinkRoomFeature(listingId, apiId, fid);
-    }
-    for (final description in desiredCustomDescriptions.difference(
-      existingCustomDescriptions,
-    )) {
-      await _addCustomFeature(listingId, apiId, description);
-    }
-    for (final entry in existingCustomById.entries) {
-      if (!desiredCustomDescriptions.contains(entry.value)) {
-        await _deleteCustomFeature(listingId, apiId, entry.key);
-      }
-    }
+    await runLimited([
+      for (final fid in desiredFeatureIds.difference(existingFeatureIds))
+        () => _linkRoomFeature(listingId, apiId, fid),
+      for (final fid in existingFeatureIds.difference(desiredFeatureIds))
+        () => _unlinkRoomFeature(listingId, apiId, fid),
+      for (final description in desiredCustomDescriptions.difference(
+        existingCustomDescriptions,
+      ))
+        () => _addCustomFeature(listingId, apiId, description),
+      for (final entry in existingCustomById.entries)
+        if (!desiredCustomDescriptions.contains(entry.value))
+          () => _deleteCustomFeature(listingId, apiId, entry.key),
+    ]);
 
     return room.copyWith(photos: photos);
   }
@@ -692,6 +705,15 @@ class PropertyRepository {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Saves the exterior photo order (every photo id); the first becomes the
+  /// main photo.
+  Future<void> reorderListingPhotos(int listingId, List<int> photoIds) async {
+    await _client.put(
+      ApiEndpoints.listingPhotosOrder(listingId),
+      data: {'photoIds': photoIds},
+    );
+  }
+
   Future<void> setPrimaryListingPhoto(int listingId, int photoId) async {
     await _client.put(ApiEndpoints.listingPhotoPrimary(listingId, photoId));
   }
@@ -843,6 +865,33 @@ class PropertyRepository {
     return legacy == null ? const [] : [RoomPhoto(path: legacy)];
   }
 
+  /// Saves the agent's photo order (first = cover) when it differs from
+  /// [serverOrder]. Only once every photo is uploaded, since the API needs the
+  /// full list; a photo still pending keeps the order for the next save.
+  Future<void> _saveRoomPhotoOrder(
+    int listingId,
+    int roomId,
+    List<RoomPhoto> photos,
+    List<int> serverOrder, {
+    bool uploadedNew = false,
+  }) async {
+    final ids = photos.map((p) => p.id).toList();
+    if (ids.length < 2 || ids.contains(null)) return;
+    final order = ids.cast<int>();
+    final expected = serverOrder.where(order.contains).toList();
+    // New photos upload in parallel, so their server order is arbitrary.
+    if (uploadedNew || !listEquals(expected, order)) {
+      try {
+        await _client.put(
+          ApiEndpoints.listingRoomPhotosOrder(listingId, roomId),
+          data: {'photoIds': order},
+        );
+      } catch (e) {
+        developer.log('Room photo order save failed: $e');
+      }
+    }
+  }
+
   /// Uploads every photo still held as a local file and returns the list with
   /// server ids and URLs in their place. A failed upload stays local so the
   /// next save retries it.
@@ -851,29 +900,32 @@ class PropertyRepository {
     int roomId,
     List<RoomPhoto> photos,
   ) async {
-    final result = <RoomPhoto>[];
-    for (final photo in photos) {
-      if (photo.isUploaded || isRemotePhoto(photo.path)) {
-        result.add(photo);
-        continue;
-      }
-      try {
-        final formData = FormData.fromMap({
-          'file': await _photoMultipartFile(photo.path),
-        });
-        final response = await _client.post(
-          ApiEndpoints.listingRoomPhotos(listingId, roomId),
-          data: formData,
-        );
-        pendingPhotoBytes.remove(photo.path);
-        final json = response.data as Map<String, dynamic>;
-        result.add(RoomPhoto(id: json['id'] as int?, path: json['url'] as String));
-      } catch (e) {
-        developer.log('Room photo upload failed: $e');
-        result.add(photo);
-      }
-    }
-    return result;
+    // Three at a time: much faster than one by one, without choking a
+    // mobile connection.
+    return runLimited(width: 3, [
+      for (final photo in photos)
+        () async {
+          if (photo.isUploaded || isRemotePhoto(photo.path)) return photo;
+          try {
+            final formData = FormData.fromMap({
+              'file': await _photoMultipartFile(photo.path),
+            });
+            final response = await _client.post(
+              ApiEndpoints.listingRoomPhotos(listingId, roomId),
+              data: formData,
+            );
+            pendingPhotoBytes.remove(photo.path);
+            final json = response.data as Map<String, dynamic>;
+            return RoomPhoto(
+              id: json['id'] as int?,
+              path: json['url'] as String,
+            );
+          } catch (e) {
+            developer.log('Room photo upload failed: $e');
+            return photo;
+          }
+        },
+    ]);
   }
 
   Future<List<Map<String, dynamic>>> _getParkingJson(int listingId) async {

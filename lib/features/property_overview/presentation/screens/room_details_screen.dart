@@ -14,6 +14,7 @@ import '../../data/models/enums/condition_rating.dart';
 import '../../data/models/enums/standard_amenity.dart';
 import '../../data/models/room.dart';
 import '../../providers/property_provider.dart';
+import '../widgets/condition_scale.dart';
 import '../widgets/room_photo_gallery.dart';
 import '../widgets/room_score_slider.dart';
 import '../widgets/section_list.dart';
@@ -98,14 +99,19 @@ class RoomDetailsScreen extends ConsumerWidget {
                     onAdd: (shots) => viewModel.addRoomPhotos(room.id, shots),
                     onRemove: (path) =>
                         viewModel.removeRoomPhoto(room.id, path),
+                    onMakeCover: (path) =>
+                        viewModel.setRoomCoverPhoto(room.id, path),
+                    onReorder: (order) =>
+                        viewModel.reorderRoomPhotos(room.id, order),
                   ),
                   const SizedBox(height: 24),
                   SectionHeader(
                     title: 'Condition',
+                    detail: 'Rate this room',
                     theme: theme,
                     textTheme: textTheme,
                   ),
-                  _ConditionChips(
+                  ConditionScale(
                     selected: ConditionRating.fromStored(room.conditionRating),
                     theme: theme,
                     textTheme: textTheme,
@@ -283,54 +289,6 @@ class RoomDetailsScreen extends ConsumerWidget {
             }
           },
         ),
-      ],
-    );
-  }
-}
-
-/// The six condition bands as one wrap of compact chips.
-class _ConditionChips extends StatelessWidget {
-  final ConditionRating? selected;
-  final ValueChanged<ConditionRating> onChanged;
-  final RealEstateTheme theme;
-  final TextTheme textTheme;
-
-  const _ConditionChips({
-    required this.selected,
-    required this.onChanged,
-    required this.theme,
-    required this.textTheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final rating in ConditionRating.values)
-          ChoiceChip(
-            label: Text(rating.label),
-            selected: rating == selected,
-            onSelected: (_) => onChanged(rating),
-            showCheckmark: false,
-            selectedColor: theme.primaryColor,
-            backgroundColor: theme.cardBackgroundColor,
-            side: BorderSide(
-              color: rating == selected
-                  ? theme.primaryColor
-                  : theme.borderLight,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            labelStyle: textTheme.bodyMedium?.copyWith(
-              color: rating == selected ? theme.onPrimary : theme.textPrimary,
-              fontWeight: rating == selected
-                  ? FontWeight.bold
-                  : FontWeight.w500,
-            ),
-          ),
       ],
     );
   }
