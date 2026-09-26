@@ -80,8 +80,9 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
           error:
               'No property found for this address. Check the street '
               'number, street and suburb. Full reports cover Cape Town and '
-              'Johannesburg; elsewhere, use "Detect my address" on the '
-              'Address screen to find the erf from your location.',
+              'Johannesburg; in Tshwane and elsewhere, use "Detect my '
+              'address" on the Address screen to find the erf from your '
+              'location.',
         );
       } else if (found.length == 1) {
         await open(found.single);
