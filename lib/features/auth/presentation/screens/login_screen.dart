@@ -104,6 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       placeholder: 'Enter your password',
                       controller: _passwordController,
                       obscureText: _obscurePassword,
+                      isPassword: true,
                       autofillHints: const [AutofillHints.password],
                       theme: theme,
                       suffixIcon: IconButton(
