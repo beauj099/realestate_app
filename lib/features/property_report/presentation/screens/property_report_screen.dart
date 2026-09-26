@@ -9,14 +9,17 @@ import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/busy_overlay.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
+import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../../auth/providers/agent_profile_provider.dart';
 import '../../../property_overview/providers/property_provider.dart';
+import '../../data/models/agent_sales.dart';
 import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
 import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
 import '../../report/valuation_report_pdf.dart';
+import '../widgets/agent_sale_sheet.dart';
 import '../widgets/report_widgets.dart';
 
 /// Valuation report for the listing being captured, from public municipal
@@ -34,6 +37,7 @@ class PropertyReportScreen extends ConsumerStatefulWidget {
 class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
   late final TextEditingController _addressController;
   bool _exporting = false;
+  bool _savingSale = false;
 
   static const _lookupMessages = [
     'Finding the erf…',
@@ -82,7 +86,80 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
             lat: useListing ? listing.latitude : null,
             lng: useListing ? listing.longitude : null,
           ),
+          listingId: listing.listingId,
         );
+  }
+
+  void _snack(String message, RealEstateTheme theme, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? theme.error : theme.primaryColor,
+      ),
+    );
+  }
+
+  Future<void> _logSale(PropertyReport report, RealEstateTheme theme) async {
+    final sale = await showAgentSaleSheet(
+      context: context,
+      theme: theme,
+      report: report,
+    );
+    if (sale == null || !mounted) return;
+    setState(() => _savingSale = true);
+    try {
+      final duplicate = await ref
+          .read(propertyReportProvider.notifier)
+          .addAgentSale(sale);
+      _snack(
+        duplicate
+            ? 'This sale was already logged. Thank you: it now counts as '
+                  'confirmed.'
+            : 'Sale saved. Agents reporting on ${titleCase(report.suburb)} '
+                  'will see it.',
+        theme,
+      );
+    } catch (e) {
+      _snack(
+        "Couldn't save the sale. Check your connection and try again.",
+        theme,
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _savingSale = false);
+    }
+  }
+
+  Future<void> _deleteSale(AgentSale sale, RealEstateTheme theme) async {
+    final textTheme = theme.toThemeData().textTheme;
+    final confirmed = await showRealEstateDialog<bool>(
+      context: context,
+      title: 'Delete sale',
+      theme: theme,
+      content: Text(
+        'Delete the sale of ${titleCase(sale.address)}? Other agents will '
+        'no longer see it.',
+        style: textTheme.bodyLarge,
+      ),
+      actions: [
+        dialogCancelButton(context: context, theme: theme),
+        dialogActionButton(
+          theme: theme,
+          text: 'Delete',
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _savingSale = true);
+    try {
+      await ref.read(propertyReportProvider.notifier).deleteAgentSale(sale.id);
+    } catch (e) {
+      _snack("Couldn't delete the sale. Try again.", theme, error: true);
+    } finally {
+      if (mounted) setState(() => _savingSale = false);
+    }
   }
 
   ReportAuthor _author() {
@@ -137,11 +214,17 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     final report = state.report;
 
     return BusyOverlay(
-      busy: state.loading || _exporting,
+      busy: state.loading || _exporting || _savingSale,
       theme: theme,
-      title: _exporting ? 'Creating the PDF…' : 'Looking up the property…',
+      title: _exporting
+          ? 'Creating the PDF…'
+          : _savingSale
+          ? 'Updating agent sales…'
+          : 'Looking up the property…',
       messages: _exporting
           ? const ['Laying out the report…', 'Almost there…']
+          : _savingSale
+          ? const ['Saving…', 'Refreshing the report…']
           : _lookupMessages,
       child: Scaffold(
         backgroundColor: theme.backgroundColor,
@@ -517,6 +600,51 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           children: [
             ComparablesList(
               sales: r.comparables,
+              theme: theme,
+              textTheme: textTheme,
+            ),
+          ],
+        ),
+      ],
+      if (r.agentSales case final agent?) ...[
+        gap,
+        ReportCard(
+          title: 'Sales reported by agents',
+          subtitle: agent.evidenceStatement,
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            if (agent.sales.isNotEmpty)
+              AgentSalesList(
+                sales: agent.sales,
+                theme: theme,
+                textTheme: textTheme,
+                onDelete: (s) => _deleteSale(s, theme),
+              ),
+            const SizedBox(height: 8),
+            CustomButton(
+              text: 'Log a sale you know about',
+              type: ButtonType.outline,
+              icon: Icon(Icons.add, color: theme.primaryColor),
+              fullWidth: true,
+              theme: theme,
+              onTap: () => _logSale(r, theme),
+            ),
+          ],
+        ),
+      ],
+      if (state.market.isNotEmpty) ...[
+        gap,
+        ReportCard(
+          title: 'Listed by your agency nearby',
+          subtitle:
+              "Your agency's listings in ${titleCase(r.suburb)}, with the "
+              "agents' valuations",
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            MarketListingsList(
+              listings: state.market,
               theme: theme,
               textTheme: textTheme,
             ),

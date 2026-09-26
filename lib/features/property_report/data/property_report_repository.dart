@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
 import 'models/address_suggestion.dart';
+import 'models/agent_sales.dart';
 import 'models/property_report.dart';
 
 /// What to look a property up by. The API prefers a coordinate (point in the
@@ -85,6 +86,39 @@ class PropertyReportRepository {
       receiveTimeout: _reportTimeout,
     );
     return PropertyReport.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Logs a sale the agent knows about. Returns true when another agent had
+  /// already logged it (it then counts as confirmation instead of a new sale).
+  Future<bool> addAgentSale(NewAgentSale sale) async {
+    final response = await _client.post(
+      ApiEndpoints.comparables,
+      data: sale.toJson(),
+    );
+    final data = response.data;
+    return data is Map && data['wasDuplicate'] == true;
+  }
+
+  Future<void> deleteAgentSale(String id) =>
+      _client.delete(ApiEndpoints.comparable(id));
+
+  /// The agency's own listings in [suburb], except [excludeListingId].
+  Future<List<MarketListing>> fetchMarket(
+    String suburb, {
+    int? excludeListingId,
+  }) async {
+    if (suburb.trim().isEmpty) return const [];
+    final response = await _client.get(
+      ApiEndpoints.comparablesMarket,
+      queryParameters: {
+        'suburb': suburb.trim(),
+        'excludeListingId': ?excludeListingId,
+      },
+    );
+    return [
+      for (final e in response.data as List)
+        MarketListing.fromJson(e as Map<String, dynamic>),
+    ];
   }
 
   /// The site plan SVG, or null when it cannot be drawn.

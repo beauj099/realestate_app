@@ -158,6 +158,7 @@ class ValuationReportPdf {
               ),
             ]),
           ..._comparables(),
+          ..._agentSales(),
           _method(),
           _disclaimer(),
           _sources(),
@@ -254,7 +255,7 @@ class ValuationReportPdf {
   );
 
   pw.Widget _rangeBox() {
-    final range = report.indicativeValue;
+    final range = report.bestRange;
     final summary = report.comparableSummary;
     return pw.Container(
       width: double.infinity,
@@ -295,6 +296,14 @@ class ValuationReportPdf {
                     style: const pw.TextStyle(
                       color: PdfColors.white,
                       fontSize: 10,
+                    ),
+                  ),
+                if (report.rangeFromAgentSales)
+                  pw.Text(
+                    'From agent-reported sales, not registered transfers',
+                    style: const pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 8,
                     ),
                   ),
               ],
@@ -525,9 +534,82 @@ class ValuationReportPdf {
     ];
   }
 
+  /// Sales agents reported in the suburb, with how each is known. Never names
+  /// the agent who reported it.
+  List<pw.Widget> _agentSales() {
+    final agent = report.agentSales;
+    if (agent == null || agent.sales.isEmpty) return const [];
+    final shown = agent.sales.take(15).toList();
+    const header = pw.TextStyle(color: PdfColors.white, fontSize: 8.5);
+    const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
+    return [
+      _heading('Sales reported by agents'),
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 6),
+        child: pw.Text(
+          agent.evidenceStatement,
+          style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+        ),
+      ),
+      pw.TableHelper.fromTextArray(
+        headers: ['Address', 'Sold', 'Price', 'Floor', 'R/m²', 'How known'],
+        data: [
+          for (final a in shown)
+            [
+              titleCase(a.address),
+              _month.format(a.saleDate),
+              _money(a.salePriceZar),
+              a.floorM2 == null ? '-' : _m2(a.floorM2!),
+              _money(a.pricePerFloorM2),
+              [
+                a.evidenceText,
+                if (a.corroborationCount > 0)
+                  'confirmed by ${a.corroborationCount + 1} agents',
+                if (a.isDisputed) 'not used: municipal record differs',
+              ].join('; '),
+            ],
+        ],
+        headerStyle: header,
+        headerDecoration: pw.BoxDecoration(color: _brand),
+        cellStyle: cell,
+        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        border: null,
+        rowDecoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
+        ),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(2.8),
+          1: const pw.FlexColumnWidth(1.2),
+          2: const pw.FlexColumnWidth(1.6),
+          3: const pw.FlexColumnWidth(1.1),
+          4: const pw.FlexColumnWidth(1.3),
+          5: const pw.FlexColumnWidth(2.6),
+        },
+        cellAlignments: {
+          2: pw.Alignment.centerRight,
+          3: pw.Alignment.centerRight,
+          4: pw.Alignment.centerRight,
+        },
+      ),
+      pw.SizedBox(height: 14),
+    ];
+  }
+
   pw.Widget _method() {
     final s = report.comparableSummary;
     final suburb = report.suburbStats;
+    if (report.rangeFromAgentSales) {
+      return _paragraphs('How the range was worked out', [
+        'No municipal sales record is available for this area, so the range '
+            'comes from sales reported by agents working in '
+            '${titleCase(report.suburb)}. Each sale is weighted by how it is '
+            'known (an agent\'s own sale or a signed offer counts more than '
+            'hearsay); the weighted median price per square metre of '
+            '${report.agentSales!.indicativeBasis == 'floor' ? 'floor' : 'erf'} '
+            'applied to this property gives the midpoint, and the weighted '
+            'quartiles the range.',
+      ]);
+    }
     return _paragraphs('How the range was worked out', [
       report.comparablesMethod ??
           'Sales recorded by the municipality in the property\'s area were filtered: '
@@ -566,6 +648,10 @@ class ValuationReportPdf {
         'It is not a valuation by a registered valuer and should not be relied on for '
         'lending or legal purposes. Figures are as published by the municipality and may '
         'not reflect recent alterations or the condition of the property.',
+    if (report.agentSales?.sales.isNotEmpty ?? false)
+      'Sales reported by agents are as the agents know them and are not '
+          'registered transfers; each is weighted by how it is known, and a '
+          'price the municipal record contradicts is not used.',
   ]);
 
   pw.Widget _paragraphs(

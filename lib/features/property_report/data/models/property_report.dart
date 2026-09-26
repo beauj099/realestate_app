@@ -7,6 +7,8 @@
 //     [PropertyReport.printableImagery]; Street View is screen-only.
 //   * Imagery is always shown with its attribution next to it, uncropped.
 
+import 'agent_sales.dart';
+
 double? _d(Object? v) => (v as num?)?.toDouble();
 
 /// One property the address resolved to.
@@ -295,6 +297,10 @@ class PropertyReport {
 
   final DateTime? rollEffectiveFrom;
 
+  /// Sales agents reported in the suburb. Null when the API could not read
+  /// them; empty when none were reported.
+  final AgentSalesSummary? agentSales;
+
   const PropertyReport({
     required this.municipality,
     required this.erf,
@@ -312,6 +318,7 @@ class PropertyReport {
     this.comparablesMethod,
     this.coverageNote,
     this.rollEffectiveFrom,
+    this.agentSales,
     this.valuationRef,
     this.lat,
     this.lng,
@@ -388,6 +395,11 @@ class PropertyReport {
       generatedAt:
           DateTime.tryParse(j['generatedAtUtc'] as String? ?? '') ??
           DateTime.now().toUtc(),
+      agentSales: j['agentComparables'] == null
+          ? null
+          : AgentSalesSummary.fromJson(
+              j['agentComparables'] as Map<String, dynamic>,
+            ),
     );
   }
 
@@ -398,6 +410,15 @@ class PropertyReport {
     if (s.isEmpty || !a.endsWith(s)) return a;
     return '${a.substring(0, a.length - s.length).trim()}, $s';
   }
+
+  /// The range to show: from municipal sales when there is one, otherwise
+  /// from agent-reported sales (see [rangeFromAgentSales]).
+  ValueRange? get bestRange => indicativeValue ?? agentSales?.indicativeValue;
+
+  /// True when [bestRange] comes from agent-reported sales, which the report
+  /// must say, since they are not registered transfers.
+  bool get rangeFromAgentSales =>
+      indicativeValue == null && agentSales?.indicativeValue != null;
 
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();

@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/themes.dart';
+import '../../data/models/agent_sales.dart';
 import '../../data/models/property_report.dart';
 
 /// "R 7 100 000", or a dash.
@@ -137,8 +138,11 @@ class ValueRangeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final range = report.indicativeValue;
+    final range = report.bestRange;
     final summary = report.comparableSummary;
+    final fromAgents = report.rangeFromAgentSales;
+    final agentCount =
+        report.agentSales?.sales.where((s) => s.weight > 0).length ?? 0;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -190,7 +194,16 @@ class ValueRangeCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-          if (summary != null) ...[
+          if (fromAgents) ...[
+            const SizedBox(height: 4),
+            Text(
+              'From $agentCount sales reported by agents, weighted by how '
+              'each is known. These are not registered transfers.',
+              style: textTheme.bodySmall?.copyWith(
+                color: theme.onPrimary.withValues(alpha: 0.9),
+              ),
+            ),
+          ] else if (summary != null) ...[
             const SizedBox(height: 4),
             Text(
               'From ${formatCount(summary.included)} comparable sales of '
@@ -202,8 +215,11 @@ class ValueRangeCard extends StatelessWidget {
           ],
           const SizedBox(height: 6),
           Text(
-            'An indicative range from public municipal data, not a certified '
-            'valuation.',
+            fromAgents
+                ? 'An indicative range from agent-reported sales, not a '
+                      'certified valuation.'
+                : 'An indicative range from public municipal data, not a '
+                      'certified valuation.',
             style: textTheme.bodySmall?.copyWith(
               color: theme.onPrimary.withValues(alpha: 0.75),
               fontStyle: FontStyle.italic,
@@ -400,6 +416,193 @@ class ComparablesList extends StatelessWidget {
                     ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Sales agents reported in the suburb: price, how it is known and whether the
+/// municipal record agrees. The agent's own entries can be deleted.
+class AgentSalesList extends StatelessWidget {
+  final List<AgentSale> sales;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final ValueChanged<AgentSale>? onDelete;
+
+  const AgentSalesList({
+    super.key,
+    required this.sales,
+    required this.theme,
+    required this.textTheme,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sold = DateFormat('MMM yyyy');
+    return Column(
+      children: [
+        for (final (i, s) in sales.indexed) ...[
+          if (i > 0) Divider(height: 1, color: theme.borderLight),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Opacity(
+              opacity: s.isDisputed ? 0.55 : 1,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                titleCase(s.address),
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              formatZar(s.salePriceZar),
+                              style: textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            'Sold ${sold.format(s.saleDate)}',
+                            if (s.floorM2 != null)
+                              '${formatM2(s.floorM2)} floor',
+                            if (s.erfM2 != null) '${formatM2(s.erfM2)} erf',
+                            if (s.pricePerFloorM2 != null)
+                              '${formatZar(s.pricePerFloorM2)}/m²',
+                            if (s.condition != null) s.condition!.label,
+                          ].join('  ·  '),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: theme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            s.evidenceText,
+                            if (s.corroborationCount > 0)
+                              'confirmed by ${s.corroborationCount + 1} agents',
+                            if (s.isVerified) 'matches the municipal record',
+                            if (s.isDisputed)
+                              'municipal record differs, not used',
+                            if (s.isMine) 'logged by you',
+                          ].join(' · '),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: s.isVerified
+                                ? theme.primaryColor
+                                : theme.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (s.isMine && onDelete != null)
+                    IconButton(
+                      tooltip: 'Delete this sale',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: theme.textSecondary,
+                      ),
+                      onPressed: () => onDelete!(s),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The agency's own listings in the suburb: what colleagues valued similar
+/// homes at, and how long they have been listed. Never shows owners.
+class MarketListingsList extends StatelessWidget {
+  final List<MarketListing> listings;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const MarketListingsList({
+    super.key,
+    required this.listings,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final (i, l) in listings.indexed) ...[
+          if (i > 0) Divider(height: 1, color: theme.borderLight),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        titleCase(l.address),
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      l.agentValuationZar == null
+                          ? 'Not valued yet'
+                          : formatZar(l.agentValuationZar),
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    l.isArchived
+                        ? 'Archived after ${l.daysListed} days'
+                        : 'Listed ${l.daysListed} day${l.daysListed == 1 ? '' : 's'}',
+                    if (l.floorM2 != null) '${formatM2(l.floorM2)} floor',
+                    if (l.erfM2 != null) '${formatM2(l.erfM2)} erf',
+                    if (l.valuationPerFloorM2 != null)
+                      '${formatZar(l.valuationPerFloorM2)}/m²',
+                  ].join('  ·  '),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: theme.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
