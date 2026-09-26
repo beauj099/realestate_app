@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (182 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (183 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -55,7 +55,7 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - **Country & currency** (`lib/core/locale/`): `regionProvider` holds the agent's country and currency (device-local, default South Africa); Settings picks each, registration sets both. `country_data.dart` is **generated** from CLDR + libphonenumber — regenerate, don't hand-edit. Phone fields use `CountryPhone` + `PhonePrefix` (flag + dial code); money fields use `CurrencyPrefix` and `regionProvider.currencySymbol` — never hardcode "R"/"ZAR". The SA ID format only applies when the country is South Africa.
 - **SA formats** (`lib/core/validation/sa_formats.dart`): ID numbers (13 digits, YYMMDD date, citizenship digit 0/1, Luhn check; shown `YYMMDD GGGG CCC`) and phone numbers (fixed `+27` prefix via `SaPhonePrefix`, 9 digits shown `82 123 4567`, stored `+27…`). Entry uses `GroupedDigitsFormatter` — digits only, spaces inserted automatically. Owner validation is `validateContact`.
 - **Keyboards:** `CustomTextInput` picks capitalisation from the keyboard type (plain text → sentence case, `TextInputType.name` → words, email/number/phone/password → none); set `keyboardType` correctly and override `textCapitalization` only when needed (e.g. `characters` for licence numbers, `TextInputType.datetime` for `2021/123456/07` registration numbers). Password fields must set `isPassword: true`: it forces no capitalisation, autocorrect or suggestions even while the password is shown (the eye icon sets `obscureText: false`).
-- **Home:** Active/Archived tabs; swipe a card to archive/restore (`PUT /api/listings/{id}/archive`); archived tab has a search over address, all owners and reference; lists are newest first. Leave the property screen with `pop()` (`_exitToHome`), not `go()`.
+- **Home:** Active/Archived tabs; swipe a card to archive/restore (`PUT /api/listings/{id}/archive`); archived tab has a search over address, all owners and reference; lists are newest first. Listings without an address are drafts, grouped in a collapsible "Drafts (n)" section below the Active list (compact rows with delete). The Add Property button shrinks to a round "+" while scrolling down. The side/bottom frame is 3px and left off for pale brand colours (luminance > 0.4). Leave the property screen with `pop()` (`_exitToHome`), not `go()`.
 - Multi-pick lists use `showMultiSelectSheet` (`core/widgets/multi_select_sheet.dart`): tick several, confirm once. Parking uses it, then − n + steppers; a type left at 0 is dropped on save.
 
 ## White-labelling

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,6 +45,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   final _searchController = TextEditingController();
   String _query = '';
+
+  /// Listings without an address yet sit in a collapsible Drafts group below
+  /// the real ones, so they don't crowd the list.
+  bool _draftsExpanded = false;
+
+  /// The Add Property button shrinks to a round "+" while scrolling down, so
+  /// it covers less of the cards, and grows back when scrolling up.
+  bool _fabExtended = true;
 
   @override
   void dispose() {
@@ -102,6 +111,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       floatingActionButton: FloatingActionButton.extended(
+        isExtended: _fabExtended,
         backgroundColor: theme.primaryColor,
         foregroundColor: theme.onPrimary,
         icon: const Icon(Icons.add),
@@ -163,16 +173,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
               },
       ),
-      // The agency colour continues from the logo panel down both sides and
-      // along the bottom, framing the page.
+      // A dark agency colour continues from the logo panel down both sides
+      // and along the bottom, framing the page. A pale one (Rawson's yellow,
+      // Leapfrog's lime) would be loud as a frame, so it is left out.
       body: Container(
         decoration: BoxDecoration(
           color: theme.backgroundColor,
-          border: Border(
-            left: BorderSide(color: theme.primaryColor, width: _frameWidth),
-            right: BorderSide(color: theme.primaryColor, width: _frameWidth),
-            bottom: BorderSide(color: theme.primaryColor, width: _frameWidth),
-          ),
+          border: _frameFor(theme.primaryColor),
         ),
         child: Column(
           children: [
@@ -210,7 +217,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  static const double _frameWidth = 6;
+  static const double _frameWidth = 3;
+
+  static Border? _frameFor(Color brand) {
+    if (brand.computeLuminance() > 0.4) return null;
+    final side = BorderSide(color: brand, width: _frameWidth);
+    return Border(left: side, right: side, bottom: side);
+  }
+
+  /// Deletes a draft listing after confirming.
+  Future<void> _deleteDraft(ListingSummaryDto listing) async {
+    final theme = ref.read(themeConfigProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete draft?'),
+        content: Text(
+          '${listing.referenceNumber} has no address yet. Deleting it removes '
+          'everything captured on it. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: theme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(propertyRepositoryProvider).deleteListing(listing.id);
+      ref.invalidate(listingsProvider);
+      messenger.showSnackBar(
+        SnackBar(content: Text('${listing.referenceNumber} deleted')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(mapFailure(e).message),
+          backgroundColor: theme.error,
+        ),
+      );
+    }
+  }
 
   /// The listings for the current tab, newest first, filtered by the archive
   /// search.
@@ -223,6 +278,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // finds Walter White's house on Cinsaut Street.
       return needle.split(RegExp(r'\s+')).every(haystack.contains);
     }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  /// A listing card that archives (or, in the archive, restores) on a swipe.
+  Widget _swipeable(
+    ListingSummaryDto listing,
+    RealEstateTheme theme,
+    TextTheme textTheme,
+  ) {
+    return Dismissible(
+      key: ValueKey('listing-${listing.id}-$_showArchived'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _setArchived(listing, !_showArchived),
+      background: _SwipeBackground(
+        archiving: !_showArchived,
+        theme: theme,
+        textTheme: textTheme,
+      ),
+      child: _ListingCard(listing: listing, showCreatedDate: _showArchived),
+    );
   }
 
   Widget _buildListings(
@@ -239,43 +313,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           }
           return _buildEmptyState(theme, textTheme);
         }
-        return RefreshIndicator(
-          onRefresh: () => ref.refresh(listingsProvider.future),
-          child: ListView.separated(
-            // Bottom padding clears the floating action button so the last
-            // card is never hidden behind it.
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: listings.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              if (index == listings.length) {
-                return Text(
-                  _showArchived
-                      ? 'Swipe a property left to restore it.'
-                      : 'Swipe a property left to archive it.',
-                  textAlign: TextAlign.center,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: theme.textSecondary.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
-                );
-              }
-              final listing = listings[index];
-              return Dismissible(
-                key: ValueKey('listing-${listing.id}-$_showArchived'),
-                direction: DismissDirection.endToStart,
-                confirmDismiss: (_) => _setArchived(listing, !_showArchived),
-                background: _SwipeBackground(
-                  archiving: !_showArchived,
-                  theme: theme,
-                  textTheme: textTheme,
-                ),
-                child: _ListingCard(
-                  listing: listing,
-                  showCreatedDate: _showArchived,
-                ),
-              );
-            },
+        // Active tab: listings with an address, then the drafts group. The
+        // archive keeps everything together (it is searched, not browsed).
+        final drafts = _showArchived
+            ? const <ListingSummaryDto>[]
+            : listings.where((l) => l.addressLine.isEmpty).toList();
+        final main = _showArchived
+            ? listings
+            : listings.where((l) => l.addressLine.isNotEmpty).toList();
+        // With nothing but drafts, show them rather than an empty list.
+        final draftsOpen = _draftsExpanded || main.isEmpty;
+
+        final items = <Widget>[
+          for (final listing in main) _swipeable(listing, theme, textTheme),
+          if (drafts.isNotEmpty)
+            _DraftsHeader(
+              count: drafts.length,
+              expanded: draftsOpen,
+              canCollapse: main.isNotEmpty,
+              theme: theme,
+              textTheme: textTheme,
+              onTap: () => setState(() => _draftsExpanded = !draftsOpen),
+            ),
+          if (draftsOpen)
+            for (final draft in drafts)
+              _DraftRow(
+                listing: draft,
+                theme: theme,
+                textTheme: textTheme,
+                onDelete: () => _deleteDraft(draft),
+              ),
+          if (main.isNotEmpty)
+            Text(
+              _showArchived
+                  ? 'Swipe a property left to restore it.'
+                  : 'Swipe a property left to archive it.',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(
+                color: theme.textSecondary.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
+            ),
+        ];
+
+        return NotificationListener<UserScrollNotification>(
+          onNotification: (n) {
+            final extend = n.direction != ScrollDirection.reverse;
+            if (n.direction != ScrollDirection.idle && extend != _fabExtended) {
+              setState(() => _fabExtended = extend);
+            }
+            return false;
+          },
+          child: RefreshIndicator(
+            onRefresh: () => ref.refresh(listingsProvider.future),
+            child: ListView.separated(
+              // Bottom padding clears the floating action button so the last
+              // card is never hidden behind it.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => items[index],
+            ),
           ),
         );
       },
@@ -481,7 +579,9 @@ class _ListingCard extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        hasAddress ? addressLine : 'No address yet',
+                        hasAddress
+                            ? addressLine
+                            : 'Draft · ${listing.referenceNumber}',
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: hasAddress
@@ -587,6 +687,145 @@ class _ListingCard extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Drafts (n)" heading over the listings that have no address yet.
+class _DraftsHeader extends StatelessWidget {
+  final int count;
+  final bool expanded;
+  final bool canCollapse;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final VoidCallback onTap;
+
+  const _DraftsHeader({
+    required this.count,
+    required this.expanded,
+    required this.canCollapse,
+    required this.theme,
+    required this.textTheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: canCollapse ? onTap : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+        child: Row(
+          children: [
+            Icon(Icons.edit_note_rounded, size: 20, color: theme.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Drafts ($count)',
+                      style: TextStyle(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '  ·  no address yet',
+                      style: TextStyle(color: theme.textSecondary),
+                    ),
+                  ],
+                ),
+                style: textTheme.bodyMedium,
+              ),
+            ),
+            if (canCollapse)
+              Icon(
+                expanded ? Icons.expand_less : Icons.expand_more,
+                color: theme.textSecondary,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A compact row for a draft: reference, type, when it was started, and a
+/// delete button. Tapping opens it to carry on capturing.
+class _DraftRow extends ConsumerWidget {
+  final ListingSummaryDto listing;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final VoidCallback onDelete;
+
+  const _DraftRow({
+    required this.listing,
+    required this.theme,
+    required this.textTheme,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final type = PropertyTypeExtension.fromId(listing.propertyTypeId);
+    final started = DateFormat(
+      'd MMM yyyy',
+    ).format(listing.createdAt.toLocal());
+    return InkWell(
+      onTap: () async {
+        await context.push(AppRoutes.property(listing.id));
+        await Future.delayed(const Duration(milliseconds: 400));
+        if (context.mounted) ref.invalidate(listingsProvider);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+        decoration: BoxDecoration(
+          color: theme.cardBackgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.borderLight),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              type?.icon ?? Icons.home_outlined,
+              size: 22,
+              color: theme.textSecondary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    listing.referenceNumber,
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [?type?.displayString, 'Started $started'].join('  ·  '),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: theme.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Delete draft',
+              icon: Icon(Icons.delete_outline, color: theme.textSecondary),
+              onPressed: onDelete,
+            ),
+          ],
         ),
       ),
     );
