@@ -318,12 +318,22 @@ class _PropertyOverviewScreenState
     }
   }
 
-  /// Back arrow / back gesture. A listing left without anything worth keeping
-  /// is deleted rather than lingering on the home screen as an empty card.
+  /// Back arrow / back gesture. Photos still waiting to upload are retried
+  /// first, and the agent is warned before leaving loses any that failed. A
+  /// listing left without anything worth keeping is deleted rather than
+  /// lingering on the home screen as an empty card.
   Future<void> _leave() async {
-    final discarded = await ref
-        .read(propertyViewModelProvider.notifier)
-        .discardIfEmpty();
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    if (viewModel.pendingPhotoCount > 0) {
+      await viewModel.saveExteriorPhotos();
+      if (!mounted) return;
+      final pending = viewModel.pendingPhotoCount;
+      if (pending > 0 && !await _confirmLeaveWithPendingPhotos(pending)) {
+        return;
+      }
+      if (!mounted) return;
+    }
+    final discarded = await viewModel.discardIfEmpty();
     if (!mounted) return;
     if (discarded) {
       ref.invalidate(listingsProvider);
@@ -334,6 +344,35 @@ class _PropertyOverviewScreenState
       );
     }
     _exitToHome(context);
+  }
+
+  /// Photos not on the server live only in memory, so leaving loses them.
+  Future<bool> _confirmLeaveWithPendingPhotos(int count) async {
+    final photos = count == 1 ? '1 photo has' : '$count photos have';
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Photos not uploaded'),
+        content: Text(
+          "$photos not uploaded yet, so they aren't saved. If you leave now "
+          'they will be lost. Stay, check your connection, and save again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stay'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Leave anyway'),
+          ),
+        ],
+      ),
+    );
+    return leave == true;
   }
 
   /// Saves anything the overview still holds, then returns to the home list.

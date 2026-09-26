@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failures.dart';
@@ -421,6 +422,7 @@ class PropertyRepository {
       createdId,
       room.photos,
     );
+    await _saveRoomPhotoOrder(listingId, createdId, photos, const []);
 
     // Rating, score and notes share one Condition row; write it when any of
     // them is set (notes alone used to be dropped for an unrated room).
@@ -469,6 +471,12 @@ class PropertyRepository {
       listingId,
       apiId,
       room.photos,
+    );
+    await _saveRoomPhotoOrder(
+      listingId,
+      apiId,
+      photos,
+      _parseRoomPhotos(existing).map((p) => p.id).whereType<int>().toList(),
     );
 
     final existingCondition = existing['condition'] as Map<String, dynamic>?;
@@ -692,6 +700,15 @@ class PropertyRepository {
     return response.data as Map<String, dynamic>;
   }
 
+  /// Saves the exterior photo order (every photo id); the first becomes the
+  /// main photo.
+  Future<void> reorderListingPhotos(int listingId, List<int> photoIds) async {
+    await _client.put(
+      ApiEndpoints.listingPhotosOrder(listingId),
+      data: {'photoIds': photoIds},
+    );
+  }
+
   Future<void> setPrimaryListingPhoto(int listingId, int photoId) async {
     await _client.put(ApiEndpoints.listingPhotoPrimary(listingId, photoId));
   }
@@ -843,6 +860,34 @@ class PropertyRepository {
     return legacy == null ? const [] : [RoomPhoto(path: legacy)];
   }
 
+  /// Saves the agent's photo order (first = cover) when it differs from
+  /// [serverOrder]. Only once every photo is uploaded, since the API needs the
+  /// full list; a photo still pending keeps the order for the next save.
+  Future<void> _saveRoomPhotoOrder(
+    int listingId,
+    int roomId,
+    List<RoomPhoto> photos,
+    List<int> serverOrder,
+  ) async {
+    final ids = photos.map((p) => p.id).toList();
+    if (ids.length < 2 || ids.contains(null)) return;
+    final order = ids.cast<int>();
+    // A fresh room's uploads already went up in order.
+    final expected = serverOrder.isEmpty
+        ? order
+        : serverOrder.where(order.contains).toList();
+    if (serverOrder.isEmpty || !listEquals(expected, order)) {
+      try {
+        await _client.put(
+          ApiEndpoints.listingRoomPhotosOrder(listingId, roomId),
+          data: {'photoIds': order},
+        );
+      } catch (e) {
+        developer.log('Room photo order save failed: $e');
+      }
+    }
+  }
+
   /// Uploads every photo still held as a local file and returns the list with
   /// server ids and URLs in their place. A failed upload stays local so the
   /// next save retries it.
@@ -867,7 +912,9 @@ class PropertyRepository {
         );
         pendingPhotoBytes.remove(photo.path);
         final json = response.data as Map<String, dynamic>;
-        result.add(RoomPhoto(id: json['id'] as int?, path: json['url'] as String));
+        result.add(
+          RoomPhoto(id: json['id'] as int?, path: json['url'] as String),
+        );
       } catch (e) {
         developer.log('Room photo upload failed: $e');
         result.add(photo);

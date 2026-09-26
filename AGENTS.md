@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (178 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (182 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -48,6 +48,8 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - Section completeness (`isAddressComplete`, `isOwnerComplete`, …) and the house score live on `PropertyState`, so the overview and each screen's validation agree.
 - Discard prompts compare **content** (`PropertyState.sameContentAs`), never object identity. A listing left with nothing captured (`hasMeaningfulContent`) is deleted on leaving the overview (`discardIfEmpty`), and only when it was fully loaded.
 - Each room has a 0–10 `score` (slider at the end of the room), stored in `Condition.Score`, and up to 20 photos (`Room.photos`, first = cover; `/rooms/{id}/photos`).
+- **Photos** (property and room) use `ReorderablePhotoStrip` / `pickPhotos` (`presentation/widgets/photo_strip.dart`): gallery multi-select up to 20, hold-and-drag to reorder, tap for "make main/cover" or remove. The first photo is the main (property) or cover (room). Order is saved with `PUT /api/listings/{id}/photos/order` (immediately, once every photo is uploaded) and `PUT …/rooms/{roomId}/photos/order` (on the Property Features save). Photos not yet uploaded exist only in memory: leaving the property warns first (`pendingPhotoCount`).
+- **Room condition** is the single-choice `ConditionScale` (`presentation/widgets/condition_scale.dart`): six bands worst→best, each with its own icon and red → orange → grey → green colour (`ConditionRatingStyle`).
 - **House score** is a percentage saved on the listing (`PUT /api/listings/{id}/house-score`). The app suggests a *weighted* average of room scores (`RoomScore.weightFor` — kitchens, main bedrooms, bathrooms count more) and saves it after Property Features; once the agent sets their own (`houseScoreIsManual`) the suggestion no longer overwrites it.
 - Property Features is complete when there is ≥1 room and every room has a condition rating or a score.
 - **Country & currency** (`lib/core/locale/`): `regionProvider` holds the agent's country and currency (device-local, default South Africa); Settings picks each, registration sets both. `country_data.dart` is **generated** from CLDR + libphonenumber — regenerate, don't hand-edit. Phone fields use `CountryPhone` + `PhonePrefix` (flag + dial code); money fields use `CurrencyPrefix` and `regionProvider.currencySymbol` — never hardcode "R"/"ZAR". The SA ID format only applies when the country is South Africa.

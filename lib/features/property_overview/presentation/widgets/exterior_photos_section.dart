@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/themes.dart';
-import '../../../../core/widgets/listing_photo.dart';
-import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../providers/property_provider.dart';
+import 'photo_strip.dart';
 
-/// Exterior shots of the property, with one nominated as the hero image.
+/// Exterior shots of the property, with one nominated as the main image.
 ///
-/// The hero is what identifies the listing at a glance on the home screen —
-/// a photo of the house says more than a reference number ever will. The
-/// first photo in the list is the hero; tapping any other offers to promote it.
+/// The main photo is what identifies the listing at a glance on the home
+/// screen — a photo of the house says more than a reference number ever will.
+/// The first photo is the main one; the agent reorders by holding and
+/// dragging, or taps a photo to make it the main one. Photos upload as soon as
+/// they are picked, and the order is saved with them.
 class ExteriorPhotosSection extends StatelessWidget {
   final List<String> photos;
   final RealEstateTheme theme;
@@ -29,64 +29,38 @@ class ExteriorPhotosSection extends StatelessWidget {
     this.baseUrl = '',
   });
 
-  Future<void> _addPhoto(BuildContext context) async {
-    final source = await showRealEstateBottomSheet<ImageSource>(
+  static const int _max = PropertyViewModel.maxExteriorPhotos;
+
+  int get _remaining => _max - photos.length;
+
+  Future<void> _addPhotos(BuildContext context) async {
+    final shots = await pickPhotos(
       context: context,
       theme: theme,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: theme.borderLight,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
-                title: const Text('Take a photo'),
-                onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose from gallery'),
-                onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
-              ),
-            ],
-          ),
-        ),
-      ),
+      remaining: _remaining,
     );
-
-    if (source == null) return;
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
-    // `readAsBytes` works on every platform; on the web the path is only a
-    // blob URL and `MultipartFile.fromFile` (dart:io) throws, so the bytes
-    // are cached at pick time and the upload uses them. Show the shot
-    // immediately, then upload in the background. A failed upload keeps the
-    // local path so submit retries it.
-    final bytes = await picked.readAsBytes();
-    viewModel.addExteriorPhoto(
-      picked.path,
-      bytes: bytes,
-      filename: picked.name,
-    );
-    final uploaded = await viewModel.uploadExteriorPhoto(picked.path);
-    if (!uploaded && context.mounted) {
+    if (shots.isEmpty) return;
+    // Show every shot straight away, then upload them one by one.
+    for (final shot in shots) {
+      viewModel.addExteriorPhoto(
+        shot.path,
+        bytes: shot.bytes,
+        filename: shot.filename,
+      );
+    }
+    var failed = 0;
+    for (final shot in shots) {
+      if (!await viewModel.uploadExteriorPhoto(shot.path)) failed++;
+    }
+    if (failed > 0 && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Photo saved on this device — upload will retry on submit.',
+            failed == 1
+                ? "1 photo couldn't upload yet. It retries when you save "
+                      'the property.'
+                : "$failed photos couldn't upload yet. They retry when you "
+                      'save the property.',
           ),
         ),
       );
@@ -94,47 +68,14 @@ class ExteriorPhotosSection extends StatelessWidget {
   }
 
   Future<void> _photoActions(BuildContext context, String path) async {
-    final isMain = photos.isNotEmpty && photos.first == path;
-    final action = await showRealEstateBottomSheet<String>(
+    final action = await showPhotoActions(
       context: context,
       theme: theme,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: theme.borderLight,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              if (!isMain)
-                ListTile(
-                  leading: const Icon(Icons.star_outline),
-                  title: const Text('Set as main photo'),
-                  onTap: () => Navigator.pop(sheetContext, 'main'),
-                ),
-              ListTile(
-                leading: Icon(Icons.delete_outline, color: theme.error),
-                title: Text(
-                  'Remove photo',
-                  style: TextStyle(color: theme.error),
-                ),
-                onTap: () => Navigator.pop(sheetContext, 'remove'),
-              ),
-            ],
-          ),
-        ),
-      ),
+      isFirst: photos.isNotEmpty && photos.first == path,
+      firstLabel: 'main photo',
     );
-
-    if (action == 'main') viewModel.setMainExteriorPhoto(path);
-    if (action == 'remove') viewModel.removeExteriorPhoto(path);
+    if (action == PhotoAction.makeFirst) viewModel.setMainExteriorPhoto(path);
+    if (action == PhotoAction.remove) viewModel.removeExteriorPhoto(path);
   }
 
   @override
@@ -155,19 +96,10 @@ class ExteriorPhotosSection extends StatelessWidget {
               ),
             ),
             if (photos.isNotEmpty)
-              TextButton.icon(
-                onPressed: () => _addPhoto(context),
-                icon: Icon(Icons.add, size: 16, color: theme.primaryColor),
-                label: Text(
-                  'Add',
-                  style: textTheme.labelLarge?.copyWith(
-                    color: theme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+              Text(
+                '${photos.length} / $_max',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.textSecondary,
                 ),
               ),
           ],
@@ -177,34 +109,36 @@ class ExteriorPhotosSection extends StatelessWidget {
           _EmptyPhotoPrompt(
             theme: theme,
             textTheme: textTheme,
-            onTap: () => _addPhoto(context),
+            onTap: () => _addPhotos(context),
           )
-        else
-          SizedBox(
-            height: 132,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              // Detach from the PrimaryScrollController: this strip lives
-              // inside the overview's vertical scroll view, and sharing the
-              // primary controller makes hover hit-tests during the pop
-              // transition walk a detaching viewport (viewport.dart:1034).
-              primary: false,
-              physics: const ClampingScrollPhysics(),
-              itemCount: photos.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final path = photos[index];
-                return _PhotoTile(
-                  path: path,
-                  isMain: index == 0,
-                  theme: theme,
-                  textTheme: textTheme,
-                  baseUrl: baseUrl,
-                  onTap: () => _photoActions(context, path),
-                );
-              },
-            ),
+        else ...[
+          ReorderablePhotoStrip(
+            paths: photos,
+            baseUrl: baseUrl,
+            theme: theme,
+            textTheme: textTheme,
+            firstBadge: 'MAIN',
+            tileWidth: 150,
+            tileHeight: 132,
+            onReorder: (order) => viewModel.reorderExteriorPhotos(order),
+            onTap: (path) => _photoActions(context, path),
+            trailing: _remaining > 0
+                ? AddPhotoTile(
+                    theme: theme,
+                    textTheme: textTheme,
+                    height: 132,
+                    onTap: () => _addPhotos(context),
+                  )
+                : null,
           ),
+          if (photos.length > 1)
+            PhotoStripHint(
+              text:
+                  'Hold and drag to reorder. Tap a photo to make it the main one.',
+              theme: theme,
+              textTheme: textTheme,
+            ),
+        ],
       ],
     );
   }
@@ -243,7 +177,7 @@ class _EmptyPhotoPrompt extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Add exterior photos',
+              'Add property photos',
               style: textTheme.titleMedium?.copyWith(
                 color: theme.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -251,81 +185,9 @@ class _EmptyPhotoPrompt extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'Front view first — it becomes the listing photo',
+              'Up to ${ExteriorPhotosSection._max} — the first is the main photo',
               style: textTheme.bodyMedium?.copyWith(color: theme.textSecondary),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PhotoTile extends StatelessWidget {
-  final String path;
-  final bool isMain;
-  final RealEstateTheme theme;
-  final TextTheme textTheme;
-  final String baseUrl;
-  final VoidCallback onTap;
-
-  const _PhotoTile({
-    required this.path,
-    required this.isMain,
-    required this.theme,
-    required this.textTheme,
-    required this.baseUrl,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 150,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isMain ? theme.primaryColor : theme.borderLight,
-            width: isMain ? 2 : 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            listingPhoto(
-              path,
-              theme: theme,
-              textTheme: textTheme,
-              fit: BoxFit.cover,
-              baseUrl: baseUrl,
-            ),
-            if (isMain)
-              Positioned(
-                left: 6,
-                top: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'MAIN',
-                    style: textTheme.labelLarge?.copyWith(
-                      color: theme.onPrimary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
