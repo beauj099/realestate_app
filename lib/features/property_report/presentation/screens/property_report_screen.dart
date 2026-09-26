@@ -286,8 +286,9 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     Text(
       'Market data comes from public municipal records — full reports in '
       'Cape Town and Johannesburg: municipal value, recorded '
-      'sales nearby and the erf and building plans. In Tshwane and '
-      'Mossel Bay, the municipal value from your location.',
+      'sales nearby and the erf and building plans. In Tshwane, Mossel '
+      'Bay and Drakenstein (Paarl, Wellington), the municipal value from '
+      'your location.',
       style: textTheme.bodyMedium?.copyWith(color: theme.textSecondary),
     ),
     const SizedBox(height: 16),
