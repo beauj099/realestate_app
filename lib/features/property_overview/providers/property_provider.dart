@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/photo_urls.dart';
+import '../../../../core/network/run_limited.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../data/models/contact.dart';
 import '../data/models/listing_document.dart';
@@ -568,6 +569,10 @@ class PropertyViewModel extends Notifier<PropertyState> {
     await _saveExteriorOrder();
   }
 
+  /// Saves the current exterior order now, e.g. after a batch of photos
+  /// uploaded in parallel (their server order is arbitrary).
+  Future<void> saveExteriorOrder() => _saveExteriorOrder();
+
   /// Sends the current exterior order to the API when every photo has a
   /// server id. Falls back to marking just the main photo on an API that
   /// predates photo ordering.
@@ -633,23 +638,26 @@ class PropertyViewModel extends Notifier<PropertyState> {
     if (listingId == null) return;
     final photos = List<String>.from(state.exteriorPhotos);
     var changed = false;
-    for (var i = 0; i < photos.length; i++) {
-      if (isRemotePhoto(photos[i])) continue;
-      try {
-        final created = await _repository.uploadListingPhoto(
-          listingId,
-          photos[i],
-        );
-        final url = created['url'] as String?;
-        final id = created['id'] as int?;
-        if (url == null || id == null) continue;
-        _exteriorPhotoIds[url] = id;
-        photos[i] = url;
-        changed = true;
-      } catch (e) {
-        developer.log('Listing photo upload failed: $e');
-      }
-    }
+    await runLimited(width: 3, [
+      for (var i = 0; i < photos.length; i++)
+        if (!isRemotePhoto(photos[i]))
+          () async {
+            try {
+              final created = await _repository.uploadListingPhoto(
+                listingId,
+                photos[i],
+              );
+              final url = created['url'] as String?;
+              final id = created['id'] as int?;
+              if (url == null || id == null) return;
+              _exteriorPhotoIds[url] = id;
+              photos[i] = url;
+              changed = true;
+            } catch (e) {
+              developer.log('Listing photo upload failed: $e');
+            }
+          },
+    ]);
     if (changed && ref.mounted) {
       state = state.copyWith(exteriorPhotos: photos);
     }

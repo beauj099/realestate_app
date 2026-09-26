@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/run_limited.dart';
 import '../../../../core/theme/themes.dart';
 import '../../providers/property_provider.dart';
 import 'photo_strip.dart';
@@ -48,9 +49,14 @@ class ExteriorPhotosSection extends StatelessWidget {
         filename: shot.filename,
       );
     }
-    var failed = 0;
-    for (final shot in shots) {
-      if (!await viewModel.uploadExteriorPhoto(shot.path)) failed++;
+    // Three at a time, then save the order: parallel uploads reach the
+    // server in whatever order they finish.
+    final results = await runLimited(width: 3, [
+      for (final shot in shots) () => viewModel.uploadExteriorPhoto(shot.path),
+    ]);
+    final failed = results.where((ok) => !ok).length;
+    if (shots.length > 1 || photos.isNotEmpty) {
+      await viewModel.saveExteriorOrder();
     }
     if (failed > 0 && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

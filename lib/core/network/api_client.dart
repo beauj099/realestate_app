@@ -163,8 +163,20 @@ class ApiClient {
     return _dio.get<T>(path, queryParameters: queryParameters);
   }
 
+  /// Time allowed for uploads (multipart bodies) instead of the 10 seconds
+  /// normal requests get: a photo over mobile data easily takes longer, and
+  /// hitting the limit made uploads fail and fall back to "saved on this
+  /// device".
+  static const Duration uploadTimeout = Duration(minutes: 2);
+
   Future<Response<T>> post<T>(String path, {dynamic data}) {
-    return _dio.post<T>(path, data: data);
+    return _dio.post<T>(
+      path,
+      data: data,
+      options: data is FormData
+          ? Options(sendTimeout: uploadTimeout, receiveTimeout: uploadTimeout)
+          : null,
+    );
   }
 
   Future<Response<T>> put<T>(String path, {dynamic data}) {

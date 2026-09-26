@@ -12,6 +12,11 @@ import '../../../../core/widgets/real_estate_dialog.dart';
 /// a blob URL).
 typedef PickedShot = ({String path, Uint8List? bytes, String? filename});
 
+/// Longest side and JPEG quality photos are saved at: sharp on any phone or
+/// report, and roughly a third of the upload size of 2000px at 85.
+const double _maxWidth = 1600;
+const int _quality = 80;
+
 /// Asks camera or gallery, then returns up to [remaining] photos. The gallery
 /// allows picking several at once; the camera takes one.
 Future<List<PickedShot>> pickPhotos({
@@ -56,21 +61,21 @@ Future<List<PickedShot>> pickPhotos({
   if (source == ImageSource.camera) {
     final shot = await picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 85,
-      maxWidth: 2000,
+      imageQuality: _quality,
+      maxWidth: _maxWidth,
     );
     picked = shot == null ? const [] : [shot];
   } else if (remaining == 1) {
     final shot = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 2000,
+      imageQuality: _quality,
+      maxWidth: _maxWidth,
     );
     picked = shot == null ? const [] : [shot];
   } else {
     picked = await picker.pickMultiImage(
-      imageQuality: 85,
-      maxWidth: 2000,
+      imageQuality: _quality,
+      maxWidth: _maxWidth,
       limit: remaining,
     );
   }
