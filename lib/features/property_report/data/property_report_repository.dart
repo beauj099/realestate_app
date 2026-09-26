@@ -77,7 +77,11 @@ class PropertyReportRepository {
   Future<PropertyReport> fetchReport(PropertyCandidate c) async {
     final response = await _client.get(
       ApiEndpoints.propertyReport(c.municipality, c.erf),
-      queryParameters: {'suburb': c.suburb, 'includeComparables': true},
+      queryParameters: {
+        'suburb': c.suburb,
+        'sg26': ?c.sg26,
+        'includeComparables': true,
+      },
       receiveTimeout: _reportTimeout,
     );
     return PropertyReport.fromJson(response.data as Map<String, dynamic>);

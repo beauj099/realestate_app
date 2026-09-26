@@ -251,7 +251,7 @@ class _PropertyOverviewScreenState
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Filling in from City of Cape Town records…',
+                                    'Filling in from municipal records…',
                                     style: textTheme.bodyMedium?.copyWith(
                                       color: theme.textSecondary,
                                     ),

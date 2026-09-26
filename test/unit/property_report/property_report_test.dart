@@ -66,6 +66,31 @@ void main() {
     expect(groupDigits(59), '59');
   });
 
+  test('reads the source, method and coverage of a Johannesburg report', () {
+    final json =
+        jsonDecode(
+              File(
+                'test/fixtures/property_report_53927.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    json
+      ..['municipality'] = 'coj'
+      ..['dataSource'] = 'City of Johannesburg open data'
+      ..['comparablesMethod'] =
+          'The last registered sale of every stand within 800 m.'
+      ..['coverageNote'] = 'Building sizes are not published.'
+      ..['rollEffectiveFrom'] = '2023-07-01';
+    final r = PropertyReport.fromJson(json);
+    expect(r.dataSource, 'City of Johannesburg open data');
+    expect(r.comparablesMethod, contains('800 m'));
+    expect(r.coverageNote, isNotNull);
+    expect(r.rollEffectiveFrom, DateTime(2023, 7, 1));
+    // An older API without these fields still reads as Cape Town.
+    expect(_fixture().dataSource, 'City of Cape Town open data');
+    expect(_fixture().coverageNote, isNull);
+  });
+
   test('titleCase', () {
     expect(titleCase('17 PINE ROAD CLAREMONT'), '17 Pine Road Claremont');
     expect(titleCase(''), '');

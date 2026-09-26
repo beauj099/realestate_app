@@ -23,7 +23,7 @@ class ApiEndpoints {
   // White-label agencies
   static const String agencies = '/api/agencies';
 
-  // Property reports from public municipal data (Cape Town)
+  // Property reports from public municipal data (Cape Town, Johannesburg, national cadastre)
   static const String propertyResolve = '/api/property/resolve';
   static const String propertySuggest = '/api/property/suggest';
   static String propertyReport(String municipality, String erf) =>

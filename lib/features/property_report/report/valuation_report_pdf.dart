@@ -83,6 +83,18 @@ class ValuationReportPdf {
           _title(),
           pw.SizedBox(height: 14),
           _rangeBox(),
+          if (report.coverageNote != null)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 6),
+              child: pw.Text(
+                report.coverageNote!,
+                style: pw.TextStyle(
+                  color: _muted,
+                  fontSize: 8.5,
+                  fontStyle: pw.FontStyle.italic,
+                ),
+              ),
+            ),
           pw.SizedBox(height: 18),
           ..._sitePlan(),
           ..._printableImagery(),
@@ -517,15 +529,17 @@ class ValuationReportPdf {
     final s = report.comparableSummary;
     final suburb = report.suburbStats;
     return _paragraphs('How the range was worked out', [
-      'Sales recorded by the City of Cape Town in the property\'s area were filtered: '
-          'transfers for R0 and implausibly low prices (family transfers, part-transfers, '
-          'correction deeds) were removed, as were sales older than four years and homes '
-          'whose building size differs by more than 30%.',
-      if (suburb != null)
+      report.comparablesMethod ??
+          'Sales recorded by the municipality in the property\'s area were filtered: '
+              'transfers for R0 and implausibly low prices (family transfers, part-transfers, '
+              'correction deeds) were removed, as were sales older than four years and homes '
+              'whose building size differs by more than 30%.',
+      if (suburb != null && report.comparablesMethod == null)
         'Older sales were indexed to today using the suburb\'s change between the 2022 and '
             '2025 municipal rolls (${suburb.annualGrowthPercent.toStringAsFixed(1)}% a year).',
       if (s?.medianPricePerDwellingM2 != null &&
-          report.dwellingExtentM2 != null)
+          report.dwellingExtentM2 != null &&
+          report.comparablesMethod == null)
         'The median indexed price per square metre of building '
             '(${_money(s!.medianPricePerDwellingM2)}/m²) applied to this property\'s '
             '${_m2(report.dwellingExtentM2)} gives the midpoint; the lower and upper quartiles '
@@ -538,9 +552,9 @@ class ValuationReportPdf {
         ? date
         : report.provenance.first.fetchedAt.toLocal();
     return _paragraphs('Sources', [
-      'City of Cape Town open data (cadastre, zoning, building footprints, building plan '
-          'approvals, suburb valuations) and the City\'s ${report.rollVersion ?? 'GV2025'} general '
-          'valuation roll, read on ${_day.format(fetched)}.',
+      '${report.dataSource}'
+          '${report.rollVersion == null ? '' : ' and the ${report.rollVersion} general valuation roll'}'
+          ', read on ${_day.format(fetched)}.',
       // One line per source, listing the figures it supplied.
       for (final source in {for (final p in report.provenance) p.source})
         '${report.provenance.where((p) => p.source == source).map((p) => p.field).join(', ')}: $source',
@@ -550,7 +564,7 @@ class ValuationReportPdf {
   pw.Widget _disclaimer() => _paragraphs('Important', [
     'This report gives an indicative range from public municipal data and recorded sales. '
         'It is not a valuation by a registered valuer and should not be relied on for '
-        'lending or legal purposes. Figures are as published by the City of Cape Town and may '
+        'lending or legal purposes. Figures are as published by the municipality and may '
         'not reflect recent alterations or the condition of the property.',
   ]);
 
