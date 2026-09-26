@@ -160,7 +160,9 @@ class ValueRangeCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             range == null
-                ? 'Not enough comparable sales'
+                ? (summary == null
+                      ? 'No sales data for this area yet'
+                      : 'Not enough comparable sales')
                 : '${formatZarShort(range.low)} – ${formatZarShort(range.high)}',
             style: textTheme.headlineSmall?.copyWith(
               color: theme.onPrimary,

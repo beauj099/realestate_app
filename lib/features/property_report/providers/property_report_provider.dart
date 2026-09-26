@@ -53,9 +53,10 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
       if (found.isEmpty) {
         state = const PropertyReportState(
           error:
-              'No Cape Town property found for this address. Check the '
-              'street number, street and suburb (only City of Cape Town '
-              'properties are covered so far).',
+              'No property found for this address. Check the street '
+              'number, street and suburb. Full reports cover Cape Town and '
+              'Johannesburg; elsewhere, use "Detect my address" on the '
+              'Address screen to find the erf from your location.',
         );
       } else if (found.length == 1) {
         await open(found.single);
@@ -92,11 +93,11 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
 
   static String _message(Object e) {
     if (e is DioException && e.response?.statusCode == 502) {
-      return "The City of Cape Town's property services did not respond. "
+      return "The municipality's property services did not respond. "
           'Try again in a few minutes.';
     }
     if (e is DioException && e.response?.statusCode == 404) {
-      return 'That property was not found in the Cape Town records.';
+      return 'That property was not found in the municipal records.';
     }
     return mapFailure(e).message;
   }

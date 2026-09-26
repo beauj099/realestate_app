@@ -283,6 +283,18 @@ class PropertyReport {
   final List<Provenance> provenance;
   final DateTime generatedAt;
 
+  /// Who published the data, e.g. "City of Johannesburg open data".
+  final String dataSource;
+
+  /// How the comparables were chosen, as a sentence to print.
+  final String? comparablesMethod;
+
+  /// What this area's data cannot provide (e.g. no building sizes in
+  /// Johannesburg, only erf details elsewhere). Null for full coverage.
+  final String? coverageNote;
+
+  final DateTime? rollEffectiveFrom;
+
   const PropertyReport({
     required this.municipality,
     required this.erf,
@@ -296,6 +308,10 @@ class PropertyReport {
     required this.sitePlanUrl,
     required this.provenance,
     required this.generatedAt,
+    this.dataSource = 'City of Cape Town open data',
+    this.comparablesMethod,
+    this.coverageNote,
+    this.rollEffectiveFrom,
     this.valuationRef,
     this.lat,
     this.lng,
@@ -323,6 +339,7 @@ class PropertyReport {
         parse(e as Map<String, dynamic>),
     ];
     final asAt = j['municipalValueAsAt'] as String?;
+    final effective = j['rollEffectiveFrom'] as String?;
     return PropertyReport(
       municipality: j['municipality'] as String? ?? 'coct',
       erf: j['erf'] as String,
@@ -362,6 +379,12 @@ class PropertyReport {
       imagery: list('imagery', ImageryRef.fromJson),
       sitePlanUrl: j['sitePlanUrl'] as String? ?? '',
       provenance: list('provenance', Provenance.fromJson),
+      dataSource: j['dataSource'] as String? ?? 'City of Cape Town open data',
+      comparablesMethod: j['comparablesMethod'] as String?,
+      coverageNote: j['coverageNote'] as String?,
+      rollEffectiveFrom: effective == null
+          ? null
+          : DateTime.tryParse(effective),
       generatedAt:
           DateTime.tryParse(j['generatedAtUtc'] as String? ?? '') ??
           DateTime.now().toUtc(),

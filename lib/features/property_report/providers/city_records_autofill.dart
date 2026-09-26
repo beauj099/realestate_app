@@ -8,7 +8,7 @@ import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import 'property_report_provider.dart';
 
-/// Maps a City of Cape Town zoning to the app's five zoning chips (ids 1–5 in
+/// Maps a municipal zoning (Cape Town codes, Johannesburg names) to the app's five zoning chips (ids 1–5 in
 /// Building Info). Null when it is none of them (e.g. open space, utility).
 int? zoningIdFor(String? code, String? description) {
   final c = (code ?? '').toUpperCase();
@@ -118,7 +118,8 @@ class CityRecordsAutofillState {
 }
 
 /// Fills a listing's empty fields (erf number, erf size, floor area, zoning,
-/// location) from City of Cape Town records, and saves them.
+/// location) from municipal records (Cape Town, Johannesburg, or the national cadastre),
+/// and saves them.
 ///
 /// Runs after the address is saved, in the background: the City can take
 /// 10–30 seconds, and the agent should not wait for it. Kept alive so it
@@ -136,7 +137,7 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
       s.latitude == null;
 
   /// Looks the listing up and fills what is missing. Silent when the
-  /// property is not in Cape Town, the address is ambiguous, or the City is
+  /// property is not covered, the address is ambiguous, or the source is
   /// unreachable: this is a convenience, never a blocker.
   Future<void> fillMissing() async {
     final listing = ref.read(propertyViewModelProvider);
@@ -212,7 +213,7 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
 
     final message = plan.filled.isEmpty
         ? null
-        : 'Filled in from City of Cape Town records: ${plan.filled.join(', ')}.';
+        : 'Filled in from ${report.dataSource}: ${plan.filled.join(', ')}.';
     state = CityRecordsAutofillState(message: message);
     return message;
   }

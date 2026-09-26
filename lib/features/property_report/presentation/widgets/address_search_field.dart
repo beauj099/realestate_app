@@ -12,7 +12,7 @@ import '../../providers/property_report_provider.dart';
 
 /// Type an address, pick it from a list.
 ///
-/// Suggestions come from the City of Cape Town's parcel records as the agent
+/// Suggestions come from the City of Cape Town's and Johannesburg's parcel records as the agent
 /// types (a short pause first), so each numbered one is a real erf with its
 /// location. Elsewhere in South Africa, one tap searches OpenStreetMap — once,
 /// not per keystroke, which its usage policy forbids.
@@ -195,7 +195,7 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
                   _row(
                     icon: Icons.travel_explore,
                     title: _city.isEmpty
-                        ? 'Not found in Cape Town. Search all of South Africa'
+                        ? 'Not found in Cape Town or Johannesburg. Search all of South Africa'
                         : 'Not listed? Search all of South Africa',
                     subtitle: null,
                     emphasise: true,
@@ -231,7 +231,7 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
             padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
             child: Text(
               _elsewhere == null
-                  ? 'Cape Town addresses from City of Cape Town records'
+                  ? 'Cape Town and Johannesburg addresses from City records'
                   : 'Search results © OpenStreetMap contributors',
               style: textTheme.bodySmall?.copyWith(
                 color: theme.textSecondary,

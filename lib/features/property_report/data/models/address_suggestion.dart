@@ -1,5 +1,5 @@
 /// An address offered while the agent types (`GET /api/property/suggest`),
-/// from the City of Cape Town's parcel records. With a street number it is a
+/// from the Cape Town and Johannesburg parcel records. With a street number it is a
 /// real erf, with its location; a bare street has neither, and the agent adds
 /// the number.
 class AddressSuggestion {

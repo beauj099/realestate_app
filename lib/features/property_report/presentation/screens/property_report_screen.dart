@@ -201,7 +201,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     TextTheme textTheme,
   ) => [
     Text(
-      'Market data comes from the City of Cape Town: municipal value, recorded '
+      'Market data comes from public municipal records — full reports in '
+      'Cape Town and Johannesburg: municipal value, recorded '
       'sales nearby and the erf and building plans.',
       style: textTheme.bodyMedium?.copyWith(color: theme.textSecondary),
     ),
@@ -373,6 +374,24 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ),
       gap,
       ValueRangeCard(report: r, theme: theme, textTheme: textTheme),
+      if (r.coverageNote != null) ...[
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: 16, color: theme.textSecondary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                r.coverageNote!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: theme.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
       ..._fillListing(r, theme, textTheme),
       gap,
       ReportCard(
@@ -433,26 +452,34 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
             ),
         ],
       ),
-      gap,
-      ReportCard(
-        title: 'Municipal valuation',
-        theme: theme,
-        textTheme: textTheme,
-        children: [
-          fact('Market value', formatZar(r.municipalValueZar)),
-          fact(
-            'Valued as at',
-            r.municipalValueAsAt == null
-                ? null
-                : DateFormat('d MMMM yyyy').format(r.municipalValueAsAt!),
-          ),
-          fact(
-            'Rating category',
-            r.ratingCategory == null ? null : titleCase(r.ratingCategory!),
-          ),
-          fact('Roll', r.rollVersion),
-        ],
-      ),
+      if (r.municipalValueZar != null) ...[
+        gap,
+        ReportCard(
+          title: 'Municipal valuation',
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            fact('Market value', formatZar(r.municipalValueZar)),
+            fact(
+              'Valued as at',
+              r.municipalValueAsAt == null
+                  ? null
+                  : DateFormat('d MMMM yyyy').format(r.municipalValueAsAt!),
+            ),
+            fact(
+              'Rating category',
+              r.ratingCategory == null ? null : titleCase(r.ratingCategory!),
+            ),
+            fact('Roll', r.rollVersion),
+            fact(
+              'Roll in effect from',
+              r.rollEffectiveFrom == null
+                  ? null
+                  : DateFormat('d MMMM yyyy').format(r.rollEffectiveFrom!),
+            ),
+          ],
+        ),
+      ],
       if (suburb != null) ...[
         gap,
         ReportCard(
@@ -484,7 +511,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           subtitle: summary == null
               ? null
               : '${formatCount(summary.raw)} considered, ${formatCount(summary.included)} used · '
-                    'median ${formatZar(summary.medianPricePerDwellingM2)}/m² of building',
+                    '${summary.medianPricePerDwellingM2 != null ? 'median ${formatZar(summary.medianPricePerDwellingM2)}/m² of building' : 'median ${formatZar(summary.medianPricePerErfM2)}/m² of erf'}',
           theme: theme,
           textTheme: textTheme,
           children: [
@@ -517,7 +544,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ],
       gap,
       Text(
-        'Source: City of Cape Town open data and ${r.rollVersion ?? 'GV2025'} valuation roll, '
+        'Source: ${r.dataSource}'
+        '${r.rollVersion == null ? '' : ' and the ${r.rollVersion} valuation roll'}, '
         'read ${DateFormat('d MMM yyyy').format(r.generatedAt.toLocal())}. '
         'An indicative range, not a certified valuation.',
         style: textTheme.bodySmall?.copyWith(color: theme.textSecondary),

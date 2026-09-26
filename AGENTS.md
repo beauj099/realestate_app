@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (201 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (202 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -68,7 +68,7 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - The first report for a property can take 10–30 s (the City is slow); the call uses a 90 s timeout and the API caches it for 12 h.
 - **Address search** (`AddressSearchField`, top of the Address screen): Cape Town suggestions come from the City's parcel records via `GET /api/property/suggest` as the agent types (350 ms pause, 3+ characters, newest answer wins); each numbered one is a real erf with its location. Elsewhere, "Search all of South Africa" runs **one** OpenStreetMap search on tap — never per keystroke (Nominatim's usage policy forbids autocomplete).
 - **Autofill** (`cityRecordsAutofillProvider`): after the address is saved it looks the listing up and fills only **empty** fields (erf number, location, erf size, floor area = the City's dwelling extent or else roof footprint, zoning via `zoningIdFor`), saves them, and the overview confirms what was filled. It never overwrites what the agent entered (`planAutofill`), runs in the background, and is silent outside Cape Town. The report screen offers the same as "Fill in the listing".
-- Only Cape Town is covered so far; other metros and AfriGIS (ownership, transfers) are API-side providers. Background: the API repo's `Infrastructure/PropertyData/README.md` and `docs/property-data/`.
+- **Coverage** (API-side providers): **Cape Town** — everything; **Johannesburg** — GV2023 value (valued 1 July 2022), zoning, erf size, and current comparables from each nearby stand's last registered sale, but no building sizes (compared by erf size); **anywhere else** — the Chief Surveyor-General cadastre from a GPS pin: erf number, size and boundary only. The report carries `dataSource`, `comparablesMethod` and `coverageNote`; show them rather than assuming Cape Town, and pass `sg26` through (the national cadastre is looked up by parcel key). AfriGIS (ownership, transfers) waits for a key. Background: the API repo's `Infrastructure/PropertyData/README.md` and `docs/property-data/`.
 
 ## White-labelling
 
