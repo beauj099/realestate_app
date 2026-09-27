@@ -18,9 +18,18 @@ import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
 import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
+import '../../../../core/network/providers/api_providers.dart';
+import '../../../report_settings/providers/report_settings_provider.dart';
 import '../../report/agency_logo_bytes.dart';
+import '../../report/costs_calculator.dart';
+import '../../report/pack_images.dart';
+import '../../report/pack_listing.dart';
+import '../../report/report_pack_pdf.dart';
+import '../widgets/report_pack_sheet.dart';
 import '../../report/valuation_report_pdf.dart';
+import '../../../property_overview/data/models/enums/room_category.dart';
 import '../widgets/agent_sale_sheet.dart';
+import '../widgets/area_and_market_cards.dart';
 import '../widgets/report_widgets.dart';
 
 /// Valuation report for the listing being captured, from public municipal
@@ -88,6 +97,20 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
             lng: useListing ? listing.longitude : null,
           ),
           listingId: listing.listingId,
+          hints: ListingHints(
+            bedrooms: listing.rooms
+                .where(
+                  (r) =>
+                      RoomCategoryExtension.categoryForRoomTypeId(
+                        r.roomTypeId,
+                      ) ==
+                      RoomCategory.bedroom,
+                )
+                .length
+                .nonZeroOrNull,
+            floorM2: double.tryParse(listing.floorArea.replaceAll(',', '.')),
+            erfM2: double.tryParse(listing.erfSize.replaceAll(',', '.')),
+          ),
         );
   }
 
@@ -174,6 +197,122 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     );
   }
 
+  /// Asks for the pack's figures, gathers its pictures and shares the pack.
+  Future<void> _createPack() async {
+    final state = ref.read(propertyReportProvider);
+    final report = state.report;
+    if (report == null) return;
+    final brand = ref.read(themeConfigProvider);
+    final listing = ref.read(propertyViewModelProvider);
+    final (preparedFor, greeting) = packOwners(listing);
+    double? number(String v) =>
+        double.tryParse(v.replaceAll(RegExp(r'[\s,R]'), ''));
+    final options = await showReportPackSheet(
+      context: context,
+      theme: brand,
+      initial: initialPackOptions(
+        report: report,
+        preparedFor: preparedFor,
+        greeting: greeting,
+        agentValuation: number(listing.listingValuation.agentValuation),
+        listingCommissionPercent: number(
+          listing.listingValuation.commissionPercent,
+        ),
+        calculator: ref.read(reportSettingsProvider).calculator,
+      ),
+    );
+    if (options == null || !mounted) return;
+
+    setState(() => _exporting = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final profile = ref.read(agentProfileProvider);
+      final agency = ref.read(agencyProvider);
+      final forSale = state.forSale;
+      final brochure = profile.brochurePages ?? agency.brochurePages;
+      final photos = listing.exteriorPhotos;
+      final fetched = await Future.wait([
+        packImageBytes(photos.firstOrNull, api),
+        packImageBytes(photos.length > 1 ? photos[1] : null, api),
+        packImageBytes(profile.photoUrl, api),
+        packImageBytes(profile.signatureUrl, api),
+        agencyLogoBytes(agency),
+        for (final l in forSale?.listings ?? const [])
+          packImageBytes(l.imageUrl, api),
+        for (final page in brochure) packImageBytes(page, api),
+      ]);
+      final listingCount = forSale?.listings.length ?? 0;
+      final c = options.calculator;
+      final pdf = ReportPackPdf(
+        report: report,
+        sitePlanSvg: state.sitePlanSvg,
+        images: state.images,
+        agent: PackAgent(
+          name: profile.fullName,
+          jobTitle: profile.jobTitle,
+          email: profile.email,
+          mobile: profile.mobile,
+          website: profile.website,
+          ppraNumber: profile.ppraNumber,
+          ffcNumber: profile.licenceNumber,
+          bio: profile.bio,
+          qualifications: profile.qualifications,
+          agencyName: agency.name,
+          office: profile.office.orDefaults(agency.office),
+        ),
+        listing: PackListing(
+          preparedFor: options.preparedFor,
+          greeting: options.greeting,
+          portfolio: packPortfolio(listing),
+        ),
+        valuation: PackValuation(
+          low: options.low,
+          high: options.high,
+          listingPrice: options.listingPrice,
+        ),
+        costs: CostsSummary(
+          valuationPrice: options.high,
+          listingPrice: options.listingPrice,
+          commissionEarlyPercent: c.commissionEarlyPercent,
+          commissionLatePercent: c.commissionLatePercent,
+          earlyMonths: c.earlyMonths,
+          commissionIncludesVat: c.commissionIncludesVat,
+          interestRatePercent: c.interestRatePercent,
+          bondTermYears: c.bondTermYears,
+          depositPercent: c.depositPercent,
+        ),
+        area: state.area,
+        forSale: forSale,
+        pictures: PackImages(
+          coverPhoto: fetched[0],
+          secondPhoto: fetched[1],
+          agentPhoto: fetched[2],
+          signature: fetched[3],
+          logo: fetched[4],
+          listingPhotos: {
+            for (var i = 0; i < listingCount; i++)
+              forSale!.listings[i].listingNumber: ?fetched[5 + i],
+          },
+          brochurePages: [
+            for (final bytes in fetched.skip(5 + listingCount)) ?bytes,
+          ],
+        ),
+        brandColor: brand.primaryColor,
+        onBrandColor: brand.onPrimary,
+      );
+      final bytes = await pdf.build();
+      await Printing.sharePdf(bytes: bytes, filename: pdf.fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Couldn't create the report pack: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   Future<void> _exportPdf({required bool print}) async {
     final state = ref.read(propertyReportProvider);
     final report = state.report;
@@ -222,12 +361,17 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       busy: state.loading || _exporting || _savingSale,
       theme: theme,
       title: _exporting
-          ? 'Creating the PDF…'
+          ? 'Creating the report pack…'
           : _savingSale
           ? 'Updating agent sales…'
           : 'Looking up the property…',
       messages: _exporting
-          ? const ['Laying out the report…', 'Almost there…']
+          ? const [
+              'Gathering the photos…',
+              'Laying out the pages…',
+              'Adding your letter…',
+              'Almost there…',
+            ]
           : _savingSale
           ? const ['Saving…', 'Refreshing the report…']
           : _lookupMessages,
@@ -270,10 +414,10 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                     child: CustomButton(
-                      text: 'Share PDF report',
+                      text: 'Create report pack',
                       fullWidth: true,
                       theme: theme,
-                      onTap: () => _exportPdf(print: false),
+                      onTap: _createPack,
                     ),
                   ),
                 ),
@@ -640,6 +784,21 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           ],
         ),
       ],
+      if (state.area case final area? when !area.isEmpty) ...[
+        gap,
+        AreaDetailsCard(area: area, theme: theme, textTheme: textTheme),
+      ],
+      if (state.forSale case final forSale?) ...[
+        gap,
+        ForSaleCard(
+          forSale: forSale,
+          theme: theme,
+          textTheme: textTheme,
+          onPickSuburb: (id) => ref
+              .read(propertyReportProvider.notifier)
+              .loadForSale(p24Suburb: id),
+        ),
+      ],
       if (state.market.isNotEmpty) ...[
         gap,
         ReportCard(
@@ -687,4 +846,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ),
     ];
   }
+}
+
+extension on int {
+  int? get nonZeroOrNull => this == 0 ? null : this;
 }
