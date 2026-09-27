@@ -18,6 +18,7 @@ import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
 import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
+import '../../report/agency_logo_bytes.dart';
 import '../../report/valuation_report_pdf.dart';
 import '../widgets/agent_sale_sheet.dart';
 import '../widgets/report_widgets.dart';
@@ -179,12 +180,16 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     if (report == null) return;
     setState(() => _exporting = true);
     try {
+      // The agent's own agency: its logo on every page, its colours throughout.
+      final brand = ref.read(themeConfigProvider);
       final pdf = ValuationReportPdf(
         report: report,
         sitePlanSvg: state.sitePlanSvg,
         images: state.images,
         author: _author(),
-        brandColor: ref.read(themeConfigProvider).primaryColor,
+        brandColor: brand.primaryColor,
+        onBrandColor: brand.onPrimary,
+        logo: await agencyLogoBytes(ref.read(agencyProvider)),
       );
       final bytes = await pdf.build();
       if (print) {

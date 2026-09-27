@@ -40,6 +40,14 @@ class ValuationReportPdf {
   final Map<String, Uint8List> images;
   final ReportAuthor author;
   final Color brandColor;
+
+  /// Ink on top of [brandColor] (the range box, table headers). Light brands
+  /// need dark ink; defaults to white.
+  final Color onBrandColor;
+
+  /// The agency's logo (PNG or JPEG), drawn at the top of every page. Other
+  /// formats, or none, fall back to the agency's name in [brandColor].
+  final Uint8List? logo;
   final DateTime date;
 
   ValuationReportPdf({
@@ -48,8 +56,17 @@ class ValuationReportPdf {
     required this.images,
     required this.author,
     required this.brandColor,
+    this.onBrandColor = const Color(0xFFFFFFFF),
+    this.logo,
     DateTime? date,
   }) : date = date ?? DateTime.now();
+
+  /// Whether [bytes] is an image the pdf package can embed (PNG or JPEG).
+  static bool isEmbeddableImage(Uint8List? bytes) =>
+      bytes != null &&
+      bytes.length > 8 &&
+      ((bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E) ||
+          (bytes[0] == 0xFF && bytes[1] == 0xD8));
 
   static final _day = DateFormat('d MMMM yyyy');
   static final _month = DateFormat('MMM yyyy');
@@ -59,6 +76,7 @@ class ValuationReportPdf {
   static String _count(int v) => groupDigits(v);
 
   PdfColor get _brand => PdfColor.fromInt(brandColor.toARGB32());
+  PdfColor get _onBrand => PdfColor.fromInt(onBrandColor.toARGB32());
   static const _ink = PdfColor.fromInt(0xFF1E1E1E);
   static const _muted = PdfColor.fromInt(0xFF6B6F76);
   static const _rule = PdfColor.fromInt(0xFFDDDFE3);
@@ -177,16 +195,24 @@ class ValuationReportPdf {
     child: pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Text(
-          author.agencyName.isEmpty
-              ? 'Property valuation report'
-              : author.agencyName,
-          style: pw.TextStyle(
-            color: _brand,
-            fontWeight: pw.FontWeight.bold,
-            fontSize: 11,
+        if (isEmbeddableImage(logo))
+          pw.Container(
+            height: 28,
+            constraints: const pw.BoxConstraints(maxWidth: 160),
+            alignment: pw.Alignment.centerLeft,
+            child: pw.Image(pw.MemoryImage(logo!), fit: pw.BoxFit.contain),
+          )
+        else
+          pw.Text(
+            author.agencyName.isEmpty
+                ? 'Property valuation report'
+                : author.agencyName,
+            style: pw.TextStyle(
+              color: _brand,
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 11,
+            ),
           ),
-        ),
         pw.Text(
           _day.format(date),
           style: const pw.TextStyle(color: _muted, fontSize: 9),
@@ -273,8 +299,8 @@ class ValuationReportPdf {
               children: [
                 pw.Text(
                   'INDICATIVE MARKET RANGE',
-                  style: const pw.TextStyle(
-                    color: PdfColors.white,
+                  style: pw.TextStyle(
+                    color: _onBrand,
                     fontSize: 8,
                     letterSpacing: 1,
                   ),
@@ -285,7 +311,7 @@ class ValuationReportPdf {
                       ? 'Not enough comparable sales'
                       : '${_money(range.low)} - ${_money(range.high)}',
                   style: pw.TextStyle(
-                    color: PdfColors.white,
+                    color: _onBrand,
                     fontSize: 17,
                     fontWeight: pw.FontWeight.bold,
                   ),
@@ -293,18 +319,12 @@ class ValuationReportPdf {
                 if (range?.mid != null)
                   pw.Text(
                     'Midpoint ${_money(range!.mid)}',
-                    style: const pw.TextStyle(
-                      color: PdfColors.white,
-                      fontSize: 10,
-                    ),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 10),
                   ),
                 if (report.rangeFromAgentSales)
                   pw.Text(
                     'From agent-reported sales, not registered transfers',
-                    style: const pw.TextStyle(
-                      color: PdfColors.white,
-                      fontSize: 8,
-                    ),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 8),
                   ),
               ],
             ),
@@ -315,8 +335,8 @@ class ValuationReportPdf {
             children: [
               pw.Text(
                 'MUNICIPAL VALUE',
-                style: const pw.TextStyle(
-                  color: PdfColors.white,
+                style: pw.TextStyle(
+                  color: _onBrand,
                   fontSize: 8,
                   letterSpacing: 1,
                 ),
@@ -325,7 +345,7 @@ class ValuationReportPdf {
               pw.Text(
                 _money(report.municipalValueZar),
                 style: pw.TextStyle(
-                  color: PdfColors.white,
+                  color: _onBrand,
                   fontSize: 13,
                   fontWeight: pw.FontWeight.bold,
                 ),
@@ -333,10 +353,7 @@ class ValuationReportPdf {
               if (summary != null)
                 pw.Text(
                   '${_count(summary.included)} comparable sales',
-                  style: const pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 9,
-                  ),
+                  style: pw.TextStyle(color: _onBrand, fontSize: 9),
                 ),
             ],
           ),
@@ -397,48 +414,52 @@ class ValuationReportPdf {
     List<(String, String)> rows, {
     String? note,
   }) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 14),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          _heading(title),
-          for (final (label, value) in rows)
-            pw.Container(
-              padding: const pw.EdgeInsets.symmetric(vertical: 3),
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(
-                  bottom: pw.BorderSide(color: _rule, width: 0.5),
+    // Inseparable: a short section moves to the next page whole, so its
+    // heading is never left alone at the bottom of a page.
+    return pw.Inseparable(
+      child: pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 14),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading(title),
+            for (final (label, value) in rows)
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 3),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: _rule, width: 0.5),
+                  ),
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      flex: 4,
+                      child: pw.Text(
+                        label,
+                        style: const pw.TextStyle(color: _muted, fontSize: 9.5),
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 6,
+                      child: pw.Text(
+                        value,
+                        style: const pw.TextStyle(color: _ink, fontSize: 9.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    flex: 4,
-                    child: pw.Text(
-                      label,
-                      style: const pw.TextStyle(color: _muted, fontSize: 9.5),
-                    ),
-                  ),
-                  pw.Expanded(
-                    flex: 6,
-                    child: pw.Text(
-                      value,
-                      style: const pw.TextStyle(color: _ink, fontSize: 9.5),
-                    ),
-                  ),
-                ],
+            if (note != null) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                note,
+                style: const pw.TextStyle(color: _muted, fontSize: 8),
               ),
-            ),
-          if (note != null) ...[
-            pw.SizedBox(height: 4),
-            pw.Text(
-              note,
-              style: const pw.TextStyle(color: _muted, fontSize: 8),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -469,7 +490,7 @@ class ValuationReportPdf {
     final used = report.includedComparables.take(15).toList();
     if (used.isEmpty) return const [];
     final s = report.comparableSummary;
-    const header = pw.TextStyle(color: PdfColors.white, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
     const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
     return [
       _heading('Comparable sales'),
@@ -540,7 +561,7 @@ class ValuationReportPdf {
     final agent = report.agentSales;
     if (agent == null || agent.sales.isEmpty) return const [];
     final shown = agent.sales.take(15).toList();
-    const header = pw.TextStyle(color: PdfColors.white, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
     const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
     return [
       _heading('Sales reported by agents'),
@@ -658,24 +679,26 @@ class ValuationReportPdf {
     String title,
     List<String> lines, {
     bool small = false,
-  }) => pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 12),
-    child: pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        _heading(title),
-        for (final l in lines)
-          pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 3),
-            child: pw.Text(
-              l,
-              style: pw.TextStyle(
-                color: small ? _muted : _ink,
-                fontSize: small ? 7.5 : 9,
+  }) => pw.Inseparable(
+    child: pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 12),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _heading(title),
+          for (final l in lines)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 3),
+              child: pw.Text(
+                l,
+                style: pw.TextStyle(
+                  color: small ? _muted : _ink,
+                  fontSize: small ? 7.5 : 9,
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     ),
   );
 }
