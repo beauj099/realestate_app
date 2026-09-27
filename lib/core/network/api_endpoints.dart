@@ -30,6 +30,9 @@ class ApiEndpoints {
   // Property reports from public municipal data (Cape Town, Johannesburg, national cadastre)
   static const String propertyResolve = '/api/property/resolve';
   static const String propertySuggest = '/api/property/suggest';
+  static const String propertyArea = '/api/property/area';
+  static String propertyForSale(String municipality, String erf) =>
+      '/api/property/$municipality/${Uri.encodeComponent(erf)}/for-sale';
   static const String comparables = '/api/comparables';
   static const String comparablesMine = '/api/comparables/mine';
   static const String comparablesMarket = '/api/comparables/market';

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/failure_mapper.dart';
 import '../../../core/network/providers/api_providers.dart';
 import '../data/models/agent_sales.dart';
+import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 
@@ -31,6 +32,13 @@ class PropertyReportState {
   /// The agency's own listings in the suburb ("on the market nearby").
   final List<MarketListing> market;
 
+  /// Climate, population, income and crime around the property; null until
+  /// loaded or when every source was down.
+  final AreaDetails? area;
+
+  /// Similar homes for sale on Property24.
+  final ForSale? forSale;
+
   const PropertyReportState({
     this.loading = false,
     this.error,
@@ -39,11 +47,15 @@ class PropertyReportState {
     this.sitePlanSvg,
     this.images = const {},
     this.market = const [],
+    this.area,
+    this.forSale,
   });
 
   PropertyReportState copyWith({
     PropertyReport? report,
     List<MarketListing>? market,
+    AreaDetails? area,
+    ForSale? forSale,
   }) => PropertyReportState(
     loading: loading,
     error: error,
@@ -52,6 +64,8 @@ class PropertyReportState {
     sitePlanSvg: sitePlanSvg,
     images: images,
     market: market ?? this.market,
+    area: area ?? this.area,
+    forSale: forSale ?? this.forSale,
   );
 }
 
@@ -69,8 +83,16 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
   /// The listing the report is for, left out of the agency's listings nearby.
   int? _listingId;
 
-  Future<void> lookUp(ReportQuery query, {int? listingId}) async {
+  /// What the listing says about the home, to find similar homes for sale.
+  ListingHints _hints = const ListingHints();
+
+  Future<void> lookUp(
+    ReportQuery query, {
+    int? listingId,
+    ListingHints hints = const ListingHints(),
+  }) async {
     _listingId = listingId;
+    _hints = hints;
     state = const PropertyReportState(loading: true);
     try {
       final found = await _repo.resolve(query);
@@ -117,6 +139,43 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
       );
     } catch (e) {
       if (ref.mounted) state = PropertyReportState(error: _message(e));
+      return;
+    }
+    // The report shows at once; area details and homes for sale follow.
+    await Future.wait([_loadArea(), loadForSale()]);
+  }
+
+  Future<void> _loadArea() async {
+    final report = state.report;
+    if (report?.lat == null || report?.lng == null) return;
+    try {
+      final area = await _repo.fetchArea(report!.lat!, report.lng!);
+      if (ref.mounted && state.report == report) {
+        state = state.copyWith(area: area);
+      }
+    } catch (e) {
+      developer.log('Area details failed: $e');
+    }
+  }
+
+  /// Similar homes on Property24; [p24Suburb] searches another of the
+  /// Property24 suburbs offered.
+  Future<void> loadForSale({int? p24Suburb}) async {
+    final report = state.report;
+    if (report == null) return;
+    try {
+      final forSale = await _repo.fetchForSale(
+        report,
+        bedrooms: _hints.bedrooms,
+        floorM2: _hints.floorM2 ?? report.dwellingExtentM2,
+        erfM2: _hints.erfM2 ?? report.extentM2,
+        p24Suburb: p24Suburb,
+      );
+      if (ref.mounted && state.report == report) {
+        state = state.copyWith(forSale: forSale);
+      }
+    } catch (e) {
+      developer.log('Homes for sale failed: $e');
     }
   }
 
@@ -168,3 +227,11 @@ final propertyReportProvider =
     NotifierProvider.autoDispose<PropertyReportNotifier, PropertyReportState>(
       PropertyReportNotifier.new,
     );
+
+/// What the agent captured about the home, for finding similar homes.
+class ListingHints {
+  final int? bedrooms;
+  final double? floorM2;
+  final double? erfM2;
+  const ListingHints({this.bedrooms, this.floorM2, this.erfM2});
+}

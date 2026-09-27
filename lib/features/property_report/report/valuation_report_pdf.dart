@@ -7,6 +7,16 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../data/models/property_report.dart';
 
+/// Text for the PDF's built-in fonts, which have no typographic dashes,
+/// curly quotes or ellipsis: those become their plain equivalents rather
+/// than empty boxes. Use it on anything that comes from data or the agent.
+String pdfText(String s) => s
+    .replaceAll(RegExp('[–—−]'), '-')
+    .replaceAll(RegExp('[‘’‚′]'), "'")
+    .replaceAll(RegExp('[“”„″]'), '"')
+    .replaceAll('…', '...')
+    .replaceAll('•', '-');
+
 /// Who prepared the report, printed on the cover.
 class ReportAuthor {
   final String name;
@@ -97,94 +107,102 @@ class ValuationReportPdf {
         margin: const pw.EdgeInsets.fromLTRB(40, 36, 40, 40),
         header: _header,
         footer: _footer,
-        build: (context) => [
-          _title(),
-          pw.SizedBox(height: 14),
-          _rangeBox(),
-          if (report.coverageNote != null)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 6),
-              child: pw.Text(
-                report.coverageNote!,
-                style: pw.TextStyle(
-                  color: _muted,
-                  fontSize: 8.5,
-                  fontStyle: pw.FontStyle.italic,
-                ),
-              ),
-            ),
-          pw.SizedBox(height: 18),
-          ..._sitePlan(),
-          ..._printableImagery(),
-          _section('Property', [
-            ('Address', report.displayAddress),
-            ('Erf', '${report.erf} ${titleCase(report.township)}'),
-            if (report.valuationRef != null)
-              ('Valuation reference', report.valuationRef!),
-            ('Erf extent', _m2(report.extentM2)),
-            if (report.zoningDescription != null)
-              (
-                'Zoning',
-                [
-                  report.zoningCode,
-                  report.zoningDescription,
-                ].whereType<String>().join(' - '),
-              ),
-            if (report.ward != null) ('Ward', report.ward!),
-            if (report.legalStatus != null)
-              ('Legal status', report.legalStatus!),
-          ]),
-          _section('Improvements', [
-            if (report.dwellingExtentM2 != null)
-              ('Dwelling extent (City record)', _m2(report.dwellingExtentM2)),
-            if (report.totalRoofM2 != null)
-              ('Roof area, all buildings', _m2(report.totalRoofM2)),
-            for (final (i, b) in report.buildings.indexed)
-              (
-                i == 0 ? 'Main building' : 'Building ${i + 1}',
-                [
-                  '${_m2(b.roofM2)} roof',
-                  if (b.heightM != null)
-                    '${b.heightM!.toStringAsFixed(1)} m high',
-                  if (b.estimatedStoreys != null)
-                    'approx. ${b.estimatedStoreys} storey${b.estimatedStoreys == 1 ? '' : 's'}',
-                ].join(', '),
-              ),
-          ], note: _footprintNote()),
-          if (report.approvedWork.isNotEmpty) _approvedWork(),
-          _section('Municipal valuation', [
-            ('Market value', _money(report.municipalValueZar)),
-            if (report.municipalValueAsAt != null)
-              ('Valued as at', _day.format(report.municipalValueAsAt!)),
-            if (report.ratingCategory != null)
-              ('Rating category', titleCase(report.ratingCategory!)),
-            if (report.rollVersion != null) ('Roll', report.rollVersion!),
-          ]),
-          if (report.suburbStats case final s?)
-            _section('Suburb: ${titleCase(s.name)}', [
-              ('Residential properties', _count(s.residentialCount)),
-              ('Median value, GV2022', _money(s.gv2022)),
-              ('Median value, GV2025', _money(s.gv2025)),
-              (
-                'Change',
-                '${s.growthPercent >= 0 ? '+' : ''}${s.growthPercent.toStringAsFixed(1)}% '
-                    '(${s.annualGrowthPercent.toStringAsFixed(1)}% a year)',
-              ),
-              (
-                'Median land / building',
-                '${_m2(s.medianLandM2)} / ${_m2(s.medianBuildingM2)}',
-              ),
-            ]),
-          ..._comparables(),
-          ..._agentSales(),
-          _method(),
-          _disclaimer(),
-          _sources(),
-        ],
+        build: (context) => content(),
       ),
     );
     return doc.save();
   }
+
+  /// The analysis pages: the whole report as the standalone PDF prints it,
+  /// reused by the report pack.
+  List<pw.Widget> content() => [
+    _title(),
+    pw.SizedBox(height: 14),
+    _rangeBox(),
+    if (report.coverageNote != null)
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 6),
+        child: pw.Text(
+          pdfText(report.coverageNote!),
+          style: pw.TextStyle(
+            color: _muted,
+            fontSize: 8.5,
+            fontStyle: pw.FontStyle.italic,
+          ),
+        ),
+      ),
+    pw.SizedBox(height: 18),
+    ..._sitePlan(),
+    ..._printableImagery(),
+    _section('Property', [
+      ('Address', report.displayAddress),
+      ('Erf', '${report.erf} ${titleCase(report.township)}'),
+      if (report.valuationRef != null)
+        ('Valuation reference', report.valuationRef!),
+      ('Erf extent', _m2(report.extentM2)),
+      if (report.zoningDescription != null)
+        (
+          'Zoning',
+          [
+            report.zoningCode,
+            report.zoningDescription,
+          ].whereType<String>().join(' - '),
+        ),
+      if (report.ward != null) ('Ward', report.ward!),
+      if (report.legalStatus != null) ('Legal status', report.legalStatus!),
+    ]),
+    _section('Improvements', [
+      if (report.dwellingExtentM2 != null)
+        ('Dwelling extent (City record)', _m2(report.dwellingExtentM2)),
+      if (report.totalRoofM2 != null)
+        ('Roof area, all buildings', _m2(report.totalRoofM2)),
+      for (final (i, b) in report.buildings.indexed)
+        (
+          i == 0 ? 'Main building' : 'Building ${i + 1}',
+          [
+            '${_m2(b.roofM2)} roof',
+            if (b.heightM != null) '${b.heightM!.toStringAsFixed(1)} m high',
+            if (b.estimatedStoreys != null)
+              'approx. ${b.estimatedStoreys} storey${b.estimatedStoreys == 1 ? '' : 's'}',
+          ].join(', '),
+        ),
+    ], note: _footprintNote()),
+    if (report.approvedWork.isNotEmpty) _approvedWork(),
+    _section('Municipal valuation', [
+      ('Market value', _money(report.municipalValueZar)),
+      if (report.municipalValueAsAt != null)
+        ('Valued as at', _day.format(report.municipalValueAsAt!)),
+      if (report.ratingCategory != null)
+        ('Rating category', titleCase(report.ratingCategory!)),
+      if (report.rollVersion != null) ('Roll', report.rollVersion!),
+    ]),
+    if (report.suburbStats case final s?)
+      _section('Suburb: ${titleCase(s.name)}', [
+        ('Residential properties', _count(s.residentialCount)),
+        ('Median value, GV2022', _money(s.gv2022)),
+        ('Median value, GV2025', _money(s.gv2025)),
+        (
+          'Change',
+          '${s.growthPercent >= 0 ? '+' : ''}${s.growthPercent.toStringAsFixed(1)}% '
+              '(${s.annualGrowthPercent.toStringAsFixed(1)}% a year)',
+        ),
+        (
+          'Median land / building',
+          '${_m2(s.medianLandM2)} / ${_m2(s.medianBuildingM2)}',
+        ),
+      ]),
+    ..._comparables(),
+    ..._streetSales(),
+    ..._areaMarket(),
+    ..._agentSales(),
+    _method(),
+    _disclaimer(),
+    _sources(),
+  ];
+
+  pw.Widget header(pw.Context context) => _header(context);
+
+  pw.Widget footer(pw.Context context) => _footer(context);
 
   pw.Widget _header(pw.Context context) => pw.Container(
     padding: const pw.EdgeInsets.only(bottom: 8),
@@ -489,6 +507,7 @@ class ValuationReportPdf {
   List<pw.Widget> _comparables() {
     final used = report.includedComparables.take(15).toList();
     if (used.isEmpty) return const [];
+    final withDistance = used.any((c) => c.distanceM != null);
     final s = report.comparableSummary;
     final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
     const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
@@ -504,6 +523,7 @@ class ValuationReportPdf {
             '${_count(s.excludedImplausible)} below a plausible market price, '
             '${_count(s.excludedTooOld)} too old and '
             '${_count(s.excludedDissimilar)} too different in size. '
+            '${s.radiusM != null ? 'The comparables are the sales within ${s.radiusM} m of the property. ' : ''}'
             'The most recent ${used.length} used are listed.',
             style: const pw.TextStyle(color: _muted, fontSize: 8.5),
           ),
@@ -511,6 +531,7 @@ class ValuationReportPdf {
       pw.TableHelper.fromTextArray(
         headers: [
           'Address',
+          if (withDistance) 'Dist',
           'Sold',
           'Price',
           'Building',
@@ -521,6 +542,8 @@ class ValuationReportPdf {
           for (final c in used)
             [
               titleCase(c.address),
+              if (withDistance)
+                c.distanceM == null ? '-' : '${c.distanceM!.round()} m',
               _month.format(c.saleDate),
               _money(c.salePriceZar),
               c.dwellingExtentM2 > 0 ? _m2(c.dwellingExtentM2) : '-',
@@ -537,18 +560,21 @@ class ValuationReportPdf {
           border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
         ),
         columnWidths: {
-          0: const pw.FlexColumnWidth(3.2),
-          1: const pw.FlexColumnWidth(1.3),
-          2: const pw.FlexColumnWidth(1.7),
-          3: const pw.FlexColumnWidth(1.3),
-          4: const pw.FlexColumnWidth(1.4),
-          5: const pw.FlexColumnWidth(1.7),
+          for (final (i, w) in [
+            3.2,
+            if (withDistance) 0.9,
+            1.3,
+            1.7,
+            1.3,
+            1.4,
+            1.7,
+          ].indexed)
+            i: pw.FlexColumnWidth(w),
         },
         cellAlignments: {
-          2: pw.Alignment.centerRight,
-          3: pw.Alignment.centerRight,
-          4: pw.Alignment.centerRight,
-          5: pw.Alignment.centerRight,
+          if (withDistance) 1: pw.Alignment.centerRight,
+          for (var i = withDistance ? 3 : 2; i <= (withDistance ? 6 : 5); i++)
+            i: pw.Alignment.centerRight,
         },
       ),
       pw.SizedBox(height: 14),
@@ -568,7 +594,7 @@ class ValuationReportPdf {
       pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 6),
         child: pw.Text(
-          agent.evidenceStatement,
+          pdfText(agent.evidenceStatement),
           style: const pw.TextStyle(color: _muted, fontSize: 8.5),
         ),
       ),
@@ -616,6 +642,192 @@ class ValuationReportPdf {
     ];
   }
 
+  /// The subject's street name, e.g. "Bosman Street".
+  String? get _street {
+    final line = report.address.toUpperCase().trim();
+    final withoutNumber = line.replaceFirst(RegExp(r'^\d+[A-Z]?\s+'), '');
+    final suburb = report.suburb.toUpperCase();
+    final street = withoutNumber.endsWith(' $suburb')
+        ? withoutNumber.substring(0, withoutNumber.length - suburb.length - 1)
+        : withoutNumber;
+    return street.isEmpty || street.startsWith('ERF ')
+        ? null
+        : titleCase(street);
+  }
+
+  /// The latest sales in the subject's own street.
+  List<pw.Widget> _streetSales() {
+    final sales = report.streetSales;
+    if (sales.isEmpty) return const [];
+    return [
+      _heading('Recent sales in ${_street ?? 'the street'}'),
+      _table(
+        ['Address', 'Sold', 'Price', 'Erf', 'Building', 'R/m²'],
+        [
+          for (final c in sales)
+            [
+              titleCase(c.address),
+              _month.format(c.saleDate),
+              _money(c.salePriceZar),
+              c.erfExtentM2 > 0 ? _m2(c.erfExtentM2) : '-',
+              c.dwellingExtentM2 > 0 ? _m2(c.dwellingExtentM2) : '-',
+              _money(c.pricePerDwellingM2),
+            ],
+        ],
+        widths: [3.2, 1.3, 1.7, 1.2, 1.2, 1.3],
+        rightFrom: 2,
+      ),
+      pw.SizedBox(height: 14),
+    ];
+  }
+
+  /// The area's market: sales by year and how prices spread, as bar charts.
+  List<pw.Widget> _areaMarket() {
+    final m = report.areaMarket;
+    if (m == null || m.sales == 0) return const [];
+    final where = m.radiusM != null
+        ? 'within ${m.radiusM} m of the property'
+        : 'in the area';
+    final median = m.medianPriceZar == null
+        ? ''
+        : ', median ${_money(m.medianPriceZar)}';
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading('The market around the property'),
+            pw.Text(
+              '${_count(m.sales)} market sales $where$median.',
+              style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: _bars(
+                    'Sales by year',
+                    [
+                      for (final y in m.byYear)
+                        ('${y.year}', y.sales.toDouble()),
+                    ],
+                    below: [for (final y in m.byYear) _short(y.medianPriceZar)],
+                  ),
+                ),
+                pw.SizedBox(width: 16),
+                pw.Expanded(
+                  child: _bars('Spread of prices (% of sales)', [
+                    for (final b in m.priceBands)
+                      (_short(b.fromZar), b.percent),
+                  ]),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 14),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// "R 2.7m", "R 850k".
+  static String _short(num v) => v >= 1000000
+      ? 'R ${(v / 1000000).toStringAsFixed(v >= 10000000 ? 0 : 1)}m'
+      : 'R ${(v / 1000).round()}k';
+
+  /// A small bar chart of [bars] (label, value), with an optional second line
+  /// under each bar.
+  pw.Widget _bars(
+    String title,
+    List<(String, double)> bars, {
+    List<String> below = const [],
+  }) {
+    final max = bars.fold<double>(0, (m, b) => b.$2 > m ? b.$2 : m);
+    const height = 90.0;
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            color: _ink,
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+        pw.SizedBox(height: 6),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            for (final (i, (label, value)) in bars.indexed)
+              pw.Expanded(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 1.5),
+                  child: pw.Column(
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text(
+                        value == value.roundToDouble()
+                            ? value.toInt().toString()
+                            : value.toStringAsFixed(1),
+                        style: const pw.TextStyle(color: _muted, fontSize: 6.5),
+                      ),
+                      pw.Container(
+                        height: max == 0 ? 0 : height * value / max,
+                        color: _brand,
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        label,
+                        style: const pw.TextStyle(color: _ink, fontSize: 6),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                      if (i < below.length)
+                        pw.Text(
+                          below[i],
+                          style: const pw.TextStyle(
+                            color: _muted,
+                            fontSize: 5.5,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// A brand-headed table; columns from [rightFrom] on are right-aligned.
+  pw.Widget _table(
+    List<String> headers,
+    List<List<String>> rows, {
+    required List<double> widths,
+    int rightFrom = 99,
+  }) => pw.TableHelper.fromTextArray(
+    headers: headers,
+    data: rows,
+    headerStyle: pw.TextStyle(color: _onBrand, fontSize: 8.5),
+    headerDecoration: pw.BoxDecoration(color: _brand),
+    cellStyle: const pw.TextStyle(color: _ink, fontSize: 8.5),
+    cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    border: null,
+    rowDecoration: const pw.BoxDecoration(
+      border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
+    ),
+    columnWidths: {
+      for (final (i, w) in widths.indexed) i: pw.FlexColumnWidth(w),
+    },
+    cellAlignments: {
+      for (var i = rightFrom; i < headers.length; i++)
+        i: pw.Alignment.centerRight,
+    },
+  );
+
   pw.Widget _method() {
     final s = report.comparableSummary;
     final suburb = report.suburbStats;
@@ -632,7 +844,9 @@ class ValuationReportPdf {
       ]);
     }
     return _paragraphs('How the range was worked out', [
-      report.comparablesMethod ??
+      (report.comparablesMethod == null
+              ? null
+              : pdfText(report.comparablesMethod!)) ??
           'Sales recorded by the municipality in the property\'s area were filtered: '
               'transfers for R0 and implausibly low prices (family transfers, part-transfers, '
               'correction deeds) were removed, as were sales older than four years and homes '
@@ -655,7 +869,7 @@ class ValuationReportPdf {
         ? date
         : report.provenance.first.fetchedAt.toLocal();
     return _paragraphs('Sources', [
-      '${report.dataSource}'
+      '${pdfText(report.dataSource)}'
           '${report.rollVersion == null ? '' : ' and the ${report.rollVersion} general valuation roll'}'
           ', read on ${_day.format(fetched)}.',
       // One line per source, listing the figures it supplied.
