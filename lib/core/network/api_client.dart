@@ -191,7 +191,13 @@ class ApiClient {
   }
 
   Future<Response<T>> put<T>(String path, {dynamic data}) {
-    return _dio.put<T>(path, data: data);
+    return _dio.put<T>(
+      path,
+      data: data,
+      options: data is FormData
+          ? Options(sendTimeout: uploadTimeout, receiveTimeout: uploadTimeout)
+          : null,
+    );
   }
 
   Future<Response<T>> delete<T>(String path) {

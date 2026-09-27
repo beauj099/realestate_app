@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/errors/failure_mapper.dart';
 import '../../../../core/theme/agency.dart';
@@ -18,6 +19,7 @@ import '../../../auth/data/models/agent_profile.dart';
 import '../../../auth/providers/agent_profile_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../widgets/agency_picker.dart';
+import '../widgets/profile_media.dart';
 
 /// Lets an agent review and change everything they entered at registration.
 ///
@@ -37,6 +39,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _mobileController;
   late final TextEditingController _agencyRegNoController;
   late final TextEditingController _licenceController;
+
+  // What the report pack prints about the agent.
+  final _jobTitleController = TextEditingController();
+  final _ppraController = TextEditingController();
+  final _websiteController = TextEditingController();
+  final _bioController = TextEditingController();
+  final _qualificationsController = TextEditingController();
+
+  // The agent's own office; empty fields use the agency's defaults.
+  final _officeNameController = TextEditingController();
+  final _officeAddressController = TextEditingController();
+  final _officePhoneController = TextEditingController();
+  final _officeEmailController = TextEditingController();
+  final _officeWebsiteController = TextEditingController();
+  final _officeFooterController = TextEditingController();
+
+  /// Which upload is running: 'photo', 'signature' or 'brochure'.
+  String? _uploading;
 
   late Agency _agency;
   bool _isSaving = false;
@@ -80,6 +100,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'mobile': _mobileController,
       'agencyRegistrationNumber': _agencyRegNoController,
       'licenceNumber': _licenceController,
+      'jobTitle': _jobTitleController,
+      'ppraNumber': _ppraController,
+      'website': _websiteController,
+      'bio': _bioController,
+      'qualifications': _qualificationsController,
+      'officeName': _officeNameController,
+      'officeAddress': _officeAddressController,
+      'officePhone': _officePhoneController,
+      'officeEmail': _officeEmailController,
+      'officeWebsite': _officeWebsiteController,
+      'officeFooter': _officeFooterController,
     };
     _populate(ref.read(agentProfileProvider));
     _fields.forEach((key, controller) {
@@ -124,6 +155,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     _agencyRegNoController.text = profile.agencyRegistrationNumber;
     _licenceController.text = profile.licenceNumber;
+    _jobTitleController.text = profile.jobTitle;
+    _ppraController.text = profile.ppraNumber;
+    _websiteController.text = profile.website;
+    _bioController.text = profile.bio;
+    _qualificationsController.text = profile.qualifications.join('\n');
+    _officeNameController.text = profile.office.name;
+    _officeAddressController.text = profile.office.address;
+    _officePhoneController.text = profile.office.phone;
+    _officeEmailController.text = profile.office.email;
+    _officeWebsiteController.text = profile.office.website;
+    _officeFooterController.text = profile.office.footer;
     _populating = false;
     _agency = ref.read(agencyProvider);
     _baseline = _formContent;
@@ -184,19 +226,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!_validate()) return;
     setState(() => _isSaving = true);
 
-    final profile = AgentProfile(
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      email: _emailController.text.trim(),
-      mobile: CountryPhone.toStored(
-        _mobileController.text,
-        ref.read(regionProvider).country,
-      ),
-      agencyName: _agency.name,
-      agencySlug: _agency.slug,
-      agencyRegistrationNumber: _agencyRegNoController.text.trim(),
-      licenceNumber: _licenceController.text.trim(),
-    );
+    final profile = ref
+        .read(agentProfileProvider)
+        .copyWith(
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          email: _emailController.text.trim(),
+          mobile: CountryPhone.toStored(
+            _mobileController.text,
+            ref.read(regionProvider).country,
+          ),
+          agencyName: _agency.name,
+          agencySlug: _agency.slug,
+          agencyRegistrationNumber: _agencyRegNoController.text.trim(),
+          licenceNumber: _licenceController.text.trim(),
+          jobTitle: _jobTitleController.text.trim(),
+          ppraNumber: _ppraController.text.trim(),
+          website: _websiteController.text.trim(),
+          bio: _bioController.text.trim(),
+          qualifications: _qualificationsController.text
+              .split('\n')
+              .map((l) => l.trim())
+              .where((l) => l.isNotEmpty)
+              .toList(),
+          office: OfficeDetails(
+            name: _officeNameController.text.trim(),
+            address: _officeAddressController.text.trim(),
+            phone: _officePhoneController.text.trim(),
+            email: _officeEmailController.text.trim(),
+            website: _officeWebsiteController.text.trim(),
+            footer: _officeFooterController.text.trim(),
+          ),
+        );
 
     try {
       await ref.read(agentProfileProvider.notifier).save(profile);
@@ -236,6 +297,69 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
     context.pop();
+  }
+
+  /// Runs an upload (photo, signature, brochure pages), which saves at once.
+  Future<void> _upload(String what, Future<void> Function() action) async {
+    setState(() => _uploading = what);
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mapFailure(e).message),
+            backgroundColor: ref.read(themeConfigProvider).error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = null);
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    final path = await pickProfileImage(maxSide: 800);
+    if (path == null) return;
+    await _upload(
+      'photo',
+      () => ref.read(agentProfileProvider.notifier).uploadPhoto(path),
+    );
+  }
+
+  Future<void> _changeSignature() async {
+    final path = await pickProfileImage();
+    if (path == null) return;
+    await _upload(
+      'signature',
+      () => ref.read(agentProfileProvider.notifier).uploadSignature(path),
+    );
+  }
+
+  Future<void> _addBrochurePages() async {
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: 1754,
+      maxHeight: 1754,
+      imageQuality: 85,
+    );
+    if (picked.isEmpty) return;
+    await _upload(
+      'brochure',
+      () => ref.read(agentProfileProvider.notifier).addBrochurePages([
+        for (final p in picked) p.path,
+      ]),
+    );
+  }
+
+  Future<void> _removeBrochurePage(String url) async {
+    final own = ref.read(agentProfileProvider).brochurePages ?? const [];
+    await _upload(
+      'brochure',
+      () => ref.read(agentProfileProvider.notifier).setBrochurePages([
+        for (final p in own)
+          if (p != url) p,
+      ]),
+    );
   }
 
   Future<void> _handleBack(RealEstateTheme theme) async {
@@ -282,6 +406,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         : RealEstateTheme.fromAgency(_agency);
     final textTheme = theme.toThemeData().textTheme;
     final country = ref.watch(regionProvider).country;
+    final profile = ref.watch(agentProfileProvider);
 
     return ScopedBrandTheme(
       theme: theme,
@@ -309,6 +434,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    ProfilePhotoPicker(
+                      photoUrl: profile.photoUrl,
+                      initials: AgentProfile.initialsOf(
+                        '${_firstNameController.text} ${_lastNameController.text}',
+                      ),
+                      busy: _uploading == 'photo',
+                      theme: theme,
+                      onTap: _changePhoto,
+                    ),
+                    const SizedBox(height: 20),
                     _sectionLabel('Agent', theme, textTheme),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,13 +514,153 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 16),
                     CustomTextInput(
                       theme: theme,
-                      label: 'Licence / FFC number',
+                      label: 'FFC number',
                       textCapitalization: TextCapitalization.characters,
                       controller: _licenceController,
                       autocorrect: false,
-                      subtext:
-                          'Professional registration / Fidelity Fund Certificate',
+                      subtext: 'Fidelity Fund Certificate',
                       errorText: _errors['licenceNumber'],
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextInput(
+                      theme: theme,
+                      label: 'PPRA registration number',
+                      controller: _ppraController,
+                      keyboardType: TextInputType.number,
+                      autocorrect: false,
+                      errorText: _errors['ppraNumber'],
+                    ),
+                    const SizedBox(height: 28),
+                    _sectionLabel('On your reports', theme, textTheme),
+                    CustomTextInput(
+                      theme: theme,
+                      label: 'Job title',
+                      placeholder: 'e.g. Property Practitioner Specialist',
+                      controller: _jobTitleController,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextInput(
+                      theme: theme,
+                      label: 'Your website',
+                      placeholder: 'e.g. https://yourname.agency.co.za',
+                      controller: _websiteController,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextInput(
+                      theme: theme,
+                      label: 'About you',
+                      placeholder:
+                          'A few sentences for the "Your agent" page of the report',
+                      controller: _bioController,
+                      maxLines: 7,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextInput(
+                      theme: theme,
+                      label: 'Qualifications & registrations',
+                      placeholder: 'One per line, e.g. NQF4',
+                      controller: _qualificationsController,
+                      maxLines: 6,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Signature (printed on the valuation letter)',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SignatureTile(
+                      signatureUrl: profile.signatureUrl,
+                      busy: _uploading == 'signature',
+                      theme: theme,
+                      onTap: _changeSignature,
+                    ),
+                    const SizedBox(height: 28),
+                    _sectionLabel('Your office', theme, textTheme),
+                    Text(
+                      'Printed on your reports and letters. Leave a field empty '
+                      "to use ${_agency.name}'s.",
+                      style: textTheme.bodySmall?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final (label, controller, fallback, keyboard, lines)
+                        in [
+                          (
+                            'Office name',
+                            _officeNameController,
+                            _agency.office.name,
+                            TextInputType.text,
+                            1,
+                          ),
+                          (
+                            'Office address',
+                            _officeAddressController,
+                            _agency.office.address,
+                            TextInputType.streetAddress,
+                            2,
+                          ),
+                          (
+                            'Office phone',
+                            _officePhoneController,
+                            _agency.office.phone,
+                            TextInputType.phone,
+                            1,
+                          ),
+                          (
+                            'Office email',
+                            _officeEmailController,
+                            _agency.office.email,
+                            TextInputType.emailAddress,
+                            1,
+                          ),
+                          (
+                            'Office website',
+                            _officeWebsiteController,
+                            _agency.office.website,
+                            TextInputType.url,
+                            1,
+                          ),
+                          (
+                            'Footer line',
+                            _officeFooterController,
+                            _agency.office.footer,
+                            TextInputType.text,
+                            3,
+                          ),
+                        ]) ...[
+                      CustomTextInput(
+                        theme: theme,
+                        label: label,
+                        placeholder: fallback.isEmpty ? null : fallback,
+                        controller: controller,
+                        keyboardType: keyboard,
+                        maxLines: lines,
+                        autocorrect: false,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    const SizedBox(height: 12),
+                    _sectionLabel('Brochure pages', theme, textTheme),
+                    BrochurePagesEditor(
+                      ownPages: profile.brochurePages,
+                      agencyPages: _agency.brochurePages,
+                      agencyName: _agency.name,
+                      busy: _uploading == 'brochure',
+                      theme: theme,
+                      onAdd: _addBrochurePages,
+                      onRemove: _removeBrochurePage,
+                      onUseAgencyPages: () => _upload(
+                        'brochure',
+                        () => ref
+                            .read(agentProfileProvider.notifier)
+                            .setBrochurePages(null),
+                      ),
                     ),
                   ],
                 ),

@@ -19,6 +19,10 @@ class ApiEndpoints {
 
   // Agent profile
   static const String agentMe = '/api/agents/me';
+  static const String agentPhoto = '/api/agents/me/photo';
+  static const String agentSignature = '/api/agents/me/signature';
+  static const String agentBrochurePages = '/api/agents/me/brochure-pages';
+  static const String agentReportSettings = '/api/agents/me/report-settings';
 
   // White-label agencies
   static const String agencies = '/api/agencies';
