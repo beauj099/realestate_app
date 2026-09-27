@@ -28,7 +28,7 @@ class CalculatorDefaults {
     this.commissionLatePercent = 6,
     this.earlyMonths = 2,
     this.commissionIncludesVat = false,
-    this.interestRatePercent = 10.5,
+    this.interestRatePercent = 10.75,
     this.bondTermYears = 20,
     this.depositPercent = 0,
   });
