@@ -1323,148 +1323,597 @@ class ReportPackPdf {
   // ---- area details -----------------------------------------------------------
 
   List<pw.Widget> _areaPage(AreaDetails a) {
-    pw.Widget facts(
-      String title,
-      List<(String, String)> rows, {
-      String? note,
-    }) => pw.Inseparable(
-      child: pw.Padding(
-        padding: const pw.EdgeInsets.only(bottom: 14),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              title,
-              style: pw.TextStyle(
-                fontSize: 12,
-                color: _brand,
-                fontWeight: pw.FontWeight.bold,
-              ),
-            ),
-            pw.SizedBox(height: 4),
-            for (final (label, value) in rows)
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(vertical: 3),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: _rule, width: 0.5),
-                  ),
-                ),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      child: pw.Text(
-                        pdfText(label),
-                        style: const pw.TextStyle(fontSize: 9, color: _muted),
-                      ),
-                    ),
-                    pw.Expanded(
-                      child: pw.Text(
-                        pdfText(value),
-                        style: const pw.TextStyle(fontSize: 9, color: _ink),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (note != null)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 3),
-                child: pw.Text(
-                  pdfText(note),
-                  style: const pw.TextStyle(fontSize: 7.5, color: _muted),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-
     final p = a.population;
     final c = a.crime;
     final w = a.climate;
     final income = a.income;
     return [
       _sectionTitle('Area details'),
-      if (p != null)
-        facts('Population', [
-          if (p.subPlace != null)
-            (
-              'Neighbourhood',
-              '${p.subPlace}${p.mainPlace == null ? '' : ', ${p.mainPlace}'}',
-            ),
-          if (p.estimatedPopulation != null)
-            (
-              'People (${p.estimateYear} estimate)',
-              groupDigits(p.estimatedPopulation!),
-            ),
-          if (p.population != null)
-            ('People (Census ${p.year})', groupDigits(p.population!)),
-          if (p.households != null)
-            ('Households (Census ${p.year})', groupDigits(p.households!)),
-          if (p.areaKm2 != null)
-            ('Area', '${p.areaKm2!.toStringAsFixed(2)} km²'),
-          if (p.peoplePerKm2 != null)
-            ('Density', '${groupDigits(p.peoplePerKm2!)} people per km²'),
-        ], note: [p.source, p.estimateSource].whereType<String>().join('; ')),
-      if (c != null)
-        facts(
-          'Crime: ${c.precinct} police precinct',
-          [
-            for (final x in c.crimes)
-              (
-                x.crime,
-                '${groupDigits(x.count)}  (previous year ${groupDigits(x.previousCount)})',
-              ),
-            (
-              'All community-reported serious crime',
-              '${groupDigits(c.total)}${c.change == null ? '' : '  (${c.change! >= 0 ? '+' : ''}${c.change!.toStringAsFixed(0)}% on the year before)'}',
-            ),
-            if (c.totalPer100k != null)
-              ('Per 100 000 residents', groupDigits(c.totalPer100k!)),
-            if (c.band != null) ('Compared with all precincts', c.band!),
-          ],
-          note:
-              '${c.period}. Figures are for the whole police precinct; precincts that include a town centre, '
-              'beachfront or shopping area count crimes against visitors too, so their rate per resident reads '
-              'higher. ${c.source}.',
+      if (p != null || income != null) ...[
+        _areaHeading(
+          'people',
+          'The neighbourhood',
+          p?.subPlace == null
+              ? null
+              : [p!.subPlace, p.mainPlace].whereType<String>().join(', '),
         ),
-      if (income != null)
-        facts(
-          'Household income (${income.municipality})',
+        _tiles([
+          if (p?.estimatedPopulation ?? p?.population case final people?)
+            (
+              'people',
+              groupDigits(people),
+              p!.estimatedPopulation != null
+                  ? 'People (${p.estimateYear} estimate)'
+                  : 'People (Census ${p.year})',
+            ),
+          if (p?.households case final households?)
+            (
+              'homes',
+              groupDigits(households),
+              'Households (Census ${p!.year})',
+            ),
+          if (p?.peoplePerKm2 case final density?)
+            ('area', groupDigits(density), 'People per km²'),
+          if (income != null)
+            ('income', income.medianBand, 'Middle household income'),
+        ]),
+        _note(
           [
-            ('The middle household earns', income.medianBand),
-            for (final b in income.bands.where((b) => b.percent >= 8))
-              (b.label, '${b.percent.toStringAsFixed(1)}% of households'),
-          ],
-          note:
-              '${income.source}, whole municipality. Census 2022 income has not been released.',
+            p?.source,
+            p?.estimateSource,
+            if (income != null)
+              '${income.source} (whole ${income.municipality}; Census 2022 income is not yet released)',
+          ].whereType<String>().join('; '),
         ),
-      if (w != null)
-        facts(
-          pdfText('Climate (${w.years})'),
-          [
-            ('Average temperature', '${w.meanC.toStringAsFixed(1)} °C'),
-            (
-              'Average daily high / low',
-              '${w.avgMaxC.toStringAsFixed(1)} °C / ${w.avgMinC.toStringAsFixed(1)} °C',
-            ),
-            (
-              'Hottest month',
-              '${w.hottestMonth} (average high ${w.hottestAvgMaxC.toStringAsFixed(1)} °C)',
-            ),
-            (
-              'Coldest month',
-              '${w.coldestMonth} (average low ${w.coldestAvgMinC.toStringAsFixed(1)} °C)',
-            ),
-            ('Rainfall', '${groupDigits(w.annualRainMm)} mm a year'),
-            if (w.humidityPct != null)
-              ('Humidity', '${w.humidityPct!.round()}% on average'),
-          ],
-          note:
-              '${w.source}: a regional climate average (about 50 km), not a street-level reading.',
-        ),
+      ],
+      if (c != null) ..._crimeBlock(c),
+      if (w != null) ..._climateBlock(w),
     ];
+  }
+
+  pw.Widget _areaHeading(String icon, String title, String? subtitle) =>
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 6, bottom: 8),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            if (packIcon(icon, _brandHex) case final svg?)
+              pw.Container(
+                width: 26,
+                height: 26,
+                margin: const pw.EdgeInsets.only(right: 9),
+                padding: const pw.EdgeInsets.all(5),
+                decoration: pw.BoxDecoration(
+                  color: _tint(0.1),
+                  shape: pw.BoxShape.circle,
+                ),
+                child: pw.SvgImage(svg: svg),
+              ),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    pdfText(title),
+                    style: pw.TextStyle(
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _ink,
+                    ),
+                  ),
+                  if (subtitle != null && subtitle.isNotEmpty)
+                    pw.Text(
+                      pdfText(subtitle),
+                      style: const pw.TextStyle(fontSize: 9, color: _muted),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+  /// Figures as tiles: an icon, the number large, what it is under it.
+  pw.Widget _tiles(List<(String, String, String)> items, {int perRow = 4}) {
+    if (items.isEmpty) return pw.SizedBox();
+    pw.Widget tile((String, String, String) t) => pw.Container(
+      padding: const pw.EdgeInsets.fromLTRB(10, 9, 8, 9),
+      decoration: pw.BoxDecoration(
+        color: const PdfColor.fromInt(0xFFF5F6F8),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          if (packIcon(t.$1, _brandHex) case final svg?)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(right: 7, top: 1),
+              child: pw.SvgImage(svg: svg, width: 17, height: 17),
+            ),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  pdfText(t.$2),
+                  style: pw.TextStyle(
+                    fontSize: t.$2.length > 12 ? 9.5 : 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _ink,
+                  ),
+                ),
+                pw.SizedBox(height: 1),
+                pw.Text(
+                  pdfText(t.$3),
+                  style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    return pw.Column(
+      children: [
+        for (var r = 0; r < items.length; r += perRow)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 6),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                for (var i = r; i < r + perRow; i++) ...[
+                  if (i > r) pw.SizedBox(width: 6),
+                  pw.Expanded(
+                    child: i < items.length ? tile(items[i]) : pw.SizedBox(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  pw.Widget _note(String text) => text.isEmpty
+      ? pw.SizedBox(height: 10)
+      : pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 2, bottom: 16),
+          child: pw.Text(
+            pdfText(text),
+            style: const pw.TextStyle(fontSize: 7, color: _muted),
+          ),
+        );
+
+  static const _bands = ['Very low', 'Low', 'Moderate', 'High', 'Very high'];
+  static const _bandColours = [
+    PdfColor.fromInt(0xFF2E9E5B),
+    PdfColor.fromInt(0xFF8CBF3F),
+    PdfColor.fromInt(0xFFF2B233),
+    PdfColor.fromInt(0xFFEE7B37),
+    PdfColor.fromInt(0xFFD7392E),
+  ];
+  static const _up = PdfColor.fromInt(0xFFD7392E);
+  static const _down = PdfColor.fromInt(0xFF2E9E5B);
+
+  String _hex(PdfColor c) =>
+      (c.toInt() & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+
+  List<pw.Widget> _crimeBlock(CrimeStats c) {
+    final active = c.band == null
+        ? -1
+        : _bands.indexWhere((b) => b.toLowerCase() == c.band!.toLowerCase());
+    final shown = c.crimes
+        .where((x) => x.count > 0 || x.previousCount > 0)
+        .take(7)
+        .toList();
+    final most = shown.fold<int>(1, (m, x) => x.count > m ? x.count : m);
+    final change = c.change;
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _areaHeading(
+              'shield',
+              'Crime',
+              '${c.precinct} police precinct  ·  ${c.period}',
+            ),
+            // Where the precinct sits among all of South Africa's.
+            pw.Row(
+              children: [
+                for (var i = 0; i < _bands.length; i++) ...[
+                  if (i > 0) pw.SizedBox(width: 3),
+                  pw.Expanded(
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                      alignment: pw.Alignment.center,
+                      decoration: pw.BoxDecoration(
+                        color: i == active
+                            ? _bandColours[i]
+                            : PdfColor(
+                                1 - (1 - _bandColours[i].red) * 0.18,
+                                1 - (1 - _bandColours[i].green) * 0.18,
+                                1 - (1 - _bandColours[i].blue) * 0.18,
+                              ),
+                        borderRadius: pw.BorderRadius.horizontal(
+                          left: pw.Radius.circular(i == 0 ? 6 : 0),
+                          right: pw.Radius.circular(
+                            i == _bands.length - 1 ? 6 : 0,
+                          ),
+                        ),
+                      ),
+                      child: pw.Text(
+                        _bands[i],
+                        style: pw.TextStyle(
+                          fontSize: i == active ? 9.5 : 8.5,
+                          fontWeight: i == active ? pw.FontWeight.bold : null,
+                          color: i == active ? PdfColors.white : _muted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            pw.SizedBox(height: 7),
+            pw.RichText(
+              text: pw.TextSpan(
+                style: const pw.TextStyle(fontSize: 10, color: _ink),
+                children: [
+                  pw.TextSpan(
+                    text: groupDigits(c.total),
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                  const pw.TextSpan(text: ' serious crimes reported'),
+                  if (c.totalPer100k != null)
+                    pw.TextSpan(
+                      text:
+                          '  (${groupDigits(c.totalPer100k!)} per 100 000 residents)',
+                    ),
+                  if (change != null)
+                    pw.TextSpan(
+                      text:
+                          '  ·  ${change >= 0 ? 'up' : 'down'} ${change.abs().toStringAsFixed(0)}% on the year before',
+                      style: pw.TextStyle(
+                        color: change >= 0 ? _up : _down,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 8),
+            for (final x in shown)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Row(
+                  children: [
+                    pw.SizedBox(
+                      width: 170,
+                      child: pw.Text(
+                        pdfText(x.crime),
+                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                        maxLines: 1,
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Row(
+                        children: [
+                          pw.Expanded(
+                            flex: (1000 * x.count / most).round().clamp(
+                              1,
+                              1000,
+                            ),
+                            child: pw.Container(
+                              height: 9,
+                              decoration: pw.BoxDecoration(
+                                color: _tint(0.75),
+                                borderRadius: pw.BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: (1000 - 1000 * x.count / most).round().clamp(
+                              1,
+                              1000,
+                            ),
+                            child: pw.SizedBox(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(
+                      width: 40,
+                      child: pw.Text(
+                        groupDigits(x.count),
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _ink,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(
+                      width: 58,
+                      child: x.previousCount == 0
+                          ? pw.SizedBox()
+                          : pw.Row(
+                              mainAxisAlignment: pw.MainAxisAlignment.end,
+                              children: [
+                                if (packIcon(
+                                      x.count >= x.previousCount
+                                          ? 'up'
+                                          : 'down',
+                                      _hex(
+                                        x.count >= x.previousCount
+                                            ? _up
+                                            : _down,
+                                      ),
+                                    )
+                                    case final svg?)
+                                  pw.SvgImage(svg: svg, width: 10, height: 10),
+                                pw.SizedBox(width: 3),
+                                pw.Text(
+                                  '${((x.count - x.previousCount) * 100 / x.previousCount).abs().toStringAsFixed(0)}%',
+                                  style: pw.TextStyle(
+                                    fontSize: 8,
+                                    color: x.count >= x.previousCount
+                                        ? _up
+                                        : _down,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      _note(
+        'Compared with every police precinct in South Africa, per resident. Figures are for the whole precinct; '
+        'precincts with a town centre, beachfront or shopping area count crimes against visitors too, so their '
+        'rate per resident reads higher. ${c.source}.',
+      ),
+    ];
+  }
+
+  static const _monthLetters = [
+    'J',
+    'F',
+    'M',
+    'A',
+    'M',
+    'J',
+    'J',
+    'A',
+    'S',
+    'O',
+    'N',
+    'D',
+  ];
+  static const _rainColour = PdfColor.fromInt(0xFF5B8DEF);
+  static const _highColour = PdfColor.fromInt(0xFFE0433A);
+  static const _lowColour = PdfColor.fromInt(0xFFF2A33A);
+
+  List<pw.Widget> _climateBlock(Climate w) {
+    final tiles = <(String, String, String)>[
+      (
+        'temperature',
+        '${w.avgMaxC.toStringAsFixed(0)}° / ${w.avgMinC.toStringAsFixed(0)}°',
+        'Average high / low (°C)',
+      ),
+      (
+        'rain',
+        '${groupDigits(w.annualRainMm)} mm',
+        w.rainDaysPerYear == null
+            ? 'Rain a year'
+            : 'Rain a year, over ${w.rainDaysPerYear} days',
+      ),
+      if (w.solarKwhM2Day != null)
+        (
+          'sun',
+          '${w.solarKwhM2Day!.toStringAsFixed(1)} kWh/m²',
+          'Sunshine a day (for solar)',
+        ),
+      if (w.hotDaysPerYear != null)
+        ('heat', '${w.hotDaysPerYear} days', 'Over 30 °C a year'),
+      if (w.humidityPct != null)
+        ('humidity', '${w.humidityPct!.round()}%', 'Average humidity'),
+      if (w.windMs != null)
+        ('wind', '${w.windMs!.toStringAsFixed(1)} m/s', 'Average wind'),
+    ];
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _areaHeading(
+              'sun',
+              'Weather and climate',
+              'Averages for ${w.years}  ·  hottest ${w.hottestMonth}, coldest ${w.coldestMonth}',
+            ),
+            _tiles(tiles, perRow: 3),
+            if (w.months.length == 12) ...[
+              pw.SizedBox(height: 6),
+              _climateChart(w.months),
+            ],
+          ],
+        ),
+      ),
+      _note(
+        '${w.source}: a regional average (about 50 km), not a street-level reading.',
+      ),
+    ];
+  }
+
+  /// Rain per month as bars, the average high and low as lines over them.
+  pw.Widget _climateChart(List<ClimateMonth> months) {
+    const height = 120.0;
+    final maxRain =
+        months.fold<double>(10, (m, x) => x.rainMm > m ? x.rainMm : m) * 1.15;
+    final maxTemp =
+        months.fold<double>(10, (m, x) => x.avgMaxC > m ? x.avgMaxC : m) + 4;
+    final minTemp = months.fold<double>(
+      0,
+      (m, x) => x.avgMinC < m ? x.avgMinC : m,
+    );
+    pw.Widget legend(PdfColor colour, String text, {bool line = false}) =>
+        pw.Row(
+          mainAxisSize: pw.MainAxisSize.min,
+          children: [
+            pw.Container(
+              width: 12,
+              height: line ? 2.5 : 8,
+              color: colour,
+              margin: const pw.EdgeInsets.only(right: 4),
+            ),
+            pw.Text(
+              text,
+              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+            ),
+            pw.SizedBox(width: 12),
+          ],
+        );
+    return pw.Container(
+      padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 6),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: _rule),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            children: [
+              legend(_rainColour, 'Rain (mm)'),
+              legend(_highColour, 'Average high (°C)', line: true),
+              legend(_lowColour, 'Average low (°C)', line: true),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          pw.SizedBox(
+            height: height,
+            child: pw.Stack(
+              children: [
+                // Bars and lines, drawn to the box.
+                pw.Positioned.fill(
+                  child: pw.CustomPaint(
+                    painter: (PdfGraphics g, PdfPoint size) {
+                      final slot = size.x / 12;
+                      double tempY(double t) =>
+                          (t - minTemp) / (maxTemp - minTemp) * size.y;
+                      // Light guide lines.
+                      g.setStrokeColor(_rule);
+                      g.setLineWidth(0.4);
+                      for (var k = 1; k <= 3; k++) {
+                        g.drawLine(0, size.y * k / 4, size.x, size.y * k / 4);
+                      }
+                      g.strokePath();
+                      g.setFillColor(_rainColour);
+                      for (var i = 0; i < 12; i++) {
+                        final h = months[i].rainMm / maxRain * size.y;
+                        g.drawRRect(
+                          slot * i + slot * 0.2,
+                          0,
+                          slot * 0.6,
+                          h,
+                          2,
+                          2,
+                        );
+                      }
+                      g.fillPath();
+                      for (final (colour, of) in [
+                        (_highColour, (ClimateMonth m) => m.avgMaxC),
+                        (_lowColour, (ClimateMonth m) => m.avgMinC),
+                      ]) {
+                        g.setStrokeColor(colour);
+                        g.setLineWidth(1.8);
+                        for (var i = 0; i < 12; i++) {
+                          final x = slot * i + slot / 2;
+                          final y = tempY(of(months[i]));
+                          if (i == 0) {
+                            g.moveTo(x, y);
+                          } else {
+                            g.lineTo(x, y);
+                          }
+                        }
+                        g.strokePath();
+                        g.setFillColor(colour);
+                        for (var i = 0; i < 12; i++) {
+                          g.drawEllipse(
+                            slot * i + slot / 2,
+                            tempY(of(months[i])),
+                            1.8,
+                            1.8,
+                          );
+                        }
+                        g.fillPath();
+                      }
+                    },
+                  ),
+                ),
+                // The high above each month's point.
+                pw.Positioned.fill(
+                  child: pw.Row(
+                    children: [
+                      for (final m in months)
+                        pw.Expanded(
+                          child: pw.Column(
+                            mainAxisAlignment: pw.MainAxisAlignment.end,
+                            children: [
+                              pw.Text(
+                                '${m.avgMaxC.round()}°',
+                                style: const pw.TextStyle(
+                                  fontSize: 6.5,
+                                  color: _highColour,
+                                ),
+                              ),
+                              pw.SizedBox(
+                                height:
+                                    (m.avgMaxC - minTemp) /
+                                        (maxTemp - minTemp) *
+                                        height +
+                                    2,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 3),
+          pw.Row(
+            children: [
+              for (var i = 0; i < 12; i++)
+                pw.Expanded(
+                  child: pw.Column(
+                    children: [
+                      pw.Text(
+                        _monthLetters[i],
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _ink,
+                        ),
+                      ),
+                      pw.Text(
+                        '${months[i].rainMm.round()} mm',
+                        style: const pw.TextStyle(fontSize: 6, color: _muted),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ---- homes on the market ------------------------------------------------------

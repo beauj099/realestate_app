@@ -5,6 +5,15 @@
 double? _d(Object? v) => (v as num?)?.toDouble();
 int? _i(Object? v) => (v as num?)?.toInt();
 
+/// One month of the climate average (January is 1).
+class ClimateMonth {
+  final int month;
+  final double avgMaxC;
+  final double avgMinC;
+  final double rainMm;
+  const ClimateMonth(this.month, this.avgMaxC, this.avgMinC, this.rainMm);
+}
+
 class Climate {
   final double meanC;
   final double avgMaxC;
@@ -18,6 +27,15 @@ class Climate {
   final String source;
   final double? humidityPct;
 
+  /// Month by month, January first (empty from an older API).
+  final List<ClimateMonth> months;
+  final int? rainDaysPerYear;
+  final int? hotDaysPerYear;
+
+  /// Sunshine on flat ground, kWh/m² a day.
+  final double? solarKwhM2Day;
+  final double? windMs;
+
   const Climate({
     required this.meanC,
     required this.avgMaxC,
@@ -30,6 +48,11 @@ class Climate {
     required this.years,
     required this.source,
     this.humidityPct,
+    this.months = const [],
+    this.rainDaysPerYear,
+    this.hotDaysPerYear,
+    this.solarKwhM2Day,
+    this.windMs,
   });
 
   static Climate? fromJson(Map<String, dynamic>? j) => j == null
@@ -46,6 +69,19 @@ class Climate {
           years: j['years'] as String? ?? '',
           source: j['source'] as String? ?? '',
           humidityPct: _d(j['humidityPct']),
+          months: [
+            for (final m in (j['months'] as List? ?? const []))
+              ClimateMonth(
+                _i((m as Map<String, dynamic>)['month']) ?? 0,
+                _d(m['avgMaxC']) ?? 0,
+                _d(m['avgMinC']) ?? 0,
+                _d(m['rainMm']) ?? 0,
+              ),
+          ],
+          rainDaysPerYear: _i(j['rainDaysPerYear']),
+          hotDaysPerYear: _i(j['hotDaysPerYear']),
+          solarKwhM2Day: _d(j['solarKwhM2Day']),
+          windMs: _d(j['windMs']),
         );
 }
 
