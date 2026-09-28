@@ -378,6 +378,10 @@ class PropertyReport {
 
   final List<ImageryRef> imagery;
   final String sitePlanUrl;
+
+  /// The neighbourhood map (SVG, our drawing from City open data); add
+  /// `&mode=block` for the close-up. Null where it is not drawn.
+  final String? areaMapUrl;
   final List<Provenance> provenance;
   final DateTime generatedAt;
 
@@ -416,6 +420,7 @@ class PropertyReport {
     required this.comparables,
     required this.imagery,
     required this.sitePlanUrl,
+    this.areaMapUrl,
     required this.provenance,
     required this.generatedAt,
     this.dataSource = 'City of Cape Town open data',
@@ -492,6 +497,7 @@ class PropertyReport {
           : ValueRange.fromJson(j['indicativeValue'] as Map<String, dynamic>),
       imagery: list('imagery', ImageryRef.fromJson),
       sitePlanUrl: j['sitePlanUrl'] as String? ?? '',
+      areaMapUrl: j['areaMapUrl'] as String?,
       provenance: list('provenance', Provenance.fromJson),
       dataSource: j['dataSource'] as String? ?? 'City of Cape Town open data',
       comparablesMethod: j['comparablesMethod'] as String?,

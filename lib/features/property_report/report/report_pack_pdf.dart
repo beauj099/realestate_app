@@ -128,6 +128,8 @@ class PackImages {
 class ReportPackPdf {
   final PropertyReport report;
   final String? sitePlanSvg;
+  final String? areaMapSvg;
+  final String? blockMapSvg;
   final Map<String, Uint8List> images;
   final PackAgent agent;
   final PackListing listing;
@@ -147,6 +149,8 @@ class ReportPackPdf {
   ReportPackPdf({
     required this.report,
     required this.sitePlanSvg,
+    this.areaMapSvg,
+    this.blockMapSvg,
     required this.images,
     required this.agent,
     required this.listing,
@@ -206,6 +210,8 @@ class ReportPackPdf {
   late final ValuationReportPdf _analysis = ValuationReportPdf(
     report: report,
     sitePlanSvg: sitePlanSvg,
+    areaMapSvg: areaMapSvg,
+    blockMapSvg: blockMapSvg,
     images: images,
     author: ReportAuthor(
       name: agent.name,

@@ -171,7 +171,8 @@ class PropertyReportRepository {
     double? floorM2,
     double? erfM2,
     int? p24Suburb,
-    int max = 3,
+    double? priceZar,
+    int max = 4,
   }) async {
     final response = await _client.get(
       ApiEndpoints.propertyForSale(report.municipality, report.erf),
@@ -183,6 +184,8 @@ class PropertyReportRepository {
         'floorM2': ?floorM2,
         'erfM2': ?erfM2,
         'max': max,
+        // Homes priced like this one rank first.
+        'priceZar': ?priceZar,
         // With the property's location the nearest homes are kept, whatever
         // suburb Property24 files them under.
         'lat': ?report.lat,

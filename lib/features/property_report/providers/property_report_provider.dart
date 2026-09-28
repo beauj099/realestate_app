@@ -25,6 +25,10 @@ class PropertyReportState {
   final PropertyReport? report;
   final String? sitePlanSvg;
 
+  /// The comparable sales on a map, and the property's block close up.
+  final String? areaMapSvg;
+  final String? blockMapSvg;
+
   /// Imagery bytes keyed by [ImageryRef.url]. Held in memory only — Google's
   /// terms forbid storing them.
   final Map<String, Uint8List> images;
@@ -45,6 +49,8 @@ class PropertyReportState {
     this.candidates = const [],
     this.report,
     this.sitePlanSvg,
+    this.areaMapSvg,
+    this.blockMapSvg,
     this.images = const {},
     this.market = const [],
     this.area,
@@ -62,6 +68,8 @@ class PropertyReportState {
     candidates: candidates,
     report: report ?? this.report,
     sitePlanSvg: sitePlanSvg,
+    areaMapSvg: areaMapSvg,
+    blockMapSvg: blockMapSvg,
     images: images,
     market: market ?? this.market,
     area: area ?? this.area,
@@ -121,9 +129,15 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
     state = const PropertyReportState(loading: true);
     try {
       final report = await _repo.fetchReport(candidate);
+      final map = report.areaMapUrl;
       final results = await Future.wait([
         _repo.fetchSitePlan(report.sitePlanUrl),
         _market(report.suburb, report.lat, report.lng),
+        // Sized for the PDF's page width (the block view sits beside the plan).
+        _repo.fetchSitePlan(map == null ? '' : '$map&width=900&height=820'),
+        _repo.fetchSitePlan(
+          map == null ? '' : '$map&mode=block&width=900&height=640',
+        ),
         for (final i in report.imagery) _repo.fetchImage(i.url),
       ]);
       if (!ref.mounted) return;
@@ -131,9 +145,11 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
         report: report,
         sitePlanSvg: results[0] as String?,
         market: results[1] as List<MarketListing>,
+        areaMapSvg: results[2] as String?,
+        blockMapSvg: results[3] as String?,
         images: {
           for (var i = 0; i < report.imagery.length; i++)
-            if (results[i + 2] case final Uint8List bytes)
+            if (results[i + 4] case final Uint8List bytes)
               report.imagery[i].url: bytes,
         },
       );
@@ -170,6 +186,7 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
         floorM2: _hints.floorM2 ?? report.dwellingExtentM2,
         erfM2: _hints.erfM2 ?? report.extentM2,
         p24Suburb: p24Suburb,
+        priceZar: report.bestRange?.mid ?? report.municipalValueZar,
       );
       if (ref.mounted && state.report == report) {
         state = state.copyWith(forSale: forSale);

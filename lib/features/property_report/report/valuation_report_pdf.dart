@@ -47,6 +47,10 @@ class ReportAuthor {
 class ValuationReportPdf {
   final PropertyReport report;
   final String? sitePlanSvg;
+
+  /// The comparable sales on a map, and the property's block (SVG).
+  final String? areaMapSvg;
+  final String? blockMapSvg;
   final Map<String, Uint8List> images;
   final ReportAuthor author;
   final Color brandColor;
@@ -66,6 +70,8 @@ class ValuationReportPdf {
     required this.images,
     required this.author,
     required this.brandColor,
+    this.areaMapSvg,
+    this.blockMapSvg,
     this.onBrandColor = const Color(0xFFFFFFFF),
     this.logo,
     DateTime? date,
@@ -192,6 +198,7 @@ class ValuationReportPdf {
         ),
       ]),
     ..._comparables(),
+    ..._salesMap(),
     ..._streetSales(),
     ..._areaMarket(),
     ..._agentSales(),
@@ -381,15 +388,68 @@ class ValuationReportPdf {
   }
 
   List<pw.Widget> _sitePlan() {
-    final svg = sitePlanSvg;
-    if (svg == null) return const [];
+    final plan = sitePlanSvg;
+    final block = blockMapSvg;
+    if (plan == null && block == null) return const [];
+    pw.Widget frame(String svg, double height) => pw.Container(
+      height: height,
+      decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
+      child: pw.SvgImage(svg: svg, fit: pw.BoxFit.cover),
+    );
     return [
-      _heading('Site plan'),
-      pw.Container(
-        height: 300,
-        width: double.infinity,
-        decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
-        child: pw.SvgImage(svg: svg, fit: pw.BoxFit.contain),
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading(
+              block == null ? 'Site plan' : 'The property and its block',
+            ),
+            if (block != null && plan != null)
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(flex: 3, child: frame(block, 230)),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Container(
+                      height: 230,
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: _rule),
+                      ),
+                      child: pw.SvgImage(svg: plan, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                ],
+              )
+            else
+              frame(block ?? plan!, block != null ? 300 : 300),
+          ],
+        ),
+      ),
+      pw.SizedBox(height: 16),
+    ];
+  }
+
+  /// Where the comparable sales are: numbered as in the table, in the radius
+  /// they were drawn from.
+  List<pw.Widget> _salesMap() {
+    final svg = areaMapSvg;
+    if (svg == null || report.includedComparables.isEmpty) return const [];
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading('Where the comparable sales are'),
+            pw.Container(
+              height: 470,
+              width: double.infinity,
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
+              child: pw.SvgImage(svg: svg, fit: pw.BoxFit.contain),
+            ),
+          ],
+        ),
       ),
       pw.SizedBox(height: 16),
     ];
@@ -530,6 +590,7 @@ class ValuationReportPdf {
         ),
       pw.TableHelper.fromTextArray(
         headers: [
+          if (areaMapSvg != null) '#',
           'Address',
           if (withDistance) 'Dist',
           'Sold',
@@ -539,8 +600,9 @@ class ValuationReportPdf {
           'Indexed today',
         ],
         data: [
-          for (final c in used)
+          for (final (i, c) in used.indexed)
             [
+              if (areaMapSvg != null) '${i + 1}',
               titleCase(c.address),
               if (withDistance)
                 c.distanceM == null ? '-' : '${c.distanceM!.round()} m',
@@ -561,6 +623,7 @@ class ValuationReportPdf {
         ),
         columnWidths: {
           for (final (i, w) in [
+            if (areaMapSvg != null) 0.4,
             3.2,
             if (withDistance) 0.9,
             1.3,
@@ -571,11 +634,16 @@ class ValuationReportPdf {
           ].indexed)
             i: pw.FlexColumnWidth(w),
         },
-        cellAlignments: {
-          if (withDistance) 1: pw.Alignment.centerRight,
-          for (var i = withDistance ? 3 : 2; i <= (withDistance ? 6 : 5); i++)
-            i: pw.Alignment.centerRight,
-        },
+        // Numbers to the right: distance, price, building, R/m², indexed.
+        cellAlignments: () {
+          final first = areaMapSvg != null ? 1 : 0; // the address column
+          final sold = first + (withDistance ? 2 : 1);
+          return {
+            if (withDistance) first + 1: pw.Alignment.centerRight,
+            for (var i = sold + 1; i <= sold + 4; i++)
+              i: pw.Alignment.centerRight,
+          };
+        }(),
       ),
       pw.SizedBox(height: 14),
     ];

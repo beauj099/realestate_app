@@ -269,6 +269,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       final pdf = ReportPackPdf(
         report: report,
         sitePlanSvg: state.sitePlanSvg,
+        areaMapSvg: state.areaMapSvg,
+        blockMapSvg: state.blockMapSvg,
         images: state.images,
         agent: PackAgent(
           name: profile.fullName,
@@ -355,6 +357,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       final pdf = ValuationReportPdf(
         report: report,
         sitePlanSvg: state.sitePlanSvg,
+        areaMapSvg: state.areaMapSvg,
+        blockMapSvg: state.blockMapSvg,
         images: state.images,
         author: _author(),
         brandColor: brand.primaryColor,
@@ -659,6 +663,30 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ],
       ..._fillListing(r, theme, textTheme),
       gap,
+      if (state.blockMapSvg case final block?) ...[
+        ReportCard(
+          title: 'The property and its block',
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            SitePlanView(svg: block, theme: theme, textTheme: textTheme),
+          ],
+        ),
+        gap,
+      ],
+      if (state.areaMapSvg case final map?
+          when r.includedComparables.isNotEmpty) ...[
+        ReportCard(
+          title: 'Where the comparable sales are',
+          subtitle: 'Numbered as in the list of comparable sales',
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            SitePlanView(svg: map, theme: theme, textTheme: textTheme),
+          ],
+        ),
+        gap,
+      ],
       ReportCard(
         title: 'Site plan',
         subtitle: captured == null ? null : 'Buildings as surveyed $captured',
