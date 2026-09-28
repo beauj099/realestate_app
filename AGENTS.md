@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (233 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (234 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.

@@ -505,6 +505,8 @@ class _OutdoorGroup {
         return Icons.solar_power_outlined;
       case OutdoorExtraCategory.parking:
         return Icons.local_parking_outlined;
+      case OutdoorExtraCategory.lifestyle:
+        return Icons.pets_outlined;
     }
   }
 

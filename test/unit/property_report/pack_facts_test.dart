@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:realworth/core/theme/office_details.dart';
+import 'package:realworth/features/property_overview/data/models/property_state.dart';
 import 'package:realworth/features/property_report/report/pack_listing.dart';
 
 void main() {
@@ -36,5 +37,27 @@ void main() {
     expect(merged.logos.mark, 'agency-mark');
     expect(merged.logos.wide, 'office-wide');
     expect(merged.logos.wideOnBrand, isNull);
+  });
+
+  test('ticked outdoor and lifestyle features reach the cover', () {
+    final facts = packFacts(
+      PropertyState(
+        outdoorFeatures: [
+          'Garden',
+          'Pet Friendly',
+          'Fibre Internet',
+          'Swimming Pool',
+          'Flatlet / Garden Cottage',
+        ],
+      ),
+      const {},
+    );
+    expect(facts.extras.map((e) => e.$2), [
+      'Pool',
+      'Flatlet',
+      'Garden',
+      'Fibre internet',
+      'Pet friendly',
+    ]);
   });
 }
