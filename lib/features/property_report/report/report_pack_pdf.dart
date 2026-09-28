@@ -12,6 +12,7 @@ import 'costs_calculator.dart';
 import 'pack_icons.dart';
 import 'pack_listing.dart';
 import 'valuation_report_pdf.dart';
+import 'world_map.dart';
 
 /// Who the pack is from: printed on the cover, the "Your agent" page and the
 /// letter.
@@ -231,7 +232,11 @@ class ReportPackPdf {
       pw.Page(pageFormat: format, margin: _margin, build: (_) => _contents()),
     );
     doc.addPage(
-      pw.Page(pageFormat: format, margin: _margin, build: (_) => _agentPage()),
+      pw.Page(
+        pageFormat: format,
+        margin: pw.EdgeInsets.zero,
+        build: (_) => _agentPage(),
+      ),
     );
     doc.addPage(
       pw.MultiPage(
@@ -597,21 +602,18 @@ class ReportPackPdf {
   pw.Widget _agentCard() {
     final photo = _img(pictures.agentPhoto);
     final logo = _img(pictures.logo);
-    pw.Widget contact(String label, String value) => pw.Padding(
+    final onBrandHex = (onBrandColor.toARGB32() & 0xFFFFFF)
+        .toRadixString(16)
+        .padLeft(6, '0');
+    pw.Widget contact(String icon, String value) => pw.Padding(
       padding: const pw.EdgeInsets.only(top: 3),
       child: pw.Row(
         children: [
-          pw.SizedBox(
-            width: 14,
-            child: pw.Text(
-              label,
-              style: pw.TextStyle(
-                color: _onBrand,
-                fontSize: 9,
-                fontWeight: pw.FontWeight.bold,
-              ),
+          if (packIcon(icon, onBrandHex) case final svg?)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(right: 7),
+              child: pw.SvgImage(svg: svg, width: 10, height: 10),
             ),
-          ),
           pw.Text(value, style: pw.TextStyle(color: _onBrand, fontSize: 9.5)),
         ],
       ),
@@ -652,9 +654,9 @@ class ReportPackPdf {
                     style: pw.TextStyle(color: _onBrand, fontSize: 9.5),
                   ),
                 pw.SizedBox(height: 6),
-                if (agent.mobile.isNotEmpty) contact('M', agent.mobile),
-                if (agent.email.isNotEmpty) contact('E', agent.email),
-                if (agent.website.isNotEmpty) contact('W', agent.website),
+                if (agent.mobile.isNotEmpty) contact('phone', agent.mobile),
+                if (agent.email.isNotEmpty) contact('email', agent.email),
+                if (agent.website.isNotEmpty) contact('website', agent.website),
               ],
             ),
           ),
@@ -839,128 +841,388 @@ class ReportPackPdf {
 
   // ---- your agent ------------------------------------------------------------
 
+  /// The brand colour mixed into white: [amount] 0 is white, 1 the brand.
+  PdfColor _tint(double amount) => PdfColor(
+    1 - (1 - _brand.red) * amount,
+    1 - (1 - _brand.green) * amount,
+    1 - (1 - _brand.blue) * amount,
+  );
+
+  static const _pageSide = 40.0;
+
+  /// "Your agent": a faint world map behind the heading, the photo with the
+  /// qualifications under it, the agent's own words beside it with their
+  /// contact details in a banner, and the agency at the foot.
   pw.Widget _agentPage() {
     final photo = _img(pictures.agentPhoto);
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+    final logo = _img(pictures.logo);
+    return pw.Stack(
       children: [
-        _letterhead(),
-        pw.Text(
-          'YOUR AGENT',
-          style: pw.TextStyle(fontSize: 12, color: _muted, letterSpacing: 2),
+        pw.Positioned(
+          left: -10,
+          top: 95,
+          child: pw.SvgImage(svg: worldMapSvg('EDEDED'), width: 620),
         ),
-        pw.SizedBox(height: 14),
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            if (photo != null)
-              pw.Container(
-                width: 150,
-                height: 180,
-                margin: const pw.EdgeInsets.only(right: 20),
-                child: pw.Image(photo, fit: pw.BoxFit.cover),
+            // The agency's mark, top right.
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(_pageSide, 26, 28, 0),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  if (agent.office.name.isNotEmpty ||
+                      agent.agencyName.isNotEmpty)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(right: 10),
+                      child: pw.Text(
+                        pdfText(
+                          agent.office.name.isNotEmpty
+                              ? agent.office.name
+                              : agent.agencyName,
+                        ),
+                        style: const pw.TextStyle(fontSize: 10, color: _muted),
+                      ),
+                    ),
+                  pw.Container(
+                    height: 44,
+                    width: logo == null ? null : 44,
+                    padding: const pw.EdgeInsets.all(4),
+                    color: _logoBackground,
+                    child: logo == null
+                        ? pw.Center(
+                            child: pw.Text(
+                              agent.agencyName,
+                              style: pw.TextStyle(
+                                color: _onBrand,
+                                fontSize: 10,
+                              ),
+                            ),
+                          )
+                        : pw.Image(logo, fit: pw.BoxFit.contain),
+                  ),
+                ],
               ),
-            pw.Expanded(
+            ),
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(
+                _pageSide,
+                14,
+                _pageSide,
+                0,
+              ),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    agent.name,
-                    style: pw.TextStyle(
-                      fontSize: 22,
-                      fontWeight: pw.FontWeight.bold,
-                      color: _ink,
+                    'YOUR',
+                    style: const pw.TextStyle(fontSize: 21, color: _ink),
+                  ),
+                  pw.RichText(
+                    text: pw.TextSpan(
+                      style: const pw.TextStyle(fontSize: 30, color: _ink),
+                      children: [
+                        const pw.TextSpan(text: 'residential & '),
+                        pw.TextSpan(
+                          text: 'lifestyle',
+                          style: pw.TextStyle(color: _brand),
+                        ),
+                        const pw.TextSpan(text: ' realty partner'),
+                      ],
                     ),
                   ),
-                  if (agent.jobTitle.isNotEmpty)
-                    pw.Text(
-                      agent.jobTitle,
-                      style: const pw.TextStyle(fontSize: 13, color: _ink),
-                    ),
-                  pw.SizedBox(height: 10),
-                  for (final line in [
-                    agent.email,
-                    agent.website,
-                    agent.mobile,
-                  ].where((l) => l.isNotEmpty))
-                    pw.Text(
-                      line,
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        color: _brand,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
                 ],
               ),
             ),
+            pw.SizedBox(height: 22),
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: _pageSide),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // Photo, and the qualifications under it.
+                  pw.SizedBox(
+                    width: 170,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        if (photo != null)
+                          pw.Container(
+                            width: 170,
+                            height: 205,
+                            child: pw.Image(photo, fit: pw.BoxFit.cover),
+                          ),
+                        if (agent.qualifications.isNotEmpty) ...[
+                          pw.SizedBox(height: 16),
+                          pw.Text(
+                            'Qualifications & Registrations',
+                            style: pw.TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: pw.FontWeight.bold,
+                              color: _ink,
+                            ),
+                          ),
+                          pw.SizedBox(height: 6),
+                          for (final q in agent.qualifications)
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.only(bottom: 3),
+                              child: pw.Row(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Container(
+                                    width: 5,
+                                    height: 5,
+                                    margin: const pw.EdgeInsets.only(
+                                      top: 3.5,
+                                      right: 7,
+                                    ),
+                                    decoration: pw.BoxDecoration(
+                                      color: _brand,
+                                      shape: pw.BoxShape.circle,
+                                    ),
+                                  ),
+                                  pw.Expanded(
+                                    child: pw.Text(
+                                      pdfText(q),
+                                      style: const pw.TextStyle(
+                                        fontSize: 10,
+                                        color: _ink,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(width: 24),
+                  // Name, their own words, and how to reach them.
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          agent.name,
+                          style: pw.TextStyle(
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                            color: _ink,
+                          ),
+                        ),
+                        if (agent.jobTitle.isNotEmpty)
+                          pw.Text(
+                            agent.jobTitle,
+                            style: const pw.TextStyle(
+                              fontSize: 14,
+                              color: _ink,
+                            ),
+                          ),
+                        pw.Container(
+                          width: 40,
+                          height: 2.5,
+                          margin: const pw.EdgeInsets.symmetric(vertical: 12),
+                          color: _brand,
+                        ),
+                        if (agent.bio.isNotEmpty)
+                          pw.Text(
+                            pdfText(agent.bio),
+                            style: const pw.TextStyle(
+                              fontSize: 10.5,
+                              color: _ink,
+                              lineSpacing: 3.5,
+                            ),
+                          ),
+                        pw.SizedBox(height: 18),
+                        _contactBanner(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.Spacer(),
+            pw.Container(
+              margin: const pw.EdgeInsets.symmetric(horizontal: 20),
+              color: _brand,
+              padding: const pw.EdgeInsets.symmetric(vertical: 9),
+              child: pw.Center(
+                child: pw.Text(
+                  'registered professional property practitioner',
+                  style: pw.TextStyle(
+                    color: _onBrand,
+                    fontSize: 10.5,
+                    letterSpacing: 2.5,
+                  ),
+                ),
+              ),
+            ),
+            _agencyFooterBlock(),
           ],
         ),
-        if (agent.bio.isNotEmpty) ...[
-          pw.SizedBox(height: 18),
-          pw.Text(
-            pdfText(agent.bio),
-            style: const pw.TextStyle(
-              fontSize: 10.5,
-              color: _ink,
-              lineSpacing: 3,
-            ),
-          ),
-        ],
-        if (agent.qualifications.isNotEmpty) ...[
-          pw.SizedBox(height: 16),
-          pw.Text(
-            'Qualifications & registrations',
-            style: pw.TextStyle(
-              fontSize: 10,
-              fontWeight: pw.FontWeight.bold,
-              color: _ink,
-            ),
-          ),
-          pw.SizedBox(height: 4),
-          for (final q in agent.qualifications)
-            pw.Bullet(
-              text: pdfText(q),
-              style: const pw.TextStyle(fontSize: 9.5, color: _ink),
-              bulletColor: _brand,
-              bulletSize: 3,
-            ),
-        ],
-        pw.SizedBox(height: 12),
-        pw.Wrap(
-          spacing: 18,
-          children: [
-            if (agent.ppraNumber.isNotEmpty)
-              pw.Text(
-                'PPRA reg. no. ${agent.ppraNumber}',
-                style: const pw.TextStyle(fontSize: 9, color: _muted),
-              ),
-            if (agent.ffcNumber.isNotEmpty)
-              pw.Text(
-                'FFC no. ${agent.ffcNumber}',
-                style: const pw.TextStyle(fontSize: 9, color: _muted),
-              ),
-          ],
-        ),
-        pw.Spacer(),
-        pw.Container(
-          width: double.infinity,
-          color: _brand,
-          padding: const pw.EdgeInsets.symmetric(vertical: 8),
-          child: pw.Center(
-            child: pw.Text(
-              'registered professional property practitioner',
-              style: pw.TextStyle(
-                color: _onBrand,
-                fontSize: 9,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-        ),
-        pw.SizedBox(height: 8),
-        _officeFooter(),
       ],
+    );
+  }
+
+  /// Phone, email and website in a banner on a tint of the brand colour.
+  pw.Widget _contactBanner() {
+    final rows = [
+      if (agent.mobile.isNotEmpty) ('phone', agent.mobile),
+      if (agent.email.isNotEmpty) ('email', agent.email),
+      if (agent.website.isNotEmpty) ('website', agent.website),
+    ];
+    final registrations = [
+      if (agent.ppraNumber.isNotEmpty) 'PPRA reg. no. ${agent.ppraNumber}',
+      if (agent.ffcNumber.isNotEmpty) 'FFC no. ${agent.ffcNumber}',
+    ];
+    if (rows.isEmpty && registrations.isEmpty) return pw.SizedBox();
+    return pw.Container(
+      padding: const pw.EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: pw.BoxDecoration(
+        color: _tint(0.07),
+        border: pw.Border(left: pw.BorderSide(color: _brand, width: 4)),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'GET IN TOUCH',
+            style: pw.TextStyle(
+              fontSize: 8.5,
+              letterSpacing: 2,
+              fontWeight: pw.FontWeight.bold,
+              color: _brand,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          for (final (icon, value) in rows)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 4),
+              child: pw.Row(
+                children: [
+                  if (packIcon(icon, _brandHex) case final svg?)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(right: 9),
+                      child: pw.SvgImage(svg: svg, width: 14, height: 14),
+                    ),
+                  pw.Text(
+                    value,
+                    style: const pw.TextStyle(
+                      fontSize: 11,
+                      color: _ink,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (registrations.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Text(
+              registrations.join('     '),
+              style: const pw.TextStyle(fontSize: 8.5, color: _muted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The agency at the foot of the page: its logo, a rule, and the office's
+  /// name, address and contacts, with the legal line under them.
+  pw.Widget _agencyFooterBlock() {
+    final logo = _img(pictures.logo);
+    final office = agent.office;
+    final contacts = [
+      if (office.phone.isNotEmpty) 'Tel ${office.phone}',
+      if (office.email.isNotEmpty) office.email,
+    ];
+    return pw.Padding(
+      padding: const pw.EdgeInsets.fromLTRB(_pageSide, 16, _pageSide, 22),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Container(
+                width: 170,
+                height: 64,
+                padding: const pw.EdgeInsets.all(6),
+                color: logo == null ? null : _logoBackground,
+                alignment: pw.Alignment.center,
+                child: logo == null
+                    ? pw.Text(
+                        agent.agencyName,
+                        style: pw.TextStyle(
+                          color: _brand,
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      )
+                    : pw.Image(logo, fit: pw.BoxFit.contain),
+              ),
+              pw.Container(
+                width: 2,
+                height: 64,
+                margin: const pw.EdgeInsets.symmetric(horizontal: 18),
+                color: _ink,
+              ),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      pdfText(
+                        office.name.isNotEmpty ? office.name : agent.agencyName,
+                      ),
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                        color: _ink,
+                      ),
+                    ),
+                    if (office.address.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 3),
+                        child: pw.Text(
+                          pdfText(office.address),
+                          style: const pw.TextStyle(fontSize: 10, color: _ink),
+                        ),
+                      ),
+                    if (contacts.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 2),
+                        child: pw.Text(
+                          contacts.join('   |   '),
+                          style: const pw.TextStyle(fontSize: 10, color: _ink),
+                        ),
+                      ),
+                    if (office.website.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 2),
+                        child: pw.Text(
+                          office.website,
+                          style: pw.TextStyle(fontSize: 10, color: _brand),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (office.footer.isNotEmpty) ...[
+            pw.SizedBox(height: 10),
+            pw.Text(
+              pdfText(office.footer),
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

@@ -547,6 +547,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       controller: _websiteController,
                       keyboardType: TextInputType.url,
                       autocorrect: false,
+                      prefixIcon: Icon(
+                        Icons.language,
+                        color: theme.textSecondary,
+                      ),
+                      subtext:
+                          'Printed on your report pack with your phone and email.',
                     ),
                     const SizedBox(height: 16),
                     CustomTextInput(

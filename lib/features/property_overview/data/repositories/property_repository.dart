@@ -178,6 +178,7 @@ class PropertyRepository {
         .map(
           (c) => Contact(
             id: c['id'].toString(),
+            title: c['title'] as String? ?? '',
             fullName: c['fullName'] as String? ?? '',
             idNumber: c['idNumber'] as String? ?? '',
             companyName: c['companyName'] as String? ?? '',
@@ -601,7 +602,9 @@ class PropertyRepository {
     final syncedContacts = <Contact>[];
 
     for (final contact in allContacts) {
-      final data = <String, dynamic>{};
+      // Always sent, so clearing a title clears it (the API keeps a field it
+      // is not sent).
+      final data = <String, dynamic>{'title': contact.title};
       if (contact.fullName.isNotEmpty) data['fullName'] = contact.fullName;
       if (contact.idNumber.isNotEmpty) data['idNumber'] = contact.idNumber;
       if (contact.companyName.isNotEmpty) {

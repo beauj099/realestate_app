@@ -42,4 +42,33 @@ void main() {
     expect(splitName('Francois du Toit'), (first: 'Francois', last: 'du Toit'));
     expect(splitName('Cher'), (first: 'Cher', last: ''));
   });
+
+  group('greetOwners', () {
+    test('by title when every owner has one', () {
+      expect(
+        greetOwners([
+          (title: 'Mr', name: 'Piet Swanepoel'),
+          (title: 'Mrs', name: 'Mary Swanepoel'),
+        ]),
+        'Mr & Mrs Swanepoel',
+      );
+      expect(
+        greetOwners([
+          (title: 'Mr', name: 'Bill Murray'),
+          (title: 'Dr', name: 'John Smith'),
+        ]),
+        'Mr Murray & Dr Smith',
+      );
+    });
+
+    test('by first name when a title is missing', () {
+      expect(
+        greetOwners([
+          (title: 'Mr', name: 'Piet Swanepoel'),
+          (title: '', name: 'Mary Swanepoel'),
+        ]),
+        'Piet & Mary',
+      );
+    });
+  });
 }

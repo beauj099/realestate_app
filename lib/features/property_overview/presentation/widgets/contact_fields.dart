@@ -99,6 +99,12 @@ class ContactFields extends StatelessWidget {
             onChanged: (val) => onChanged(contact.copyWith(role: val)),
           ),
         ] else ...[
+          _TitlePicker(
+            theme: theme,
+            selected: contact.title,
+            onChanged: (t) => onChanged(contact.copyWith(title: t)),
+          ),
+          const SizedBox(height: 16),
           CustomTextInput(
             theme: theme,
             label: 'FULL NAME',
@@ -319,4 +325,53 @@ Map<String, String> validateContact(
     if (phoneError != null) errors['phone'] = phoneError;
   }
   return errors;
+}
+
+/// Mr, Mrs, Ms… as chips; tapping the chosen one again clears it.
+class _TitlePicker extends StatelessWidget {
+  final RealEstateTheme theme;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  const _TitlePicker({
+    required this.theme,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = theme.toThemeData().textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TITLE (OPTIONAL)',
+          style: textTheme.labelSmall?.copyWith(
+            color: theme.textSecondary,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final t in ownerTitles)
+              ChoiceChip(
+                label: Text(t),
+                selected: selected == t,
+                showCheckmark: false,
+                selectedColor: theme.primaryColor,
+                labelStyle: TextStyle(
+                  color: selected == t ? theme.onPrimary : theme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+                onSelected: (_) => onChanged(selected == t ? '' : t),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }

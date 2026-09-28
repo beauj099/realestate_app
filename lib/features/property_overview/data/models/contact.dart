@@ -12,8 +12,15 @@ enum OwnerType {
   const OwnerType(this.label);
 }
 
+/// Titles offered for an owner (optional). The report pack's letter greets
+/// owners by title when they all have one: "Dear Mr & Mrs Swanepoel".
+const ownerTitles = ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Prof', 'Adv'];
+
 class Contact {
   final String id;
+
+  /// Mr, Mrs, Ms, Dr…, or empty. People only, never a business.
+  final String title;
   final String fullName;
   final String idNumber;
   final String companyName;
@@ -29,6 +36,7 @@ class Contact {
 
   const Contact({
     this.id = '',
+    this.title = '',
     this.fullName = '',
     this.idNumber = '',
     this.companyName = '',
@@ -41,6 +49,7 @@ class Contact {
 
   Contact copyWith({
     String? id,
+    String? title,
     String? fullName,
     String? idNumber,
     String? companyName,
@@ -52,6 +61,7 @@ class Contact {
   }) {
     return Contact(
       id: id ?? this.id,
+      title: title ?? this.title,
       fullName: fullName ?? this.fullName,
       idNumber: idNumber ?? this.idNumber,
       companyName: companyName ?? this.companyName,
@@ -79,6 +89,7 @@ class Contact {
   Contact asOwnerType(OwnerType type) {
     return Contact(
       id: id,
+      title: type == OwnerType.naturalPerson ? title : '',
       fullName: fullName,
       idNumber: type == OwnerType.naturalPerson ? idNumber : '',
       companyName: type == OwnerType.business ? companyName : '',

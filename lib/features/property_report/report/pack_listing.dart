@@ -46,19 +46,44 @@ List<String> packPortfolio(PropertyState s) {
 }
 
 /// The owners as the pack names them — "Piet & Mary Swanepoel" when they
-/// share a surname, "Bill Murray & John Smith" when not — and their first
-/// names for the letter: "Piet & Mary". Agents can change both.
+/// share a surname, "Bill Murray & John Smith" when not — and the letter's
+/// greeting: by title when every owner has one ("Mr & Mrs Swanepoel"), else
+/// by first name ("Piet & Mary"). Agents can change both.
 (String preparedFor, String greeting) packOwners(PropertyState s) {
-  final people = [s.primaryContact, ...s.coContacts]
+  final owners = [s.primaryContact, ...s.coContacts]
       .map(
-        (c) => c.companyName.trim().isNotEmpty && c.fullName.trim().isEmpty
-            ? c.companyName.trim()
-            : c.fullName.trim(),
+        (c) => (
+          name: c.companyName.trim().isNotEmpty && c.fullName.trim().isEmpty
+              ? c.companyName.trim()
+              : c.fullName.trim(),
+          title: c.title.trim(),
+        ),
       )
-      .where((n) => n.isNotEmpty)
+      .where((o) => o.name.isNotEmpty)
       .toList();
-  final firstNames = people.map((n) => splitName(n).first).toList();
-  return (joinOwnerNames(people), joinWithAnd(firstNames));
+  final names = [for (final o in owners) o.name];
+  return (
+    joinOwnerNames(names),
+    greetOwners([for (final o in owners) (title: o.title, name: o.name)]),
+  );
+}
+
+/// "Mr & Mrs Swanepoel", "Mr Murray & Dr Smith" when every owner has a
+/// title; else their first names, "Piet & Mary".
+String greetOwners(List<({String title, String name})> owners) {
+  if (owners.isNotEmpty && owners.every((o) => o.title.isNotEmpty)) {
+    final surnames = [for (final o in owners) splitName(o.name).last];
+    final shared =
+        surnames.first.isNotEmpty &&
+        surnames.every((n) => n.toLowerCase() == surnames.first.toLowerCase());
+    return shared
+        ? '${joinWithAnd([for (final o in owners) o.title])} ${surnames.first}'
+        : joinWithAnd([
+            for (final o in owners)
+              '${o.title} ${splitName(o.name).last}'.trim(),
+          ]);
+  }
+  return joinWithAnd([for (final o in owners) splitName(o.name).first]);
 }
 
 /// "A", "A & B", "A, B & C".
