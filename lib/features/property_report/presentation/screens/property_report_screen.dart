@@ -242,6 +242,14 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         for (final page in brochure) packImageBytes(page, api),
       ]);
       final listingCount = forSale?.listings.length ?? 0;
+      // The cover's row of photos under the main one.
+      final gallery = await Future.wait([
+        for (final g in packGallery(listing)) packImageBytes(g, api),
+      ]);
+      final parkingTypes = ref
+          .read(parkingTypesProvider)
+          .maybeWhen(data: (t) => t, orElse: () => fallbackParkingTypes);
+      final (street, area) = packAddress(listing);
       final c = options.calculator;
       final pdf = ReportPackPdf(
         report: report,
@@ -264,6 +272,9 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           preparedFor: options.preparedFor,
           greeting: options.greeting,
           portfolio: packPortfolio(listing),
+          street: street,
+          area: area,
+          facts: packFacts(listing, parkingTypes),
         ),
         valuation: PackValuation(
           low: options.low,
@@ -286,6 +297,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         pictures: PackImages(
           coverPhoto: fetched[0],
           secondPhoto: fetched[1],
+          gallery: [for (final g in gallery) ?g],
           agentPhoto: fetched[2],
           signature: fetched[3],
           logo: fetched[4],
@@ -299,6 +311,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         ),
         brandColor: brand.primaryColor,
         onBrandColor: brand.onPrimary,
+        logoBackground: agency.bannerColor,
       );
       final bytes = await pdf.build();
       await Printing.sharePdf(bytes: bytes, filename: pdf.fileName);

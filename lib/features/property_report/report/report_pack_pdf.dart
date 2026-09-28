@@ -9,6 +9,8 @@ import '../../../core/theme/office_details.dart';
 import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import 'costs_calculator.dart';
+import 'pack_icons.dart';
+import 'pack_listing.dart';
 import 'valuation_report_pdf.dart';
 
 /// Who the pack is from: printed on the cover, the "Your agent" page and the
@@ -43,20 +45,28 @@ class PackAgent {
   });
 }
 
-/// What the agent captured about the home, for the cover's "Property
-/// portfolio" and the letter.
+/// What the agent captured about the home: the cover's address and icons,
+/// the "About the property" list and the letter.
 class PackListing {
-  /// "Mr & Mrs Du Toit": who the pack is prepared for.
+  /// "Piet & Mary Swanepoel": who the pack is prepared for.
   final String preparedFor;
 
-  /// The owners' first names for the letter's greeting, e.g. "Francois & Ree".
+  /// The owners' first names for the letter's greeting, e.g. "Piet & Mary".
   final String greeting;
   final List<String> portfolio;
+
+  /// "10 Bosman Street" and "Strand, Cape Town", as the agent captured them.
+  final String street;
+  final String area;
+  final PackFacts facts;
 
   const PackListing({
     this.preparedFor = '',
     this.greeting = '',
     this.portfolio = const [],
+    this.street = '',
+    this.area = '',
+    this.facts = const PackFacts(),
   });
 }
 
@@ -76,6 +86,9 @@ class PackValuation {
 class PackImages {
   final Uint8List? coverPhoto;
   final Uint8List? secondPhoto;
+
+  /// The cover's row of photos under the main one (up to three).
+  final List<Uint8List> gallery;
   final Uint8List? agentPhoto;
   final Uint8List? signature;
   final Uint8List? logo;
@@ -87,6 +100,7 @@ class PackImages {
   const PackImages({
     this.coverPhoto,
     this.secondPhoto,
+    this.gallery = const [],
     this.agentPhoto,
     this.signature,
     this.logo,
@@ -115,6 +129,10 @@ class ReportPackPdf {
   final PackImages pictures;
   final Color brandColor;
   final Color onBrandColor;
+
+  /// Behind the logo in the cover's top band: the agency's banner colour
+  /// (the logo artwork's own background), as on the app's home screen.
+  final Color? logoBackground;
   final DateTime date;
 
   ReportPackPdf({
@@ -128,6 +146,7 @@ class ReportPackPdf {
     required this.pictures,
     required this.brandColor,
     this.onBrandColor = const Color(0xFFFFFFFF),
+    this.logoBackground,
     this.area,
     this.forSale,
     DateTime? date,
@@ -142,6 +161,17 @@ class ReportPackPdf {
 
   PdfColor get _brand => PdfColor.fromInt(brandColor.toARGB32());
   PdfColor get _onBrand => PdfColor.fromInt(onBrandColor.toARGB32());
+  PdfColor get _logoBackground =>
+      PdfColor.fromInt((logoBackground ?? brandColor).toARGB32());
+
+  /// Whether the logo artwork sits on the brand colour itself (then it can go
+  /// straight onto the agent card).
+  bool get _logoOnBrand =>
+      (logoBackground ?? brandColor).toARGB32() == brandColor.toARGB32();
+
+  // The cover's serif, as on the agencies' own valuation covers.
+  static final _serif = pw.Font.times();
+  static final _serifBold = pw.Font.timesBold();
 
   String get fileName =>
       'Valuation - ${report.displayAddress.replaceAll(',', '')}.pdf';
@@ -259,164 +289,292 @@ class ReportPackPdf {
 
   // ---- cover ---------------------------------------------------------------
 
+  static const _coverSide = 22.0;
+
   pw.Widget _cover() {
     final cover = _img(pictures.coverPhoto) ?? _img(_satellite);
-    final second = _img(pictures.secondPhoto);
-    final satellite = _img(_satellite);
+    final gallery = [
+      for (final g in pictures.gallery) ?_img(g),
+    ].take(3).toList();
     final sold = report.lastSale;
+    final street = listing.street.isNotEmpty
+        ? listing.street
+        : report.displayAddress.split(',').first;
+    final area = listing.area.isNotEmpty ? listing.area : _title(report.suburb);
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.Container(
-          padding: const pw.EdgeInsets.fromLTRB(40, 28, 40, 14),
-          child: pw.Column(
+        _coverLogoBand(),
+        // The headline in a half frame, open at the bottom where the photo
+        // band starts.
+        pw.Padding(
+          padding: const pw.EdgeInsets.fromLTRB(_coverSide, 18, _coverSide, 0),
+          child: pw.Stack(
+            alignment: pw.Alignment.topCenter,
+            overflow: pw.Overflow.visible,
             children: [
-              pw.Text(
-                'Market Related Property Valuation',
-                style: pw.TextStyle(
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _ink,
+              pw.Container(
+                height: 58,
+                margin: const pw.EdgeInsets.only(top: 14),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    top: pw.BorderSide(color: PdfColors.black, width: 1.6),
+                    left: pw.BorderSide(color: PdfColors.black, width: 1.6),
+                    right: pw.BorderSide(color: PdfColors.black, width: 1.6),
+                  ),
                 ),
               ),
-              pw.SizedBox(height: 4),
-              pw.Text(
-                '${report.displayAddress}  //  Erf ${report.erf}',
-                style: pw.TextStyle(
-                  fontSize: 11,
-                  color: _muted,
-                  fontWeight: pw.FontWeight.bold,
+              pw.Container(
+                color: PdfColors.white,
+                padding: const pw.EdgeInsets.symmetric(horizontal: 12),
+                child: pw.Text(
+                  'Market Related Property Valuation',
+                  style: pw.TextStyle(
+                    font: _serifBold,
+                    fontSize: 26,
+                    color: PdfColors.black,
+                  ),
                 ),
               ),
-              if (listing.preparedFor.isNotEmpty) ...[
-                pw.SizedBox(height: 10),
-                pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 5,
-                  ),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: _brand, width: 1),
-                    borderRadius: pw.BorderRadius.circular(12),
-                  ),
+              pw.Positioned(
+                top: 40,
+                left: 0,
+                right: 0,
+                child: pw.Center(
                   child: pw.Text(
-                    pdfText('Specially prepared for ${listing.preparedFor}.'),
-                    style: pw.TextStyle(fontSize: 12, color: _brand),
+                    pdfText(
+                      '- $street, ${_title(report.suburb)}  //  Erf ${report.erf} -',
+                    ),
+                    style: pw.TextStyle(
+                      font: _serifBold,
+                      fontSize: 12.5,
+                      letterSpacing: 0.6,
+                      color: PdfColors.black,
+                    ),
                   ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
+        // The main photo on the brand colour, with who it is prepared for on it.
         pw.Container(
-          height: 300,
+          height: 330,
           color: _brand,
-          padding: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-          child: cover == null
-              ? pw.Center(
-                  child: pw.Text(
-                    report.displayAddress,
-                    style: pw.TextStyle(color: _onBrand, fontSize: 18),
+          padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
+          child: pw.Stack(
+            alignment: pw.Alignment.topCenter,
+            children: [
+              pw.Positioned.fill(
+                child: cover == null
+                    ? pw.Container(
+                        color: _brand,
+                        alignment: pw.Alignment.center,
+                        child: pw.Text(
+                          pdfText(street),
+                          style: pw.TextStyle(color: _onBrand, fontSize: 18),
+                        ),
+                      )
+                    : pw.Image(cover, fit: pw.BoxFit.cover),
+              ),
+              if (listing.preparedFor.isNotEmpty)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 12),
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.fromLTRB(16, 5, 16, 6),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.white,
+                      borderRadius: pw.BorderRadius.circular(14),
+                    ),
+                    child: pw.Text(
+                      pdfText('Specially prepared for ${listing.preparedFor}.'),
+                      style: pw.TextStyle(
+                        font: _serif,
+                        fontSize: 17,
+                        letterSpacing: 0.4,
+                        color: _brand,
+                      ),
+                    ),
                   ),
-                )
-              : pw.Image(cover, fit: pw.BoxFit.cover),
+                ),
+            ],
+          ),
         ),
         if (sold != null)
           pw.Padding(
-            padding: const pw.EdgeInsets.only(top: 6),
+            padding: const pw.EdgeInsets.only(top: 5),
             child: pw.Center(
               child: pw.Text(
-                'Last registered sale: ${_day.format(sold.date)} for ${rand(sold.priceZar)}',
+                pdfText(
+                  '•  Last registered sale: ${_day.format(sold.date)}  •  '
+                  'Price: ${rand(sold.priceZar)}  •',
+                ),
                 style: pw.TextStyle(
-                  fontSize: 9.5,
-                  color: _ink,
-                  fontWeight: pw.FontWeight.bold,
+                  font: _serif,
+                  fontSize: 10,
+                  color: PdfColors.black,
                 ),
               ),
             ),
           ),
-        pw.SizedBox(height: 10),
-        pw.Expanded(
-          child: pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 40),
+        if (gallery.isNotEmpty)
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(_coverSide, 8, _coverSide, 0),
             child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Row(
-                        children: [
-                          for (final i in [
-                            satellite,
-                            second,
-                          ].whereType<pw.ImageProvider>())
-                            pw.Expanded(
-                              child: pw.Padding(
-                                padding: const pw.EdgeInsets.only(right: 6),
-                                child: pw.SizedBox(
-                                  height: 90,
-                                  child: pw.Image(i, fit: pw.BoxFit.cover),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      pw.Spacer(),
-                      pw.Text(
-                        'Thank you for allowing me the opportunity to present our market related property '
-                        'valuation to you.',
-                        style: pw.TextStyle(fontSize: 12, color: _brand),
-                      ),
-                      pw.SizedBox(height: 10),
-                      _agentCard(),
-                      pw.SizedBox(height: 16),
-                    ],
+                for (var i = 0; i < 3; i++) ...[
+                  if (i > 0) pw.SizedBox(width: 6),
+                  pw.Expanded(
+                    child: pw.SizedBox(
+                      height: 84,
+                      child: i < gallery.length
+                          ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
+                          : pw.SizedBox(),
+                    ),
                   ),
-                ),
-                pw.SizedBox(width: 14),
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'Property portfolio',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          fontWeight: pw.FontWeight.bold,
-                          color: _ink,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      for (final line in _portfolio)
-                        pw.Bullet(
-                          text: pdfText(line),
-                          style: const pw.TextStyle(fontSize: 8.5, color: _ink),
-                          margin: const pw.EdgeInsets.only(bottom: 2),
-                          bulletColor: _brand,
-                          bulletSize: 3,
-                        ),
-                      pw.Spacer(),
-                      if (_img(pictures.logo) case final logo?)
-                        pw.Align(
-                          alignment: pw.Alignment.bottomRight,
-                          child: pw.SizedBox(
-                            height: 36,
-                            child: pw.Image(logo, fit: pw.BoxFit.contain),
-                          ),
-                        ),
-                      pw.SizedBox(height: 16),
-                    ],
-                  ),
-                ),
+                ],
               ],
             ),
           ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.fromLTRB(_coverSide, 12, _coverSide, 0),
+          child: _coverFacts(street, area),
         ),
+        pw.Spacer(),
+        _agentCard(),
       ],
     );
   }
+
+  static String _title(String s) => s
+      .toLowerCase()
+      .split(' ')
+      .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+
+  String get _brandHex =>
+      (brandColor.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+
+  /// The agency's logo filling the top band, on the logo's own background.
+  pw.Widget _coverLogoBand() {
+    final logo = _img(pictures.logo);
+    return pw.Container(
+      height: 64,
+      color: _logoBackground,
+      padding: const pw.EdgeInsets.symmetric(
+        horizontal: _coverSide,
+        vertical: 9,
+      ),
+      alignment: pw.Alignment.centerLeft,
+      child: logo == null
+          ? pw.Text(
+              agent.agencyName,
+              style: pw.TextStyle(
+                color: _logoOnBrand ? _onBrand : _brand,
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            )
+          : pw.Image(
+              logo,
+              fit: pw.BoxFit.contain,
+              alignment: pw.Alignment.centerLeft,
+            ),
+    );
+  }
+
+  /// Street and area, then the home in icons and numbers.
+  pw.Widget _coverFacts(String street, String area) {
+    final f = listing.facts;
+    String n(num v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
+    final items = <(String, String, String)>[
+      if (f.bedrooms > 0) ('bedrooms', n(f.bedrooms), 'Bedrooms'),
+      if (f.bathrooms > 0) ('bathrooms', n(f.bathrooms), 'Bathrooms'),
+      if (f.garages > 0) ('garages', n(f.garages), 'Garages'),
+      if (f.parking > 0) ('parking', n(f.parking), 'Parking'),
+      if ((f.floorM2 ?? report.dwellingExtentM2) case final floor?
+          when floor > 0)
+        ('floor', '${groupDigits(floor)} m²', 'Floor size'),
+      if ((f.erfM2 ?? report.extentM2) case final erf? when erf > 0)
+        ('erf', '${groupDigits(erf)} m²', 'Erf size'),
+      if (f.pool) ('pool', 'Yes', 'Pool'),
+      if (f.yearBuilt != null) ('built', '${f.yearBuilt}', 'Built'),
+    ];
+    const perRow = 4;
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          pdfText(street),
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: _ink,
+          ),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Row(
+          children: [
+            if (packIcon('place', _brandHex) case final svg?)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(right: 3),
+                child: pw.SvgImage(svg: svg, width: 11, height: 11),
+              ),
+            pw.Text(
+              pdfText(
+                [
+                  area,
+                  if (report.zoningCode != null) 'Zoned ${report.zoningCode}',
+                ].join('   ·   '),
+              ),
+              style: const pw.TextStyle(fontSize: 10, color: _muted),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        for (var r = 0; r < items.length; r += perRow)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Row(
+              children: [
+                for (var i = r; i < r + perRow; i++)
+                  pw.Expanded(
+                    child: i >= items.length
+                        ? pw.SizedBox()
+                        : _fact(items[i].$1, items[i].$2, items[i].$3),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  pw.Widget _fact(String icon, String value, String label) => pw.Row(
+    children: [
+      if (packIcon(icon, _brandHex) case final svg?)
+        pw.SvgImage(svg: svg, width: 20, height: 20),
+      pw.SizedBox(width: 7),
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            pdfText(value),
+            style: pw.TextStyle(
+              fontSize: 12.5,
+              fontWeight: pw.FontWeight.bold,
+              color: _ink,
+            ),
+          ),
+          pw.Text(
+            label,
+            style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+          ),
+        ],
+      ),
+    ],
+  );
 
   Uint8List? get _satellite {
     for (final i in report.printableImagery) {
@@ -434,50 +592,93 @@ class ReportPackPdf {
     ...listing.portfolio,
   ];
 
+  /// The agent across the foot of the cover, on the brand colour, with the
+  /// agency's logo in the right corner.
   pw.Widget _agentCard() {
     final photo = _img(pictures.agentPhoto);
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      color: _brand,
+    final logo = _img(pictures.logo);
+    pw.Widget contact(String label, String value) => pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 3),
       child: pw.Row(
+        children: [
+          pw.SizedBox(
+            width: 14,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                color: _onBrand,
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Text(value, style: pw.TextStyle(color: _onBrand, fontSize: 9.5)),
+        ],
+      ),
+    );
+    return pw.Container(
+      height: 108,
+      color: _brand,
+      padding: const pw.EdgeInsets.fromLTRB(_coverSide, 10, _coverSide, 10),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           if (photo != null)
             pw.Container(
-              width: 58,
-              height: 64,
-              margin: const pw.EdgeInsets.only(right: 10),
+              width: 76,
+              height: 86,
+              margin: const pw.EdgeInsets.only(right: 16),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.white, width: 2),
+              ),
               child: pw.Image(photo, fit: pw.BoxFit.cover),
             ),
           pw.Expanded(
             child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
                   agent.name,
                   style: pw.TextStyle(
                     color: _onBrand,
-                    fontSize: 12,
+                    fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
                 if (agent.jobTitle.isNotEmpty)
                   pw.Text(
                     agent.jobTitle,
-                    style: pw.TextStyle(color: _onBrand, fontSize: 8),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 9.5),
                   ),
-                pw.SizedBox(height: 3),
-                for (final line in [
-                  if (agent.mobile.isNotEmpty) 'M: ${agent.mobile}',
-                  if (agent.email.isNotEmpty) 'E: ${agent.email}',
-                  if (agent.website.isNotEmpty) 'W: ${agent.website}',
-                ])
-                  pw.Text(
-                    line,
-                    style: pw.TextStyle(color: _onBrand, fontSize: 7.5),
-                  ),
+                pw.SizedBox(height: 6),
+                if (agent.mobile.isNotEmpty) contact('M', agent.mobile),
+                if (agent.email.isNotEmpty) contact('E', agent.email),
+                if (agent.website.isNotEmpty) contact('W', agent.website),
               ],
             ),
           ),
+          if (logo != null)
+            _logoOnBrand
+                ? pw.SizedBox(
+                    width: 150,
+                    height: 56,
+                    child: pw.Image(
+                      logo,
+                      fit: pw.BoxFit.contain,
+                      alignment: pw.Alignment.bottomRight,
+                    ),
+                  )
+                : pw.Container(
+                    width: 150,
+                    height: 56,
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: pw.BoxDecoration(
+                      color: _logoBackground,
+                      borderRadius: pw.BorderRadius.circular(6),
+                    ),
+                    child: pw.Image(logo, fit: pw.BoxFit.contain),
+                  ),
         ],
       ),
     );
@@ -587,6 +788,38 @@ class ReportPackPdf {
             ],
           ),
         ),
+      if (_portfolio.isNotEmpty) ...[
+        pw.SizedBox(height: 26),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(14),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _rule),
+            borderRadius: pw.BorderRadius.circular(6),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'About the property',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _brand,
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              for (final line in _portfolio)
+                pw.Bullet(
+                  text: pdfText(line),
+                  style: const pw.TextStyle(fontSize: 9.5, color: _ink),
+                  margin: const pw.EdgeInsets.only(bottom: 3),
+                  bulletColor: _brand,
+                  bulletSize: 3,
+                ),
+            ],
+          ),
+        ),
+      ],
       pw.Spacer(),
       _officeFooter(),
     ],
