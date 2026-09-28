@@ -981,122 +981,134 @@ class ReportPackPdf {
                 ],
               ),
             ),
-            pw.SizedBox(height: 22),
-            pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: _pageSide),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  // Photo, and the qualifications under it.
-                  pw.SizedBox(
-                    width: 170,
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        if (photo != null)
-                          pw.Container(
-                            width: 170,
-                            height: 205,
-                            child: pw.Image(photo, fit: pw.BoxFit.cover),
-                          ),
-                        if (agent.qualifications.isNotEmpty) ...[
-                          pw.SizedBox(height: 16),
+            pw.SizedBox(height: 36),
+            pw.Expanded(
+              child: pw.Padding(
+                padding: const pw.EdgeInsets.fromLTRB(
+                  _pageSide,
+                  0,
+                  _pageSide,
+                  16,
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    // Photo, and the qualifications under it.
+                    pw.SizedBox(
+                      width: 170,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          // A little below the name, as on the agencies' own pages.
+                          pw.SizedBox(height: 20),
+                          if (photo != null)
+                            pw.Container(
+                              width: 170,
+                              height: 205,
+                              child: pw.Image(photo, fit: pw.BoxFit.cover),
+                            ),
+                          if (agent.qualifications.isNotEmpty) ...[
+                            pw.SizedBox(height: 16),
+                            pw.Text(
+                              'Qualifications & Registrations',
+                              style: pw.TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: pw.FontWeight.bold,
+                                color: _ink,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            for (final q in agent.qualifications)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.only(bottom: 3),
+                                child: pw.Row(
+                                  crossAxisAlignment:
+                                      pw.CrossAxisAlignment.start,
+                                  children: [
+                                    pw.Container(
+                                      width: 5,
+                                      height: 5,
+                                      margin: const pw.EdgeInsets.only(
+                                        top: 3.5,
+                                        right: 7,
+                                      ),
+                                      decoration: pw.BoxDecoration(
+                                        color: _brand,
+                                        shape: pw.BoxShape.circle,
+                                      ),
+                                    ),
+                                    pw.Expanded(
+                                      child: pw.Text(
+                                        pdfText(q),
+                                        style: const pw.TextStyle(
+                                          fontSize: 10,
+                                          color: _ink,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 24),
+                    // Name, their own words, and how to reach them.
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
                           pw.Text(
-                            'Qualifications & Registrations',
+                            agent.name,
                             style: pw.TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 24,
                               fontWeight: pw.FontWeight.bold,
                               color: _ink,
                             ),
                           ),
-                          pw.SizedBox(height: 6),
-                          for (final q in agent.qualifications)
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.only(bottom: 3),
-                              child: pw.Row(
-                                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                children: [
-                                  pw.Container(
-                                    width: 5,
-                                    height: 5,
-                                    margin: const pw.EdgeInsets.only(
-                                      top: 3.5,
-                                      right: 7,
-                                    ),
-                                    decoration: pw.BoxDecoration(
-                                      color: _brand,
-                                      shape: pw.BoxShape.circle,
-                                    ),
-                                  ),
-                                  pw.Expanded(
-                                    child: pw.Text(
-                                      pdfText(q),
-                                      style: const pw.TextStyle(
-                                        fontSize: 10,
-                                        color: _ink,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                          if (agent.jobTitle.isNotEmpty)
+                            pw.Text(
+                              agent.jobTitle,
+                              style: const pw.TextStyle(
+                                fontSize: 14,
+                                color: _ink,
                               ),
                             ),
+                          pw.Container(
+                            width: 40,
+                            height: 2.5,
+                            margin: const pw.EdgeInsets.symmetric(vertical: 12),
+                            color: _brand,
+                          ),
+                          if (agent.bio.isNotEmpty)
+                            pw.Text(
+                              pdfText(agent.bio),
+                              style: const pw.TextStyle(
+                                fontSize: 10.5,
+                                color: _ink,
+                                lineSpacing: 3.5,
+                              ),
+                            ),
+                          // How to reach them sits at the foot of the column,
+                          // just above the banner.
+                          pw.Spacer(),
+                          pw.SizedBox(height: 14),
+                          _contactBanner(),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  pw.SizedBox(width: 24),
-                  // Name, their own words, and how to reach them.
-                  pw.Expanded(
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          agent.name,
-                          style: pw.TextStyle(
-                            fontSize: 24,
-                            fontWeight: pw.FontWeight.bold,
-                            color: _ink,
-                          ),
-                        ),
-                        if (agent.jobTitle.isNotEmpty)
-                          pw.Text(
-                            agent.jobTitle,
-                            style: const pw.TextStyle(
-                              fontSize: 14,
-                              color: _ink,
-                            ),
-                          ),
-                        pw.Container(
-                          width: 40,
-                          height: 2.5,
-                          margin: const pw.EdgeInsets.symmetric(vertical: 12),
-                          color: _brand,
-                        ),
-                        if (agent.bio.isNotEmpty)
-                          pw.Text(
-                            pdfText(agent.bio),
-                            style: const pw.TextStyle(
-                              fontSize: 10.5,
-                              color: _ink,
-                              lineSpacing: 3.5,
-                            ),
-                          ),
-                        pw.SizedBox(height: 18),
-                        _contactBanner(),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            pw.Spacer(),
             pw.Container(
               margin: const pw.EdgeInsets.symmetric(horizontal: 20),
-              color: _brand,
+              color: _tint(0.82),
               padding: const pw.EdgeInsets.symmetric(vertical: 9),
               child: pw.Center(
                 child: pw.Text(
-                  'registered professional property practitioner',
+                  'registered professional property professional in real estate',
                   style: pw.TextStyle(
                     color: _onBrand,
                     fontSize: 10.5,
@@ -1120,8 +1132,8 @@ class ReportPackPdf {
       if (agent.website.isNotEmpty) ('website', agent.website),
     ];
     final registrations = [
-      if (agent.ppraNumber.isNotEmpty) 'PPRA reg. no. ${agent.ppraNumber}',
-      if (agent.ffcNumber.isNotEmpty) 'FFC no. ${agent.ffcNumber}',
+      if (agent.ppraNumber.isNotEmpty) ('PPRA reg. no.', agent.ppraNumber),
+      if (agent.ffcNumber.isNotEmpty) ('FFC no.', agent.ffcNumber),
     ];
     if (rows.isEmpty && registrations.isEmpty) return pw.SizedBox();
     return pw.Container(
@@ -1165,10 +1177,39 @@ class ReportPackPdf {
               ),
             ),
           if (registrations.isNotEmpty) ...[
-            pw.SizedBox(height: 8),
-            pw.Text(
-              registrations.join('     '),
-              style: const pw.TextStyle(fontSize: 8.5, color: _muted),
+            pw.Container(
+              height: 0.8,
+              margin: const pw.EdgeInsets.only(top: 10, bottom: 8),
+              color: _tint(0.25),
+            ),
+            pw.Wrap(
+              spacing: 22,
+              runSpacing: 4,
+              children: [
+                for (final (label, number) in registrations)
+                  pw.RichText(
+                    text: pw.TextSpan(
+                      children: [
+                        pw.TextSpan(
+                          text: '$label  ',
+                          style: const pw.TextStyle(
+                            fontSize: 9.5,
+                            color: _muted,
+                          ),
+                        ),
+                        pw.TextSpan(
+                          text: number,
+                          style: pw.TextStyle(
+                            fontSize: 11,
+                            fontWeight: pw.FontWeight.bold,
+                            color: _ink,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ],
         ],
