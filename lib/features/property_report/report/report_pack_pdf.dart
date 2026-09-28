@@ -94,6 +94,11 @@ class PackImages {
   final Uint8List? signature;
   final Uint8List? logo;
 
+  /// The office's logo variants (see `OfficeLogos`); each falls back to [logo].
+  final Uint8List? logoMark;
+  final Uint8List? logoWide;
+  final Uint8List? logoWideOnBrand;
+
   /// Property24 listing photos by listing number.
   final Map<String, Uint8List> listingPhotos;
   final List<Uint8List> brochurePages;
@@ -105,6 +110,9 @@ class PackImages {
     this.agentPhoto,
     this.signature,
     this.logo,
+    this.logoMark,
+    this.logoWide,
+    this.logoWideOnBrand,
     this.listingPhotos = const {},
     this.brochurePages = const [],
   });
@@ -169,6 +177,19 @@ class ReportPackPdf {
   /// straight onto the agent card).
   bool get _logoOnBrand =>
       (logoBackground ?? brandColor).toARGB32() == brandColor.toARGB32();
+
+  /// A logo for the brand colour: the office's own drawn for it, else the
+  /// agency logo when its artwork already sits on that colour.
+  pw.ImageProvider? get _logoForBrand =>
+      _img(pictures.logoWideOnBrand) ??
+      (_logoOnBrand ? _img(pictures.logo) : null);
+
+  /// A wide logo for white paper.
+  pw.ImageProvider? get _logoForWhite => _img(pictures.logoWide);
+
+  /// The square mark, else the agency logo.
+  pw.ImageProvider? get _logoMark =>
+      _img(pictures.logoMark) ?? _img(pictures.logo);
 
   // The cover's serif, as on the agencies' own valuation covers.
   static final _serif = pw.Font.times();
@@ -349,7 +370,7 @@ class ReportPackPdf {
                 child: pw.Center(
                   child: pw.Text(
                     pdfText(
-                      '- $street, ${_title(report.suburb)}  //  Erf ${report.erf} -',
+                      '- $street, ${listing.area.isNotEmpty ? listing.area : _title(report.suburb)}  //  Erf ${report.erf} -',
                     ),
                     style: pw.TextStyle(
                       font: _serifBold,
@@ -463,7 +484,9 @@ class ReportPackPdf {
 
   /// The agency's logo filling the top band, on the logo's own background.
   pw.Widget _coverLogoBand() {
-    final logo = _img(pictures.logo);
+    final logo = _logoForBrand != null && _logoOnBrand
+        ? _logoForBrand
+        : _img(pictures.logo);
     return pw.Container(
       height: 64,
       color: _logoBackground,
@@ -503,8 +526,9 @@ class ReportPackPdf {
         ('floor', '${groupDigits(floor)} m²', 'Floor size'),
       if ((f.erfM2 ?? report.extentM2) case final erf? when erf > 0)
         ('erf', '${groupDigits(erf)} m²', 'Erf size'),
-      if (f.pool) ('pool', 'Yes', 'Pool'),
       if (f.yearBuilt != null) ('built', '${f.yearBuilt}', 'Built'),
+      // Features without a number: the icon and its name.
+      for (final (icon, name) in f.extras) (icon, name, ''),
     ];
     const perRow = 4;
     return pw.Column(
@@ -530,7 +554,12 @@ class ReportPackPdf {
               pdfText(
                 [
                   area,
-                  if (report.zoningCode != null) 'Zoned ${report.zoningCode}',
+                  if (readableZoning(
+                        report.zoningCode,
+                        report.zoningDescription,
+                      )
+                      case final zoning?)
+                    'Zoned $zoning',
                 ].join('   ·   '),
               ),
               style: const pw.TextStyle(fontSize: 10, color: _muted),
@@ -561,22 +590,30 @@ class ReportPackPdf {
       if (packIcon(icon, _brandHex) case final svg?)
         pw.SvgImage(svg: svg, width: 20, height: 20),
       pw.SizedBox(width: 7),
-      pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            pdfText(value),
-            style: pw.TextStyle(
-              fontSize: 12.5,
-              fontWeight: pw.FontWeight.bold,
-              color: _ink,
-            ),
-          ),
-          pw.Text(
-            label,
-            style: const pw.TextStyle(fontSize: 7.5, color: _muted),
-          ),
-        ],
+      pw.Expanded(
+        child: label.isEmpty
+            // A feature without a number: its name, as on the portals.
+            ? pw.Text(
+                pdfText(value),
+                style: const pw.TextStyle(fontSize: 10, color: _ink),
+              )
+            : pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    pdfText(value),
+                    style: pw.TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _ink,
+                    ),
+                  ),
+                  pw.Text(
+                    label,
+                    style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+                  ),
+                ],
+              ),
       ),
     ],
   );
@@ -590,8 +627,9 @@ class ReportPackPdf {
 
   /// The listing's own portfolio first, then what the records add.
   List<String> get _portfolio => [
-    if (report.zoningDescription != null)
-      'Zoned: ${[report.zoningCode, report.zoningDescription].whereType<String>().join(' - ')}',
+    if (readableZoning(report.zoningCode, report.zoningDescription)
+        case final zoning?)
+      'Zoned: $zoning',
     if (report.extentM2 != null)
       'Erf size: ${groupDigits(report.extentM2!)} m²',
     ...listing.portfolio,
@@ -601,7 +639,8 @@ class ReportPackPdf {
   /// agency's logo in the right corner.
   pw.Widget _agentCard() {
     final photo = _img(pictures.agentPhoto);
-    final logo = _img(pictures.logo);
+    final onBrandLogo = _logoForBrand;
+    final logo = onBrandLogo ?? _img(pictures.logo);
     final onBrandHex = (onBrandColor.toARGB32() & 0xFFFFFF)
         .toRadixString(16)
         .padLeft(6, '0');
@@ -661,9 +700,9 @@ class ReportPackPdf {
             ),
           ),
           if (logo != null)
-            _logoOnBrand
+            onBrandLogo != null
                 ? pw.SizedBox(
-                    width: 150,
+                    width: 170,
                     height: 56,
                     child: pw.Image(
                       logo,
@@ -689,7 +728,7 @@ class ReportPackPdf {
   // ---- contents and letterhead ---------------------------------------------
 
   pw.Widget _letterhead() {
-    final logo = _img(pictures.logo);
+    final logo = _logoForWhite ?? _img(pictures.logo);
     final office = agent.office;
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 8),
@@ -855,7 +894,7 @@ class ReportPackPdf {
   /// contact details in a banner, and the agency at the foot.
   pw.Widget _agentPage() {
     final photo = _img(pictures.agentPhoto);
-    final logo = _img(pictures.logo);
+    final logo = _logoMark;
     return pw.Stack(
       children: [
         pw.Positioned(
@@ -872,24 +911,27 @@ class ReportPackPdf {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
-                  if (agent.office.name.isNotEmpty ||
-                      agent.agencyName.isNotEmpty)
+                  if (agent.office.slogan.isNotEmpty)
                     pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 10),
+                      padding: const pw.EdgeInsets.only(right: 12),
                       child: pw.Text(
-                        pdfText(
-                          agent.office.name.isNotEmpty
-                              ? agent.office.name
-                              : agent.agencyName,
+                        pdfText(agent.office.slogan),
+                        style: const pw.TextStyle(
+                          fontSize: 11,
+                          color: _ink,
+                          letterSpacing: 0.3,
                         ),
-                        style: const pw.TextStyle(fontSize: 10, color: _muted),
                       ),
                     ),
                   pw.Container(
                     height: 44,
                     width: logo == null ? null : 44,
-                    padding: const pw.EdgeInsets.all(4),
-                    color: _logoBackground,
+                    // The office's own mark is drawn as it is; the agency
+                    // logo sits on its banner colour.
+                    padding: pictures.logoMark != null
+                        ? pw.EdgeInsets.zero
+                        : const pw.EdgeInsets.all(4),
+                    color: pictures.logoMark != null ? null : _logoBackground,
                     child: logo == null
                         ? pw.Center(
                             child: pw.Text(
@@ -923,12 +965,16 @@ class ReportPackPdf {
                     text: pw.TextSpan(
                       style: const pw.TextStyle(fontSize: 30, color: _ink),
                       children: [
-                        const pw.TextSpan(text: 'residential & '),
-                        pw.TextSpan(
-                          text: 'lifestyle',
-                          style: pw.TextStyle(color: _brand),
-                        ),
-                        const pw.TextSpan(text: ' realty partner'),
+                        // *word* is printed in the brand colour.
+                        for (final (i, part) in pdfText(
+                          agent.office.headline.isNotEmpty
+                              ? agent.office.headline
+                              : OfficeDetails.defaultHeadline,
+                        ).split('*').indexed)
+                          pw.TextSpan(
+                            text: part,
+                            style: i.isOdd ? pw.TextStyle(color: _brand) : null,
+                          ),
                       ],
                     ),
                   ),
@@ -1133,7 +1179,8 @@ class ReportPackPdf {
   /// The agency at the foot of the page: its logo, a rule, and the office's
   /// name, address and contacts, with the legal line under them.
   pw.Widget _agencyFooterBlock() {
-    final logo = _img(pictures.logo);
+    final white = _logoForWhite;
+    final logo = white ?? _img(pictures.logo);
     final office = agent.office;
     final contacts = [
       if (office.phone.isNotEmpty) 'Tel ${office.phone}',
@@ -1151,7 +1198,7 @@ class ReportPackPdf {
                 width: 170,
                 height: 64,
                 padding: const pw.EdgeInsets.all(6),
-                color: logo == null ? null : _logoBackground,
+                color: logo == null || white != null ? null : _logoBackground,
                 alignment: pw.Alignment.center,
                 child: logo == null
                     ? pw.Text(

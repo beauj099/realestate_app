@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/listing_photo.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
@@ -17,6 +18,11 @@ class PackOptions {
   final double listingPrice;
   final CalculatorDefaults calculator;
 
+  /// The cover's main photo and the row of up to three under it (photo
+  /// paths or URLs from the listing).
+  final String? coverPhoto;
+  final List<String> gallery;
+
   const PackOptions({
     required this.preparedFor,
     required this.greeting,
@@ -24,26 +30,45 @@ class PackOptions {
     required this.high,
     required this.listingPrice,
     required this.calculator,
+    this.coverPhoto,
+    this.gallery = const [],
   });
 }
 
 /// Asks for the owners' names, the agent's final range and listing price, and
 /// this report's calculator figures (prefilled from Report settings).
+///
+/// [photos] are every photo of the listing (outside first, then the rooms'),
+/// to choose the cover photo and the three under it from.
 Future<PackOptions?> showReportPackSheet({
   required BuildContext context,
   required RealEstateTheme theme,
   required PackOptions initial,
+  List<String> photos = const [],
+  String baseUrl = '',
 }) => showRealEstateBottomSheet<PackOptions>(
   context: context,
   theme: theme,
-  builder: (_) => _ReportPackSheet(theme: theme, initial: initial),
+  builder: (_) => _ReportPackSheet(
+    theme: theme,
+    initial: initial,
+    photos: photos,
+    baseUrl: baseUrl,
+  ),
 );
 
 class _ReportPackSheet extends StatefulWidget {
   final RealEstateTheme theme;
   final PackOptions initial;
+  final List<String> photos;
+  final String baseUrl;
 
-  const _ReportPackSheet({required this.theme, required this.initial});
+  const _ReportPackSheet({
+    required this.theme,
+    required this.initial,
+    this.photos = const [],
+    this.baseUrl = '',
+  });
 
   @override
   State<_ReportPackSheet> createState() => _ReportPackSheetState();
@@ -53,6 +78,10 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
   late final Map<String, TextEditingController> _c;
   late bool _vat;
   String? _error;
+
+  /// Picked in order: the first is the cover, the next three the row.
+  late final List<String> _picked;
+  static const _maxPicked = 4;
 
   @override
   void initState() {
@@ -73,7 +102,17 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
       'deposit': TextEditingController(text: n(calc.depositPercent)),
     };
     _vat = calc.commissionIncludesVat;
+    _picked = [
+      ?i.coverPhoto,
+      ...i.gallery.where((g) => g != i.coverPhoto),
+    ].where(widget.photos.contains).take(_maxPicked).toList();
   }
+
+  void _togglePhoto(String photo) => setState(() {
+    if (!_picked.remove(photo) && _picked.length < _maxPicked) {
+      _picked.add(photo);
+    }
+  });
 
   @override
   void dispose() {
@@ -108,6 +147,8 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
         low: low,
         high: high,
         listingPrice: listing,
+        coverPhoto: _picked.firstOrNull,
+        gallery: _picked.skip(1).toList(),
         calculator: calc.copyWith(
           commissionEarlyPercent: _num('early') ?? calc.commissionEarlyPercent,
           commissionLatePercent: _num('late') ?? calc.commissionLatePercent,
@@ -185,6 +226,25 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
                 'Letter greeting (Dear …)',
                 type: TextInputType.name,
               ),
+              if (widget.photos.isNotEmpty) ...[
+                gap,
+                Text(
+                  'Cover photos',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap the main photo first, then up to three for the row '
+                  'under it. Tap again to take one out.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: theme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _photoGrid(theme, textTheme),
+              ],
               gap,
               Text(
                 'Your valuation',
@@ -267,6 +327,68 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
   }
 }
 
+extension on _ReportPackSheetState {
+  Widget _photoGrid(RealEstateTheme theme, TextTheme textTheme) =>
+      GridView.count(
+        crossAxisCount: 4,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final photo in widget.photos)
+            GestureDetector(
+              onTap: () => _togglePhoto(photo),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: listingPhoto(
+                      photo,
+                      theme: theme,
+                      textTheme: textTheme,
+                      cacheWidth: 240,
+                      baseUrl: widget.baseUrl,
+                    ),
+                  ),
+                  if (_picked.indexOf(photo) case final i when i >= 0) ...[
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.primaryColor, width: 3),
+                      ),
+                    ),
+                    Positioned(
+                      left: 4,
+                      top: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          i == 0 ? 'Main' : '$i',
+                          style: TextStyle(
+                            color: theme.onPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      );
+}
+
 /// The range to start from: the agent's own valuation when captured, else the
 /// report's range, rounded to R10 000.
 PackOptions initialPackOptions({
@@ -276,6 +398,8 @@ PackOptions initialPackOptions({
   required double? agentValuation,
   required double? listingCommissionPercent,
   required CalculatorDefaults calculator,
+  String? coverPhoto,
+  List<String> gallery = const [],
 }) {
   double r(double v) => (v / 10000).round() * 10000;
   final range = report.bestRange;
@@ -288,6 +412,8 @@ PackOptions initialPackOptions({
     low: low,
     high: high < low ? low : high,
     listingPrice: r(high * 1.05),
+    coverPhoto: coverPhoto,
+    gallery: gallery,
     calculator: listingCommissionPercent == null
         ? calculator
         : calculator.copyWith(commissionEarlyPercent: listingCommissionPercent),

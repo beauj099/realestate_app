@@ -23,6 +23,16 @@ class AgentApiService {
   Future<Map<String, dynamic>> uploadPhoto(String path) =>
       _putImage(ApiEndpoints.agentPhoto, path);
 
+  /// One of the office's logos ([kind]: mark, wide or wideOnBrand).
+  Future<Map<String, dynamic>> uploadOfficeLogo(String kind, String path) =>
+      _putImage(ApiEndpoints.agentLogo(kind), path);
+
+  /// Removes one of the office's logos (the agency's is used again).
+  Future<Map<String, dynamic>> removeOfficeLogo(String kind) async {
+    final response = await _client.delete(ApiEndpoints.agentLogo(kind));
+    return response.data as Map<String, dynamic>;
+  }
+
   /// Signature for the valuation letter (PNG or JPEG).
   Future<Map<String, dynamic>> uploadSignature(String path) =>
       _putImage(ApiEndpoints.agentSignature, path);

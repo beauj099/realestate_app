@@ -53,6 +53,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _officePhoneController = TextEditingController();
   final _officeEmailController = TextEditingController();
   final _officeWebsiteController = TextEditingController();
+  final _officeSloganController = TextEditingController();
+  final _officeHeadlineController = TextEditingController();
   final _officeFooterController = TextEditingController();
 
   /// Which upload is running: 'photo', 'signature' or 'brochure'.
@@ -110,6 +112,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'officePhone': _officePhoneController,
       'officeEmail': _officeEmailController,
       'officeWebsite': _officeWebsiteController,
+      'officeSlogan': _officeSloganController,
+      'officeHeadline': _officeHeadlineController,
       'officeFooter': _officeFooterController,
     };
     _populate(ref.read(agentProfileProvider));
@@ -165,6 +169,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _officePhoneController.text = profile.office.phone;
     _officeEmailController.text = profile.office.email;
     _officeWebsiteController.text = profile.office.website;
+    _officeSloganController.text = profile.office.slogan;
+    _officeHeadlineController.text = profile.office.headline;
     _officeFooterController.text = profile.office.footer;
     _populating = false;
     _agency = ref.read(agencyProvider);
@@ -256,6 +262,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             email: _officeEmailController.text.trim(),
             website: _officeWebsiteController.text.trim(),
             footer: _officeFooterController.text.trim(),
+            slogan: _officeSloganController.text.trim(),
+            headline: _officeHeadlineController.text.trim(),
+            logos: ref.read(agentProfileProvider).office.logos,
           ),
         );
 
@@ -333,6 +342,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await _upload(
       'signature',
       () => ref.read(agentProfileProvider.notifier).uploadSignature(path),
+    );
+  }
+
+  Future<void> _changeLogo(String kind) async {
+    final path = await pickProfileImage(maxSide: 1200);
+    if (path == null) return;
+    await _upload(
+      'logo-$kind',
+      () =>
+          ref.read(agentProfileProvider.notifier).uploadOfficeLogo(kind, path),
     );
   }
 
@@ -639,6 +658,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             TextInputType.text,
                             3,
                           ),
+                          (
+                            'Slogan',
+                            _officeSloganController,
+                            _agency.office.slogan,
+                            TextInputType.text,
+                            1,
+                          ),
+                          (
+                            'Your agent page heading (a *word* is in colour)',
+                            _officeHeadlineController,
+                            _agency.office.headline.isNotEmpty
+                                ? _agency.office.headline
+                                : OfficeDetails.defaultHeadline,
+                            TextInputType.text,
+                            1,
+                          ),
                         ]) ...[
                       CustomTextInput(
                         theme: theme,
@@ -652,6 +687,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 16),
                     ],
                     const SizedBox(height: 12),
+                    _sectionLabel('Office logos', theme, textTheme),
+                    Text(
+                      'For your report pack. Empty uses ${_agency.name}\'s '
+                      'logo. PNG with a clear background works best.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final (kind, label, onBrand) in [
+                      ('mark', 'Square logo', false),
+                      ('wide', 'Wide logo (on white)', false),
+                      (
+                        'wideOnBrand',
+                        'Wide logo (on your agency colour)',
+                        true,
+                      ),
+                    ]) ...[
+                      LogoSlotTile(
+                        label: label,
+                        url: profile.office.logos[kind],
+                        onBrand: onBrand,
+                        busy: _uploading == 'logo-$kind',
+                        theme: theme,
+                        onTap: () => _changeLogo(kind),
+                        onRemove: profile.office.logos[kind] == null
+                            ? null
+                            : () => _upload(
+                                'logo-$kind',
+                                () => ref
+                                    .read(agentProfileProvider.notifier)
+                                    .removeOfficeLogo(kind),
+                              ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    const SizedBox(height: 18),
                     _sectionLabel('Brochure pages', theme, textTheme),
                     BrochurePagesEditor(
                       ownPages: profile.brochurePages,

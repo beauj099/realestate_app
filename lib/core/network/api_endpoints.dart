@@ -21,6 +21,7 @@ class ApiEndpoints {
   static const String agentMe = '/api/agents/me';
   static const String agentPhoto = '/api/agents/me/photo';
   static const String agentSignature = '/api/agents/me/signature';
+  static String agentLogo(String kind) => '/api/agents/me/logos/$kind';
   static const String agentBrochurePages = '/api/agents/me/brochure-pages';
   static const String agentReportSettings = '/api/agents/me/report-settings';
 

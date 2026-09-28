@@ -153,6 +153,12 @@ class PackFacts {
   final double? erfM2;
   final int? yearBuilt;
   final bool pool;
+  final bool garden;
+  final bool fibre;
+  final bool borehole;
+  final bool backupPower;
+  final bool flatlet;
+  final bool petFriendly;
 
   const PackFacts({
     this.bedrooms = 0,
@@ -163,7 +169,25 @@ class PackFacts {
     this.erfM2,
     this.yearBuilt,
     this.pool = false,
+    this.garden = false,
+    this.fibre = false,
+    this.borehole = false,
+    this.backupPower = false,
+    this.flatlet = false,
+    this.petFriendly = false,
   });
+
+  /// Features shown as an icon and a name (no number), as property portals
+  /// do: (icon key, name).
+  List<(String, String)> get extras => [
+    if (pool) ('pool', 'Pool'),
+    if (flatlet) ('flatlet', 'Flatlet'),
+    if (garden) ('garden', 'Garden'),
+    if (fibre) ('fibre', 'Fibre internet'),
+    if (borehole) ('borehole', 'Borehole'),
+    if (backupPower) ('backup', 'Backup power'),
+    if (petFriendly) ('pets', 'Pet friendly'),
+  ];
 }
 
 /// What the agent captured, as the cover's facts. [parkingTypes] names each
@@ -205,6 +229,15 @@ PackFacts packFacts(PropertyState s, Map<int, String> parkingTypes) {
   }
 
   final year = int.tryParse(s.constructionYear.trim());
+  // What the agent ticked, anywhere: outside features, rooms and their items.
+  final ticked = [
+    ...s.outdoorFeatures,
+    for (final r in s.rooms) ...[
+      r.name,
+      for (final f in r.features) f.description,
+    ],
+  ].map((t) => t.toLowerCase()).toList();
+  bool any(bool Function(String t) test) => ticked.any(test);
   return PackFacts(
     bedrooms: bedrooms,
     bathrooms: bathrooms,
@@ -213,7 +246,29 @@ PackFacts packFacts(PropertyState s, Map<int, String> parkingTypes) {
     floorM2: size(s.floorArea),
     erfM2: size(s.erfSize),
     yearBuilt: year != null && year > 1800 ? year : null,
-    pool: s.outdoorFeatures.any((f) => f.toLowerCase().contains('pool')),
+    pool: any((t) => t.contains('pool')),
+    garden: any(
+      (t) =>
+          t.contains('garden') &&
+          !t.contains('cottage') &&
+          !t.contains('garden room'),
+    ),
+    fibre: any((t) => t.contains('fibre') || t.contains('fiber')),
+    borehole: any((t) => t.contains('borehole') || t.contains('wellpoint')),
+    backupPower: any(
+      (t) =>
+          t.contains('inverter') ||
+          t.contains('solar panel') ||
+          t.contains('backup') ||
+          t.contains('generator'),
+    ),
+    flatlet: any(
+      (t) =>
+          t.contains('flatlet') ||
+          t.contains('granny') ||
+          t.contains('cottage'),
+    ),
+    petFriendly: any((t) => t.contains('pet friendly')),
   );
 }
 
@@ -257,4 +312,16 @@ List<String> packGallery(PropertyState s, {int count = 3}) {
     s.city.trim(),
   ].where((p) => p.isNotEmpty).toSet().join(', ');
   return (street, area);
+}
+
+/// Zoning in words for owners who do not know the codes: "Residential 1 :
+/// Conventional Housing" → "Residential 1 (Conventional Housing)"; the code
+/// ("R1") only when there is no description.
+String? readableZoning(String? code, String? description) {
+  final d = (description ?? '').trim();
+  if (d.isEmpty) return (code ?? '').trim().isEmpty ? null : code!.trim();
+  final parts = d.split(':');
+  final main = parts.first.trim();
+  final detail = parts.skip(1).join(':').trim();
+  return detail.isEmpty ? main : '$main ($detail)';
 }

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
+import '../../../../core/theme/office_details.dart';
+
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/busy_overlay.dart';
@@ -207,9 +209,16 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     final (preparedFor, greeting) = packOwners(listing);
     double? number(String v) =>
         double.tryParse(v.replaceAll(RegExp(r'[\s,R]'), ''));
+    final photos = [
+      ...listing.exteriorPhotos,
+      for (final r in listing.rooms)
+        for (final p in r.photos) p.path,
+    ];
     final options = await showReportPackSheet(
       context: context,
       theme: brand,
+      photos: photos,
+      baseUrl: ref.read(apiClientProvider).baseUrl,
       initial: initialPackOptions(
         report: report,
         preparedFor: preparedFor,
@@ -219,6 +228,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           listing.listingValuation.commissionPercent,
         ),
         calculator: ref.read(reportSettingsProvider).calculator,
+        coverPhoto: listing.exteriorPhotos.firstOrNull,
+        gallery: packGallery(listing),
       ),
     );
     if (options == null || !mounted) return;
@@ -230,10 +241,10 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       final agency = ref.read(agencyProvider);
       final forSale = state.forSale;
       final brochure = profile.brochurePages ?? agency.brochurePages;
-      final photos = listing.exteriorPhotos;
+      final office = profile.office.orDefaults(agency.office);
       final fetched = await Future.wait([
-        packImageBytes(photos.firstOrNull, api),
-        packImageBytes(photos.length > 1 ? photos[1] : null, api),
+        packImageBytes(options.coverPhoto, api),
+        packImageBytes(options.gallery.firstOrNull, api),
         packImageBytes(profile.photoUrl, api),
         packImageBytes(profile.signatureUrl, api),
         agencyLogoBytes(agency),
@@ -244,7 +255,11 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       final listingCount = forSale?.listings.length ?? 0;
       // The cover's row of photos under the main one.
       final gallery = await Future.wait([
-        for (final g in packGallery(listing)) packImageBytes(g, api),
+        for (final g in options.gallery) packImageBytes(g, api),
+      ]);
+      final logos = await Future.wait([
+        for (final kind in OfficeLogos.kinds)
+          packImageBytes(office.logos[kind], api),
       ]);
       final parkingTypes = ref
           .read(parkingTypesProvider)
@@ -266,7 +281,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           bio: profile.bio,
           qualifications: profile.qualifications,
           agencyName: agency.name,
-          office: profile.office.orDefaults(agency.office),
+          office: office,
         ),
         listing: PackListing(
           preparedFor: options.preparedFor,
@@ -301,6 +316,9 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           agentPhoto: fetched[2],
           signature: fetched[3],
           logo: fetched[4],
+          logoMark: logos[0],
+          logoWide: logos[1],
+          logoWideOnBrand: logos[2],
           listingPhotos: {
             for (var i = 0; i < listingCount; i++)
               forSale!.listings[i].listingNumber: ?fetched[5 + i],
