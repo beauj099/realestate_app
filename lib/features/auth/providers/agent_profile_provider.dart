@@ -8,6 +8,7 @@ import '../../../core/network/providers/api_providers.dart';
 import '../../../core/theme/agency.dart';
 import '../../../core/theme/agency_directory.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../report_settings/data/models/report_settings.dart';
 import '../data/models/agent_profile.dart';
 import 'auth_provider.dart';
 
@@ -95,6 +96,39 @@ class AgentProfileNotifier extends Notifier<AgentProfile> {
     state = saved;
     await _writeCache(saved);
     await ref.read(authProvider.notifier).updateDisplayName(saved.fullName);
+  }
+
+  /// Uploads a new profile photo (a local image path).
+  Future<void> uploadPhoto(String path) =>
+      _apply(ref.read(agentApiServiceProvider).uploadPhoto(path));
+
+  /// Uploads the signature printed on the valuation letter.
+  Future<void> uploadSignature(String path) =>
+      _apply(ref.read(agentApiServiceProvider).uploadSignature(path));
+
+  /// Adds pages to the agent's own brochure (replacing the agency's pages in
+  /// their reports).
+  Future<void> addBrochurePages(List<String> paths) =>
+      _apply(ref.read(agentApiServiceProvider).addBrochurePages(paths));
+
+  /// Keeps these of the agent's pages in this order; null returns to the
+  /// agency's pages.
+  Future<void> setBrochurePages(List<String>? keep) =>
+      _apply(ref.read(agentApiServiceProvider).setBrochurePages(keep));
+
+  Future<void> saveReportSettings(ReportSettings settings) => _apply(
+    ref.read(agentApiServiceProvider).setReportSettings(settings.toJson()),
+  );
+
+  /// Takes the profile the API returns after an upload or settings change.
+  Future<void> _apply(Future<Map<String, dynamic>> call) async {
+    final json = await call;
+    final saved = AgentProfile.fromApi(
+      json,
+      cached: state,
+    ).copyWith(agencySlug: state.agencySlug);
+    state = saved;
+    await _writeCache(saved);
   }
 
   /// Finds the agency matching the profile's agency name: the cached slug if

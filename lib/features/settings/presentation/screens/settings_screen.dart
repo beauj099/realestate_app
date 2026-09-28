@@ -141,7 +141,7 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     title: Text('My Profile', style: textTheme.titleMedium),
                     subtitle: Text(
-                      'Name, contact details and agency',
+                      'Photo, contact details, agency and office',
                       style: textTheme.bodyMedium,
                     ),
                     leading: Icon(
@@ -153,6 +153,23 @@ class SettingsScreen extends ConsumerWidget {
                       color: theme.textSecondary,
                     ),
                     onTap: () => context.push(AppRoutes.profilePath),
+                  ),
+                  Divider(height: 1, color: theme.borderLight),
+                  ListTile(
+                    title: Text(
+                      'Report settings',
+                      style: textTheme.titleMedium,
+                    ),
+                    subtitle: Text(
+                      'Commission, bond defaults and room weights',
+                      style: textTheme.bodyMedium,
+                    ),
+                    leading: Icon(Icons.tune, color: theme.primaryColor),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: theme.textSecondary,
+                    ),
+                    onTap: () => context.push(AppRoutes.reportSettingsPath),
                   ),
                   Divider(height: 1, color: theme.borderLight),
                   ListTile(

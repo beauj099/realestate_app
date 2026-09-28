@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
 import 'models/address_suggestion.dart';
+import 'models/agent_sales.dart';
+import 'models/area_details.dart';
 import 'models/property_report.dart';
 
 /// What to look a property up by. The API prefers a coordinate (point in the
@@ -85,6 +87,75 @@ class PropertyReportRepository {
       receiveTimeout: _reportTimeout,
     );
     return PropertyReport.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Logs a sale the agent knows about. Returns true when another agent had
+  /// already logged it (it then counts as confirmation instead of a new sale).
+  Future<bool> addAgentSale(NewAgentSale sale) async {
+    final response = await _client.post(
+      ApiEndpoints.comparables,
+      data: sale.toJson(),
+    );
+    final data = response.data;
+    return data is Map && data['wasDuplicate'] == true;
+  }
+
+  Future<void> deleteAgentSale(String id) =>
+      _client.delete(ApiEndpoints.comparable(id));
+
+  /// The agency's own listings in [suburb], except [excludeListingId].
+  Future<List<MarketListing>> fetchMarket(
+    String suburb, {
+    int? excludeListingId,
+  }) async {
+    if (suburb.trim().isEmpty) return const [];
+    final response = await _client.get(
+      ApiEndpoints.comparablesMarket,
+      queryParameters: {
+        'suburb': suburb.trim(),
+        'excludeListingId': ?excludeListingId,
+      },
+    );
+    return [
+      for (final e in response.data as List)
+        MarketListing.fromJson(e as Map<String, dynamic>),
+    ];
+  }
+
+  /// Climate, population, household income and crime around a point.
+  Future<AreaDetails> fetchArea(double lat, double lng) async {
+    final response = await _client.get(
+      ApiEndpoints.propertyArea,
+      queryParameters: {'lat': lat, 'lng': lng},
+      receiveTimeout: _reportTimeout,
+    );
+    return AreaDetails.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Homes for sale like this one on Property24. [p24Suburb] picks a
+  /// Property24 suburb other than the ones matched to the report's.
+  Future<ForSale> fetchForSale(
+    PropertyReport report, {
+    int? bedrooms,
+    double? floorM2,
+    double? erfM2,
+    int? p24Suburb,
+    int max = 3,
+  }) async {
+    final response = await _client.get(
+      ApiEndpoints.propertyForSale(report.municipality, report.erf),
+      queryParameters: {
+        'suburb': report.suburb,
+        'township': report.township,
+        'p24Suburb': ?p24Suburb,
+        'bedrooms': ?bedrooms,
+        'floorM2': ?floorM2,
+        'erfM2': ?erfM2,
+        'max': max,
+      },
+      receiveTimeout: _reportTimeout,
+    );
+    return ForSale.fromJson(response.data as Map<String, dynamic>);
   }
 
   /// The site plan SVG, or null when it cannot be drawn.

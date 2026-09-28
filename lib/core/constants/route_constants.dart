@@ -6,6 +6,7 @@ abstract final class AppRoutes {
   static const String homePath = '/home';
   static const String settingsPath = '/settings';
   static const String profilePath = '/profile';
+  static const String reportSettingsPath = '/report-settings';
 
   static const String propertyPath = '/property/:id';
 

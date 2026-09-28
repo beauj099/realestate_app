@@ -1,3 +1,4 @@
+import '../../../report_settings/data/models/report_settings.dart';
 import 'enums/room_category.dart';
 import 'room.dart';
 
@@ -36,33 +37,48 @@ abstract final class RoomScore {
   /// room's name is checked first, since a category like "Kitchen & Utility"
   /// holds both the kitchen and the pantry; the category is the fallback,
   /// covering renamed and custom rooms.
-  static double weightFor(Room room) {
+  static double weightFor(Room room, [RoomWeights? using]) =>
+      (using ?? weights).of(classify(room));
+
+  /// The weights in use: the agent's own (Settings → Report settings), set by
+  /// `reportSettingsProvider` once their profile loads; the defaults until
+  /// then. Held here so [PropertyState]'s suggestion needs no provider.
+  static RoomWeights weights = RoomWeights.defaults;
+
+  /// Which kind of room this is, for weighting.
+  static RoomWeightClass classify(Room room) {
     final name = room.name.toLowerCase();
     bool has(List<String> words) => words.any(name.contains);
 
-    if (has(['scullery', 'laundry', 'pantry', 'toilet', 'powder'])) return 1;
-    if (has(['storeroom', 'store room', 'workshop', 'loft', 'staff', 'wine'])) {
-      return 0.5;
+    if (has(['scullery', 'laundry', 'pantry', 'toilet', 'powder'])) {
+      return RoomWeightClass.utility;
     }
-    if (has(['kitchen'])) return 3;
-    if (has(['main bedroom', 'master'])) return 2.5;
-    if (has(['bathroom', 'en-suite', 'ensuite'])) return 2;
-    if (has(['lounge', 'living', 'open-plan', 'family'])) return 2;
+    if (has(['storeroom', 'store room', 'workshop', 'loft', 'staff', 'wine'])) {
+      return RoomWeightClass.storage;
+    }
+    if (has(['kitchen'])) return RoomWeightClass.kitchen;
+    if (has(['main bedroom', 'master'])) return RoomWeightClass.mainBedroom;
+    if (has(['bathroom', 'en-suite', 'ensuite'])) {
+      return RoomWeightClass.bathroom;
+    }
+    if (has(['lounge', 'living', 'open-plan', 'family'])) {
+      return RoomWeightClass.mainLiving;
+    }
 
     switch (RoomCategoryExtension.categoryForRoomTypeId(room.roomTypeId)) {
       case RoomCategory.bedroom:
-        return 1.5;
+        return RoomWeightClass.bedroom;
       case RoomCategory.bathroom:
-        return 2;
+        return RoomWeightClass.bathroom;
       case RoomCategory.livingSpaces:
-        return 1.5;
+        return RoomWeightClass.otherLiving;
       case RoomCategory.kitchenAndUtility:
-        return 1;
+        return RoomWeightClass.utility;
       case RoomCategory.workAndStudy:
       case RoomCategory.entertainment:
-        return 1;
+        return RoomWeightClass.workAndLeisure;
       case RoomCategory.additional:
-        return 0.75;
+        return RoomWeightClass.additional;
     }
   }
 

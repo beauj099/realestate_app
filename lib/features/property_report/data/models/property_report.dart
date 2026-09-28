@@ -7,6 +7,8 @@
 //     [PropertyReport.printableImagery]; Street View is screen-only.
 //   * Imagery is always shown with its attribution next to it, uncropped.
 
+import 'agent_sales.dart';
+
 double? _d(Object? v) => (v as num?)?.toDouble();
 
 /// One property the address resolved to.
@@ -73,6 +75,11 @@ class ComparableSale {
   final bool included;
   final String? excludedBecause;
 
+  /// How far from the subject, when the source gives locations.
+  final double? distanceM;
+  final double? lat;
+  final double? lng;
+
   const ComparableSale({
     required this.address,
     required this.erfExtentM2,
@@ -84,6 +91,9 @@ class ComparableSale {
     this.indexedPriceZar,
     this.pricePerDwellingM2,
     this.excludedBecause,
+    this.distanceM,
+    this.lat,
+    this.lng,
   });
 
   factory ComparableSale.fromJson(Map<String, dynamic> j) => ComparableSale(
@@ -97,6 +107,9 @@ class ComparableSale {
     pricePerDwellingM2: _d(j['pricePerDwellingM2']),
     included: j['included'] as bool? ?? false,
     excludedBecause: j['excludedBecause'] as String?,
+    distanceM: _d(j['distanceM']),
+    lat: _d(j['lat']),
+    lng: _d(j['lng']),
   );
 }
 
@@ -190,6 +203,12 @@ class ComparableSummary {
   final double? medianPricePerDwellingM2;
   final double? medianPricePerErfM2;
 
+  /// The radius the comparables were taken from; null = the whole area.
+  final int? radiusM;
+  final int excludedMultiProperty;
+  final int excludedNoBuilding;
+  final int excludedTooFar;
+
   const ComparableSummary({
     required this.raw,
     required this.included,
@@ -199,6 +218,10 @@ class ComparableSummary {
     required this.excludedDissimilar,
     this.medianPricePerDwellingM2,
     this.medianPricePerErfM2,
+    this.radiusM,
+    this.excludedMultiProperty = 0,
+    this.excludedNoBuilding = 0,
+    this.excludedTooFar = 0,
   });
 
   factory ComparableSummary.fromJson(Map<String, dynamic> j) =>
@@ -211,6 +234,10 @@ class ComparableSummary {
         excludedDissimilar: j['excludedDissimilar'] as int? ?? 0,
         medianPricePerDwellingM2: _d(j['medianPricePerDwellingM2']),
         medianPricePerErfM2: _d(j['medianPricePerErfM2']),
+        radiusM: j['radiusM'] as int?,
+        excludedMultiProperty: j['excludedMultiProperty'] as int? ?? 0,
+        excludedNoBuilding: j['excludedNoBuilding'] as int? ?? 0,
+        excludedTooFar: j['excludedTooFar'] as int? ?? 0,
       );
 }
 
@@ -224,6 +251,77 @@ class ValueRange {
 
   factory ValueRange.fromJson(Map<String, dynamic> j) =>
       ValueRange(low: _d(j['low']), mid: _d(j['mid']), high: _d(j['high']));
+}
+
+/// A registered sale of the subject property itself.
+class SaleRecord {
+  final DateTime date;
+  final double priceZar;
+  const SaleRecord(this.date, this.priceZar);
+
+  static SaleRecord? fromJson(Map<String, dynamic>? j) {
+    final date = DateTime.tryParse(j?['saleDate'] as String? ?? '');
+    final price = _d(j?['priceZar']);
+    return date == null || price == null ? null : SaleRecord(date, price);
+  }
+}
+
+class YearlySales {
+  final int year;
+  final int sales;
+  final double medianPriceZar;
+  const YearlySales(this.year, this.sales, this.medianPriceZar);
+}
+
+class PriceBand {
+  final double fromZar;
+  final double toZar;
+  final int sales;
+  final double percent;
+  const PriceBand(this.fromZar, this.toZar, this.sales, this.percent);
+}
+
+/// Every market sale in the area the comparables came from, by year and by
+/// price band (for the report's charts).
+class AreaMarket {
+  final int? radiusM;
+  final int sales;
+  final double? medianPriceZar;
+  final List<YearlySales> byYear;
+  final List<PriceBand> priceBands;
+
+  const AreaMarket({
+    this.radiusM,
+    required this.sales,
+    this.medianPriceZar,
+    this.byYear = const [],
+    this.priceBands = const [],
+  });
+
+  static AreaMarket? fromJson(Map<String, dynamic>? j) => j == null
+      ? null
+      : AreaMarket(
+          radiusM: j['radiusM'] as int?,
+          sales: j['sales'] as int? ?? 0,
+          medianPriceZar: _d(j['medianPriceZar']),
+          byYear: [
+            for (final y in (j['byYear'] as List? ?? const []))
+              YearlySales(
+                y['year'] as int,
+                y['sales'] as int? ?? 0,
+                _d(y['medianPriceZar']) ?? 0,
+              ),
+          ],
+          priceBands: [
+            for (final b in (j['priceBands'] as List? ?? const []))
+              PriceBand(
+                _d(b['fromZar']) ?? 0,
+                _d(b['toZar']) ?? 0,
+                b['sales'] as int? ?? 0,
+                _d(b['percent']) ?? 0,
+              ),
+          ],
+        );
 }
 
 /// Where a figure in the report came from.
@@ -295,6 +393,18 @@ class PropertyReport {
 
   final DateTime? rollEffectiveFrom;
 
+  /// The subject's own last registered sale, when the source publishes it.
+  final SaleRecord? lastSale;
+
+  /// The latest sales in the subject's own street.
+  final List<ComparableSale> streetSales;
+
+  final AreaMarket? areaMarket;
+
+  /// Sales agents reported in the suburb. Null when the API could not read
+  /// them; empty when none were reported.
+  final AgentSalesSummary? agentSales;
+
   const PropertyReport({
     required this.municipality,
     required this.erf,
@@ -312,6 +422,10 @@ class PropertyReport {
     this.comparablesMethod,
     this.coverageNote,
     this.rollEffectiveFrom,
+    this.lastSale,
+    this.streetSales = const [],
+    this.areaMarket,
+    this.agentSales,
     this.valuationRef,
     this.lat,
     this.lng,
@@ -388,6 +502,14 @@ class PropertyReport {
       generatedAt:
           DateTime.tryParse(j['generatedAtUtc'] as String? ?? '') ??
           DateTime.now().toUtc(),
+      lastSale: SaleRecord.fromJson(j['lastSale'] as Map<String, dynamic>?),
+      streetSales: list('streetSales', ComparableSale.fromJson),
+      areaMarket: AreaMarket.fromJson(j['areaMarket'] as Map<String, dynamic>?),
+      agentSales: j['agentComparables'] == null
+          ? null
+          : AgentSalesSummary.fromJson(
+              j['agentComparables'] as Map<String, dynamic>,
+            ),
     );
   }
 
@@ -398,6 +520,15 @@ class PropertyReport {
     if (s.isEmpty || !a.endsWith(s)) return a;
     return '${a.substring(0, a.length - s.length).trim()}, $s';
   }
+
+  /// The range to show: from municipal sales when there is one, otherwise
+  /// from agent-reported sales (see [rangeFromAgentSales]).
+  ValueRange? get bestRange => indicativeValue ?? agentSales?.indicativeValue;
+
+  /// True when [bestRange] comes from agent-reported sales, which the report
+  /// must say, since they are not registered transfers.
+  bool get rangeFromAgentSales =>
+      indicativeValue == null && agentSales?.indicativeValue != null;
 
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();

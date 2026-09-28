@@ -16,6 +16,7 @@ import '../../features/property_overview/presentation/screens/property_features_
 import '../../features/property_overview/presentation/screens/property_overview_screen.dart';
 import '../../features/property_overview/presentation/screens/room_details_screen.dart';
 import '../../features/property_overview/presentation/screens/valuation_screen.dart';
+import '../../features/report_settings/presentation/screens/report_settings_screen.dart';
 import '../../features/settings/presentation/screens/profile_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../constants/route_constants.dart';
@@ -90,6 +91,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.profilePath,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.reportSettingsPath,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ReportSettingsScreen(),
       ),
       GoRoute(
         path: AppRoutes.propertyPath,

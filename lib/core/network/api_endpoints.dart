@@ -19,6 +19,10 @@ class ApiEndpoints {
 
   // Agent profile
   static const String agentMe = '/api/agents/me';
+  static const String agentPhoto = '/api/agents/me/photo';
+  static const String agentSignature = '/api/agents/me/signature';
+  static const String agentBrochurePages = '/api/agents/me/brochure-pages';
+  static const String agentReportSettings = '/api/agents/me/report-settings';
 
   // White-label agencies
   static const String agencies = '/api/agencies';
@@ -26,6 +30,13 @@ class ApiEndpoints {
   // Property reports from public municipal data (Cape Town, Johannesburg, national cadastre)
   static const String propertyResolve = '/api/property/resolve';
   static const String propertySuggest = '/api/property/suggest';
+  static const String propertyArea = '/api/property/area';
+  static String propertyForSale(String municipality, String erf) =>
+      '/api/property/$municipality/${Uri.encodeComponent(erf)}/for-sale';
+  static const String comparables = '/api/comparables';
+  static const String comparablesMine = '/api/comparables/mine';
+  static const String comparablesMarket = '/api/comparables/market';
+  static String comparable(String id) => '/api/comparables/$id';
   static String propertyReport(String municipality, String erf) =>
       '/api/property/$municipality/${Uri.encodeComponent(erf)}';
 

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../../settings/presentation/widgets/agency_picker.dart';
+import '../../../settings/presentation/widgets/profile_media.dart';
 import '../../data/models/agent_profile.dart';
 import '../../providers/agent_profile_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -148,6 +151,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
   }
 
+  /// A profile photo chosen before the account exists; uploaded once it does.
+  String? _photoPath;
+
+  Future<void> _pickPhoto() async {
+    final path = await pickProfileImage(maxSide: 800);
+    if (path != null && mounted) setState(() => _photoPath = path);
+  }
+
   Future<void> _handleRegister() async {
     if (!_validateFields()) return;
 
@@ -189,6 +200,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await ref.read(agencyProvider.notifier).setAgency(agency);
       // The country answer sets both the country and the currency.
       await ref.read(regionProvider.notifier).setBoth(_country);
+      // Best effort: the account exists either way, and both can be done
+      // again from My Profile.
+      final profiles = ref.read(agentProfileProvider.notifier);
+      try {
+        await profiles.save(profile); // records the agency slug on the server
+        if (_photoPath != null) await profiles.uploadPhoto(_photoPath!);
+      } catch (e) {
+        debugPrint('Register: profile photo or agency not saved yet: $e');
+      }
     }
 
     if (!mounted) return;
@@ -260,6 +280,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       'Create Agent Account',
                       style: textTheme.titleLarge?.copyWith(
                         color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: _pickPhoto,
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: theme.primaryColor.withValues(
+                              alpha: 0.12,
+                            ),
+                            foregroundImage: _photoPath == null
+                                ? null
+                                : FileImage(File(_photoPath!)),
+                            child: Icon(
+                              Icons.add_a_photo_outlined,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _photoPath == null
+                                ? 'Add your photo (optional)'
+                                : 'Change photo',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),

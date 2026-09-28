@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'office_details.dart';
+
 /// A white-label agency brand.
 ///
 /// Each agency supplies the palette the app re-themes itself with once an agent
@@ -73,7 +75,17 @@ class Agency {
     this.logoFilePath,
     this.logoUrl,
     Color? bannerColor,
+    this.office = const OfficeDetails(),
+    this.brochurePages = const [],
   }) : _bannerColor = bannerColor;
+
+  /// Office defaults the report pack prints (address, phone, footer line…);
+  /// an agent's own office details override them field by field.
+  final OfficeDetails office;
+
+  /// The agency's brochure pages (image URLs) that end every report pack,
+  /// unless the agent uploaded their own.
+  final List<String> brochurePages;
 
   /// An agency the agent added via "Other", worn with the house palette —
   /// there is no brand to theme from, and guessed colours would look broken.
@@ -133,6 +145,11 @@ class Agency {
       assetOverride: bundled?.assetOverride,
       logoUrl: logoUrl,
       bannerColor: parseHexColor(json['bannerColor']),
+      office: OfficeDetails.fromJson(json['office'] as Map<String, dynamic>?),
+      brochurePages: [
+        for (final p in (json['brochurePages'] as List? ?? const []))
+          p.toString(),
+      ],
     );
   }
 
@@ -149,6 +166,8 @@ class Agency {
         : hexOf(_bannerColor),
     'logoUrl': logoUrl,
     'isCustom': isCustom,
+    'office': office.toJson(),
+    'brochurePages': brochurePages,
   };
 
   /// "#1B365D" -> colour; null for anything else.
@@ -232,7 +251,13 @@ class Agency {
       other.primaryColor == primaryColor &&
       other.secondaryColor == secondaryColor &&
       other.onPrimary == onPrimary &&
-      other.bannerColor == bannerColor;
+      other.bannerColor == bannerColor &&
+      other.office == office &&
+      _sameList(other.brochurePages, brochurePages);
+
+  static bool _sameList(List<String> a, List<String> b) =>
+      a.length == b.length &&
+      [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((x) => x);
 
   @override
   int get hashCode => Object.hash(
@@ -244,6 +269,8 @@ class Agency {
     secondaryColor,
     onPrimary,
     bannerColor,
+    office,
+    brochurePages.length,
   );
 
   /// The house brand — used when an agent has not picked an agency.

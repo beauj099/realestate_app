@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:realworth/core/theme/themes.dart';
 import 'package:realworth/features/property_report/data/models/address_suggestion.dart';
+import 'package:realworth/features/property_report/data/models/agent_sales.dart';
+import 'package:realworth/features/property_report/data/models/area_details.dart';
 import 'package:realworth/features/property_report/data/models/property_report.dart';
 import 'package:realworth/features/property_report/data/property_report_repository.dart';
 import 'package:realworth/features/property_report/presentation/widgets/address_search_field.dart';
@@ -38,6 +40,32 @@ class _FakeRepo implements PropertyReportRepository {
   @override
   Future<List<PropertyCandidate>> resolve(ReportQuery q) =>
       throw UnimplementedError();
+
+  @override
+  Future<AreaDetails> fetchArea(double lat, double lng) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ForSale> fetchForSale(
+    PropertyReport report, {
+    int? bedrooms,
+    double? floorM2,
+    double? erfM2,
+    int? p24Suburb,
+    int max = 3,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<bool> addAgentSale(NewAgentSale sale) => throw UnimplementedError();
+
+  @override
+  Future<void> deleteAgentSale(String id) => throw UnimplementedError();
+
+  @override
+  Future<List<MarketListing>> fetchMarket(
+    String suburb, {
+    int? excludeListingId,
+  }) => throw UnimplementedError();
   @override
   Future<PropertyReport> fetchReport(PropertyCandidate c) =>
       throw UnimplementedError();
