@@ -230,6 +230,9 @@ class MarketListing {
   final int daysListed;
   final bool isArchived;
 
+  /// How far from the property, when both are placed on the map.
+  final double? distanceM;
+
   const MarketListing({
     required this.listingId,
     required this.address,
@@ -241,6 +244,7 @@ class MarketListing {
     this.erfM2,
     this.floorM2,
     this.valuationPerFloorM2,
+    this.distanceM,
   });
 
   factory MarketListing.fromJson(Map<String, dynamic> j) => MarketListing(
@@ -254,5 +258,6 @@ class MarketListing {
     status: j['status'] as String? ?? '',
     daysListed: j['daysListed'] as int? ?? 0,
     isArchived: j['isArchived'] as bool? ?? false,
+    distanceM: _d(j['distanceM']),
   );
 }

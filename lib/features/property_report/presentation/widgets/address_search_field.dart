@@ -144,8 +144,12 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
           _cityPending = false;
         }
         // Both searches failing is worth saying; one failing is not.
-        _failed = failed && !_cityPending && !_nationalPending &&
-            _city.isEmpty && _national.isEmpty;
+        _failed =
+            failed &&
+            !_cityPending &&
+            !_nationalPending &&
+            _city.isEmpty &&
+            _national.isEmpty;
       });
     }
 
@@ -178,7 +182,6 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
     final textTheme = widget.textTheme;
     final rows = mergeSuggestions(_city, _national, limit: _maxRows);
     final searching = _cityPending || _nationalPending;
-    final creditOsm = rows.any((s) => s.fromOpenStreetMap);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -263,18 +266,6 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
                                   : 'No matches yet. Keep typing, or fill in the fields below.',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: theme.textSecondary,
-                              ),
-                            ),
-                          ),
-                        if (creditOsm)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 2, 12, 8),
-                            child: Text(
-                              '© OpenStreetMap contributors',
-                              textAlign: TextAlign.right,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: theme.textSecondary,
-                                fontSize: 10,
                               ),
                             ),
                           ),

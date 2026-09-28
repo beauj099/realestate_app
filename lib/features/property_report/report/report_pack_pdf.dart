@@ -938,7 +938,14 @@ class ReportPackPdf {
                       ),
                       pw.Text(
                         pdfText(
-                          [l.suburb, l.address].whereType<String>().join(' · '),
+                          [
+                            l.suburb,
+                            l.address,
+                            if (l.distanceM != null)
+                              l.distanceM! < 1000
+                                  ? '${(l.distanceM! / 10).round() * 10} m away'
+                                  : '${(l.distanceM! / 1000).toStringAsFixed(1)} km away',
+                          ].whereType<String>().join(' · '),
                         ),
                         style: const pw.TextStyle(fontSize: 9, color: _ink),
                       ),

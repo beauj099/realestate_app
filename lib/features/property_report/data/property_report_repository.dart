@@ -66,6 +66,20 @@ class PropertyReportRepository {
     ];
   }
 
+  /// The City's address at a GPS point (Cape Town, Johannesburg): the erf
+  /// under the pin first, then its neighbours, with the house number and the
+  /// City's official suburb. Empty elsewhere.
+  Future<List<AddressSuggestion>> addressAt(double lat, double lng) async {
+    final response = await _client.get(
+      ApiEndpoints.propertySuggestAt,
+      queryParameters: {'lat': lat, 'lng': lng},
+    );
+    return [
+      for (final e in response.data as List)
+        AddressSuggestion.fromJson(e as Map<String, dynamic>),
+    ];
+  }
+
   Future<List<PropertyCandidate>> resolve(ReportQuery q) async {
     // Most precise first; a miss (e.g. GPS a little off the erf, or a listing
     // without coordinates) falls through to the next.
@@ -120,6 +134,8 @@ class PropertyReportRepository {
   Future<List<MarketListing>> fetchMarket(
     String suburb, {
     int? excludeListingId,
+    double? lat,
+    double? lng,
   }) async {
     if (suburb.trim().isEmpty) return const [];
     final response = await _client.get(
@@ -127,6 +143,8 @@ class PropertyReportRepository {
       queryParameters: {
         'suburb': suburb.trim(),
         'excludeListingId': ?excludeListingId,
+        'lat': ?lat,
+        'lng': ?lng,
       },
     );
     return [
@@ -165,6 +183,10 @@ class PropertyReportRepository {
         'floorM2': ?floorM2,
         'erfM2': ?erfM2,
         'max': max,
+        // With the property's location the nearest homes are kept, whatever
+        // suburb Property24 files them under.
+        'lat': ?report.lat,
+        'lng': ?report.lng,
       },
       receiveTimeout: _reportTimeout,
     );

@@ -230,6 +230,9 @@ class ForSaleListing {
   final String? imageUrl;
   final DateTime? listedOn;
 
+  /// How far from the property, when both are placed on the map.
+  final double? distanceM;
+
   const ForSaleListing({
     required this.listingNumber,
     required this.url,
@@ -245,6 +248,7 @@ class ForSaleListing {
     this.erfM2,
     this.imageUrl,
     this.listedOn,
+    this.distanceM,
   });
 
   factory ForSaleListing.fromJson(Map<String, dynamic> j) => ForSaleListing(
@@ -262,6 +266,7 @@ class ForSaleListing {
     erfM2: _d(j['erfM2']),
     imageUrl: j['imageUrl'] as String?,
     listedOn: DateTime.tryParse(j['listedOn'] as String? ?? ''),
+    distanceM: _d(j['distanceM']),
   );
 }
 

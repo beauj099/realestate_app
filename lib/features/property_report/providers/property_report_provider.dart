@@ -123,7 +123,7 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
       final report = await _repo.fetchReport(candidate);
       final results = await Future.wait([
         _repo.fetchSitePlan(report.sitePlanUrl),
-        _market(report.suburb),
+        _market(report.suburb, report.lat, report.lng),
         for (final i in report.imagery) _repo.fetchImage(i.url),
       ]);
       if (!ref.mounted) return;
@@ -181,9 +181,18 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
 
   /// The agency's listings nearby are extras: failing to load them never
   /// costs the agent the report.
-  Future<List<MarketListing>> _market(String suburb) async {
+  Future<List<MarketListing>> _market(
+    String suburb,
+    double? lat,
+    double? lng,
+  ) async {
     try {
-      return await _repo.fetchMarket(suburb, excludeListingId: _listingId);
+      return await _repo.fetchMarket(
+        suburb,
+        excludeListingId: _listingId,
+        lat: lat,
+        lng: lng,
+      );
     } catch (e) {
       developer.log('Agency listings nearby failed: $e');
       return const [];

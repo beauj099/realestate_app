@@ -83,6 +83,10 @@ class _FakeRepo implements PropertyReportRepository {
   }
 
   @override
+  Future<List<AddressSuggestion>> addressAt(double lat, double lng) =>
+      throw UnimplementedError();
+
+  @override
   Future<List<PropertyCandidate>> resolve(ReportQuery q) =>
       throw UnimplementedError();
 
@@ -110,6 +114,8 @@ class _FakeRepo implements PropertyReportRepository {
   Future<List<MarketListing>> fetchMarket(
     String suburb, {
     int? excludeListingId,
+    double? lat,
+    double? lng,
   }) => throw UnimplementedError();
   @override
   Future<PropertyReport> fetchReport(PropertyCandidate c) =>

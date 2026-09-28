@@ -22,6 +22,11 @@ String formatZarShort(num? v) {
 
 String formatM2(num? v) => v == null ? '—' : '${groupDigits(v)} m²';
 
+/// "650 m away", "1.7 km away".
+String formatDistance(num metres) => metres < 1000
+    ? '${(metres / 10).round() * 10} m away'
+    : '${(metres / 1000).toStringAsFixed(1)} km away';
+
 String formatCount(int v) => groupDigits(v);
 
 /// A card with a title and label/value rows.
@@ -590,6 +595,7 @@ class MarketListingsList extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   [
+                    if (l.distanceM != null) formatDistance(l.distanceM!),
                     l.isArchived
                         ? 'Archived after ${l.daysListed} days'
                         : 'Listed ${l.daysListed} day${l.daysListed == 1 ? '' : 's'}',
