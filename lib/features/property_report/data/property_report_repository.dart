@@ -39,13 +39,26 @@ class PropertyReportRepository {
   /// from the API's cache.
   static const Duration _reportTimeout = Duration(seconds: 90);
 
-  /// Addresses matching what the agent has typed so far (Cape Town parcel
-  /// records). Fewer than 3 characters returns nothing.
-  Future<List<AddressSuggestion>> suggest(String text) async {
+  /// Addresses matching what the agent has typed so far. [national] false
+  /// asks the Cape Town and Johannesburg parcel records (fast); true asks
+  /// OpenStreetMap for the whole country (a few seconds). [lat]/[lng] favour
+  /// places nearby. Fewer than 3 characters returns nothing.
+  Future<List<AddressSuggestion>> suggest(
+    String text, {
+    bool national = false,
+    double? lat,
+    double? lng,
+  }) async {
     if (text.trim().length < 3) return const [];
     final response = await _client.get(
-      ApiEndpoints.propertySuggest,
-      queryParameters: {'q': text.trim()},
+      national
+          ? ApiEndpoints.propertySuggestNational
+          : ApiEndpoints.propertySuggest,
+      queryParameters: {
+        'q': text.trim(),
+        if (lat != null && lng != null) ...{'lat': lat, 'lng': lng},
+      },
+      receiveTimeout: national ? const Duration(seconds: 15) : null,
     );
     return [
       for (final e in response.data as List)

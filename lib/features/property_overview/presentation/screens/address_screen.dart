@@ -215,57 +215,75 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     }
   }
 
-  /// A Cape Town address picked from the search: a real erf, with its
-  /// location. Filling it replaces the address fields (the agent chose it).
-  void _pickCityAddress(AddressSuggestion s) {
+  /// An address picked from the search. What it fills depends on what it is:
+  /// a numbered erf from City records fills the address, erf and location;
+  /// a numbered house from OpenStreetMap the address and location; a street
+  /// the street (and the number typed, still to check); a suburb or town
+  /// only those; a complex or estate its name. A unit typed in the search
+  /// ("Unit 5, …") goes to Unit Number.
+  void _pickAddress(AddressSuggestion s) {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final current = ref.read(propertyViewModelProvider);
     final theme = ref.read(themeConfigProvider);
-    viewModel.updateAddress(
-      streetNumber: s.streetNumber ?? current.streetNumber,
-      street: s.streetName,
-      unitNumber: current.unitNumber,
-      suburb: s.suburb,
-      city: s.city,
-      province: s.province,
-      country: s.country,
-      postalCode: current.postalCode,
-    );
-    if (s.erf != null) viewModel.updateIdentifiers(erfNumber: s.erf);
-    if (s.lat != null && s.lng != null) {
-      viewModel.updateCoordinates(latitude: s.lat, longitude: s.lng);
+    String keep(String value, String fallback) =>
+        value.isNotEmpty ? value : fallback;
+
+    final String message;
+    var complete = false;
+    switch (s.kind) {
+      case SuggestionKind.area:
+      case SuggestionKind.estate:
+        viewModel.updateAddress(
+          suburb: keep(s.suburb, current.suburb),
+          city: keep(s.city, current.city),
+          province: keep(s.province, current.province),
+          country: keep(s.country, current.country),
+          postalCode: s.postalCode ?? current.postalCode,
+        );
+        if (s.kind == SuggestionKind.estate) {
+          viewModel.updateIdentifiers(estateName: s.title);
+          message = 'Complex filled in. Now search the street address.';
+        } else {
+          message = 'Area filled in. Now search the street address.';
+        }
+      case SuggestionKind.property:
+      case SuggestionKind.address:
+      case SuggestionKind.street:
+        viewModel.updateAddress(
+          streetNumber: s.streetNumber ?? current.streetNumber,
+          street: s.streetName,
+          unitNumber: s.unit ?? current.unitNumber,
+          suburb: keep(s.suburb, current.suburb),
+          city: keep(s.city, current.city),
+          province: keep(s.province, current.province),
+          country: keep(s.country, current.country),
+          postalCode: s.postalCode ?? current.postalCode,
+        );
+        if (s.erf != null) viewModel.updateIdentifiers(erfNumber: s.erf);
+        // Only a numbered address has a location of its own; a point on the
+        // street is not the property.
+        if (s.kind != SuggestionKind.street && s.lat != null && s.lng != null) {
+          viewModel.updateCoordinates(latitude: s.lat, longitude: s.lng);
+        }
+        complete = s.kind != SuggestionKind.street;
+        message = switch (s.kind) {
+          SuggestionKind.property =>
+            'Address filled in. When you save, the erf size, floor area '
+                'and zoning are filled in from City records.',
+          SuggestionKind.address => 'Address filled in.',
+          _ =>
+            s.streetNumber == null
+                ? 'Street filled in. Add the street number.'
+                : 'Street filled in. Check the street number.',
+        };
     }
-    setState(() => _detectedAddress = s.label);
+    setState(() => _detectedAddress = s.label.isEmpty ? s.title : s.label);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          s.isProperty
-              ? 'Address filled in. When you save, the erf size, floor area '
-                    'and zoning are filled in from City records.'
-              : 'Street filled in. Add the street number.',
-        ),
-        backgroundColor: s.isProperty ? theme.primaryColor : theme.pendingColor,
+        content: Text(message),
+        backgroundColor: complete ? theme.primaryColor : theme.pendingColor,
       ),
     );
-  }
-
-  /// An address found through OpenStreetMap (outside Cape Town, or not in
-  /// the City's list): fill what it knows, keep what the agent typed.
-  void _pickOtherAddress(NominatimResult r) {
-    final viewModel = ref.read(propertyViewModelProvider.notifier);
-    final current = ref.read(propertyViewModelProvider);
-    viewModel.updateAddress(
-      streetNumber: r.houseNumber ?? current.streetNumber,
-      street: r.road ?? current.street,
-      unitNumber: current.unitNumber,
-      suburb: r.suburb ?? r.neighbourhood ?? current.suburb,
-      city: r.cityOrTown.isNotEmpty ? r.cityOrTown : current.city,
-      province: r.state ?? current.province,
-      country: r.country ?? current.country,
-      postalCode: r.postcode ?? current.postalCode,
-    );
-    viewModel.updateCoordinates(latitude: r.latitude, longitude: r.longitude);
-    setState(() => _detectedAddress = r.displayName);
   }
 
   Future<String?> _save() async {
@@ -305,8 +323,9 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           AddressSearchField(
             theme: theme,
             textTheme: textTheme,
-            onPickCity: _pickCityAddress,
-            onPickElsewhere: _pickOtherAddress,
+            onPick: _pickAddress,
+            nearLat: state.latitude,
+            nearLng: state.longitude,
           ),
           const SizedBox(height: 12),
           SizedBox(
