@@ -665,7 +665,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       gap,
       if (state.blockMapSvg case final block?) ...[
         ReportCard(
-          title: 'The property and its block',
+          title: 'The property and its neighbourhood',
           theme: theme,
           textTheme: textTheme,
           children: [

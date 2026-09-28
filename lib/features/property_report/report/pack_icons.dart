@@ -9,11 +9,26 @@
 /// The icon for [key] in colour [hex] ("B41F25"). Keys: bedrooms, bathrooms,
 /// garages, parking, floor, erf, pool, built, place, phone, email, website,
 /// pets, fibre, borehole, garden, backup, flatlet, temperature, rain, sun,
-/// wind, people, shield, income, heat, homes, area, up, down, humidity.
+/// wind, people, shield, income, heat, homes, area, up, down, humidity,
+/// schools, shopping, health, parks, beach, transport, police.
 String? packIcon(String key, String hex) =>
     _icons[key]?.replaceAll('#COLOR', '#$hex');
 
 const _icons = <String, String>{
+  'schools':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M22 9l-10 -4l-10 4l10 4l10 -4v6" /><path d="M6 10.6v5.4a6 3 0 0 0 12 0v-5.4" /></svg>',
+  'shopping':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M17 17h-11v-14h-2" /><path d="M6 5l14 1l-1 7h-13" /></svg>',
+  'health':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M8 8v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" /><path d="M4 10a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -8" /><path d="M10 14h4" /><path d="M12 12v4" /></svg>',
+  'parks':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M16 5l3 3l-2 1l4 4l-3 1l4 4h-9" /><path d="M15 21l0 -3" /><path d="M8 13l-2 -2" /><path d="M8 12l2 -2" /><path d="M8 21v-13" /><path d="M5.824 16a3 3 0 0 1 -2.743 -3.69a3 3 0 0 1 .304 -4.833a3 3 0 0 1 4.615 -3.707a3 3 0 0 1 4.614 3.707a3 3 0 0 1 .305 4.833a3 3 0 0 1 -2.919 3.695h-4l-.176 -.005" /></svg>',
+  'beach':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M17.553 16.75a7.5 7.5 0 0 0 -10.606 0" /><path d="M18 3.804a6 6 0 0 0 -8.196 2.196l10.392 6a6 6 0 0 0 -2.196 -8.196" /><path d="M16.732 10c1.658 -2.87 2.225 -5.644 1.268 -6.196c-.957 -.552 -3.075 1.326 -4.732 4.196" /><path d="M15 9l-3 5.196" /><path d="M3 19.25a2.4 2.4 0 0 1 1 -.25a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 1 .25" /></svg>',
+  'transport':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M21 13c0 -3.87 -3.37 -7 -10 -7h-8" /><path d="M3 15h16a2 2 0 0 0 2 -2" /><path d="M3 6v5h17.5" /><path d="M3 11v4" /><path d="M8 11v-5" /><path d="M13 11v-4.5" /><path d="M3 19h18" /></svg>',
+  'police':
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" /></svg>',
   'bedrooms':
       '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#COLOR" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M22 17v-3h-20" /><path d="M2 8v9" /><path d="M12 14h10v-2a3 3 0 0 0 -3 -3h-7v5" /></svg>',
   'bathrooms':

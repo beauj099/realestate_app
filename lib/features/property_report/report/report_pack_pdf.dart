@@ -223,6 +223,7 @@ class ReportPackPdf {
     brandColor: brandColor,
     onBrandColor: onBrandColor,
     logo: pictures.logo,
+    showAuthor: false,
     date: date,
   );
 
@@ -1366,8 +1367,274 @@ class ReportPackPdf {
           ].whereType<String>().join('; '),
         ),
       ],
+      if (a.nearby.isNotEmpty) ..._nearbyBlock(a.nearby),
       if (c != null) ..._crimeBlock(c),
+      if (a.water != null) ..._waterBlock(a.water!),
       if (w != null) ..._climateBlock(w),
+    ];
+  }
+
+  /// The colour each group of places is drawn in (as on the block map).
+  static const _placeColours = {
+    'schools': PdfColor.fromInt(0xFF7B4FD6),
+    'shopping': PdfColor.fromInt(0xFFE08A1E),
+    'health': PdfColor.fromInt(0xFFD93A4A),
+    'parks': PdfColor.fromInt(0xFF2E9E5B),
+    'beach': PdfColor.fromInt(0xFF1E9BD7),
+    'transport': PdfColor.fromInt(0xFF4A5563),
+    'police': PdfColor.fromInt(0xFF1F3A93),
+  };
+
+  static String _distance(double m) => m < 1000
+      ? '${(m / 10).round() * 10} m'
+      : '${(m / 1000).toStringAsFixed(1)} km';
+
+  /// What is nearby: two columns of groups, each place with its distance.
+  List<pw.Widget> _nearbyBlock(List<NearbyGroup> groups) {
+    pw.Widget group(NearbyGroup g) {
+      final colour = _placeColours[g.key] ?? _brand;
+      return pw.Container(
+        margin: const pw.EdgeInsets.only(bottom: 8),
+        padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: pw.BoxDecoration(
+          color: const PdfColor.fromInt(0xFFF5F6F8),
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Row(
+              children: [
+                pw.Container(
+                  width: 20,
+                  height: 20,
+                  padding: const pw.EdgeInsets.all(3.5),
+                  decoration: pw.BoxDecoration(
+                    color: colour,
+                    shape: pw.BoxShape.circle,
+                  ),
+                  child: switch (packIcon(g.key, 'FFFFFF')) {
+                    final svg? => pw.SvgImage(svg: svg),
+                    _ => null,
+                  },
+                ),
+                pw.SizedBox(width: 7),
+                pw.Text(
+                  pdfText(g.title),
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _ink,
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 5),
+            for (final place in g.places)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 2.5),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      child: pw.Text(
+                        pdfText(place.name),
+                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                        maxLines: 1,
+                      ),
+                    ),
+                    pw.Text(
+                      _distance(place.distanceM),
+                      style: pw.TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: pw.FontWeight.bold,
+                        color: colour,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final left = <NearbyGroup>[];
+    final right = <NearbyGroup>[];
+    for (final (i, g) in groups.indexed) {
+      (i.isEven ? left : right).add(g);
+    }
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _areaHeading(
+              'area',
+              'What is nearby',
+              'Distances in a straight line from the property',
+            ),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(children: [for (final g in left) group(g)]),
+                ),
+                pw.SizedBox(width: 8),
+                pw.Expanded(
+                  child: pw.Column(children: [for (final g in right) group(g)]),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      _note(
+        'Places from OpenStreetMap (© OpenStreetMap contributors); straight-line distances, not by road.',
+      ),
+    ];
+  }
+
+  /// Drinking water: the authority's Blue Drop score on the report's own scale.
+  List<pw.Widget> _waterBlock(WaterQuality water) {
+    const bands = [
+      ('Critical', 0.0, 31.0, PdfColor.fromInt(0xFFD7392E)),
+      ('Poor', 31.0, 50.0, PdfColor.fromInt(0xFFEE7B37)),
+      ('Average', 50.0, 80.0, PdfColor.fromInt(0xFFF2B233)),
+      ('Good', 80.0, 90.0, PdfColor.fromInt(0xFF8CBF3F)),
+      ('Excellent', 90.0, 100.0, PdfColor.fromInt(0xFF2E9E5B)),
+    ];
+    final score = water.scorePct.clamp(0, 100).toDouble();
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _areaHeading(
+              'humidity',
+              'Drinking water',
+              '${water.authority}  ·  Blue Drop ${water.year}',
+            ),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Container(
+                  width: 110,
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor.fromInt(0xFFF5F6F8),
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        '${water.scorePct.toStringAsFixed(1)}%',
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _ink,
+                        ),
+                      ),
+                      pw.Text(
+                        water.band,
+                        style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: water.scorePct >= 90
+                              ? const PdfColor.fromInt(0xFF2E9E5B)
+                              : _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 14),
+                pw.Expanded(
+                  child: pw.LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints!.maxWidth;
+                      return pw.SizedBox(
+                        height: 38,
+                        child: pw.Stack(
+                          children: [
+                            pw.Positioned(
+                              left: 0,
+                              right: 0,
+                              top: 12,
+                              child: pw.Row(
+                                children: [
+                                  for (final (_, from, to, colour) in bands)
+                                    pw.Expanded(
+                                      flex: ((to - from) * 10).round(),
+                                      child: pw.Container(
+                                        height: 8,
+                                        color: colour,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            pw.Positioned(
+                              left: 0,
+                              right: 0,
+                              top: 24,
+                              child: pw.Row(
+                                children: [
+                                  for (final (name, from, to, _) in bands)
+                                    pw.Expanded(
+                                      flex: ((to - from) * 10).round(),
+                                      child: pw.Text(
+                                        name,
+                                        textAlign: pw.TextAlign.center,
+                                        style: const pw.TextStyle(
+                                          fontSize: 6.5,
+                                          color: _muted,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // This municipality, on the scale.
+                            pw.Positioned(
+                              left: (width * score / 100 - 5).clamp(
+                                0,
+                                width - 10,
+                              ),
+                              top: 11,
+                              child: pw.Column(
+                                children: [
+                                  pw.Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: pw.BoxDecoration(
+                                      color: _ink,
+                                      shape: pw.BoxShape.circle,
+                                      border: pw.Border.all(
+                                        color: PdfColors.white,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      _note(
+        'How well the municipality manages and treats its drinking water, audited by the Department of '
+        'Water and Sanitation (95% and more is Blue Drop certified). A municipal score, not a test of the '
+        'water at this address. ${water.source}.',
+      ),
     ];
   }
 

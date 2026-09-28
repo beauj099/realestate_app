@@ -101,7 +101,8 @@ class _FakeRepo implements PropertyReportRepository {
     double? floorM2,
     double? erfM2,
     int? p24Suburb,
-    int max = 3,
+    double? priceZar,
+    int max = 4,
   }) => throw UnimplementedError();
 
   @override

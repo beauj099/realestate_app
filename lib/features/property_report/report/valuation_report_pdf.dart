@@ -64,6 +64,10 @@ class ValuationReportPdf {
   final Uint8List? logo;
   final DateTime date;
 
+  /// "Prepared by …" under the title; off in the report pack, which has the
+  /// agent on its cover and "Your agent" page.
+  final bool showAuthor;
+
   ValuationReportPdf({
     required this.report,
     required this.sitePlanSvg,
@@ -74,6 +78,7 @@ class ValuationReportPdf {
     this.blockMapSvg,
     this.onBrandColor = const Color(0xFFFFFFFF),
     this.logo,
+    this.showAuthor = true,
     DateTime? date,
   }) : date = date ?? DateTime.now();
 
@@ -247,12 +252,8 @@ class ValuationReportPdf {
   );
 
   pw.Widget _footer(pw.Context context) => pw.Row(
-    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    mainAxisAlignment: pw.MainAxisAlignment.end,
     children: [
-      pw.Text(
-        'Indicative only - not a certified valuation',
-        style: const pw.TextStyle(color: _muted, fontSize: 8),
-      ),
       pw.Text(
         'Page ${context.pageNumber} of ${context.pagesCount}',
         style: const pw.TextStyle(color: _muted, fontSize: 8),
@@ -290,7 +291,8 @@ class ValuationReportPdf {
         ].join('   ·   '),
         style: const pw.TextStyle(color: _muted, fontSize: 10),
       ),
-      if (author.name.isNotEmpty) ...[
+      // In the report pack the agent has pages of their own.
+      if (showAuthor && author.name.isNotEmpty) ...[
         pw.SizedBox(height: 6),
         pw.Text(
           [
@@ -388,8 +390,10 @@ class ValuationReportPdf {
   }
 
   List<pw.Widget> _sitePlan() {
-    final plan = sitePlanSvg;
     final block = blockMapSvg;
+    // The site plan is only worth its space with the buildings on it; an
+    // outline alone says less than the block view beside it.
+    final plan = block != null && report.buildings.isEmpty ? null : sitePlanSvg;
     if (plan == null && block == null) return const [];
     pw.Widget frame(String svg, double height) => pw.Container(
       height: height,
@@ -402,7 +406,9 @@ class ValuationReportPdf {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             _heading(
-              block == null ? 'Site plan' : 'The property and its block',
+              block == null
+                  ? 'Site plan'
+                  : 'The property and its neighbourhood',
             ),
             if (block != null && plan != null)
               pw.Row(
@@ -423,7 +429,7 @@ class ValuationReportPdf {
                 ],
               )
             else
-              frame(block ?? plan!, block != null ? 300 : 300),
+              frame(block ?? plan!, block != null ? 360 : 300),
           ],
         ),
       ),
@@ -1217,6 +1223,10 @@ class ValuationReportPdf {
             '(${_money(s!.medianPricePerDwellingM2)}/m²) applied to this property\'s '
             '${_m2(report.dwellingExtentM2)} gives the midpoint; the lower and upper quartiles '
             'give the range.',
+      if (report.sizedFromListingM2 case final floor?)
+        'Each sale was carried to the ${_m2(floor)} floor area captured on the listing'
+            '${report.dwellingExtentM2 == null ? '' : ' (the City records ${_m2(report.dwellingExtentM2)})'}; '
+            'the midpoint is their median and the range their middle half.',
     ]);
   }
 

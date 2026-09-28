@@ -230,22 +230,98 @@ class CrimeStats {
         );
 }
 
+/// A place near the property (OpenStreetMap), with how far it is.
+class NearbyPlace {
+  final String name;
+  final String kind;
+  final double distanceM;
+  const NearbyPlace(this.name, this.kind, this.distanceM);
+}
+
+/// A group of nearby places ("Schools"), nearest first. [key] is the icon
+/// and colour: schools, shopping, health, parks, beach, transport, police.
+class NearbyGroup {
+  final String key;
+  final String title;
+  final List<NearbyPlace> places;
+  const NearbyGroup(this.key, this.title, this.places);
+}
+
+/// The municipality's drinking-water score in the Blue Drop report.
+class WaterQuality {
+  final String municipality;
+  final String authority;
+  final double scorePct;
+  final String band;
+  final String year;
+  final String source;
+  const WaterQuality({
+    required this.municipality,
+    required this.authority,
+    required this.scorePct,
+    required this.band,
+    required this.year,
+    required this.source,
+  });
+
+  static WaterQuality? fromJson(Map<String, dynamic>? j) => j == null
+      ? null
+      : WaterQuality(
+          municipality: j['municipality'] as String? ?? '',
+          authority: j['authority'] as String? ?? '',
+          scorePct: _d(j['scorePct']) ?? 0,
+          band: j['band'] as String? ?? '',
+          year: j['year'] as String? ?? '',
+          source: j['source'] as String? ?? '',
+        );
+}
+
 class AreaDetails {
   final Climate? climate;
   final Population? population;
   final HouseholdIncome? income;
   final CrimeStats? crime;
+  final List<NearbyGroup> nearby;
+  final WaterQuality? water;
 
-  const AreaDetails({this.climate, this.population, this.income, this.crime});
+  const AreaDetails({
+    this.climate,
+    this.population,
+    this.income,
+    this.crime,
+    this.nearby = const [],
+    this.water,
+  });
 
   bool get isEmpty =>
-      climate == null && population == null && income == null && crime == null;
+      climate == null &&
+      population == null &&
+      income == null &&
+      crime == null &&
+      nearby.isEmpty &&
+      water == null;
 
   factory AreaDetails.fromJson(Map<String, dynamic> j) => AreaDetails(
     climate: Climate.fromJson(j['climate'] as Map<String, dynamic>?),
     population: Population.fromJson(j['population'] as Map<String, dynamic>?),
     income: HouseholdIncome.fromJson(j['income'] as Map<String, dynamic>?),
     crime: CrimeStats.fromJson(j['crime'] as Map<String, dynamic>?),
+    nearby: [
+      for (final g in (j['nearby'] as List? ?? const []))
+        NearbyGroup(
+          (g as Map<String, dynamic>)['key'] as String? ?? '',
+          g['title'] as String? ?? '',
+          [
+            for (final p in (g['places'] as List? ?? const []))
+              NearbyPlace(
+                (p as Map<String, dynamic>)['name'] as String? ?? '',
+                p['kind'] as String? ?? '',
+                _d(p['distanceM']) ?? 0,
+              ),
+          ],
+        ),
+    ],
+    water: WaterQuality.fromJson(j['water'] as Map<String, dynamic>?),
   );
 }
 

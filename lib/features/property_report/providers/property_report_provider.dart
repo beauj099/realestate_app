@@ -128,7 +128,10 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
     _candidate = candidate;
     state = const PropertyReportState(loading: true);
     try {
-      final report = await _repo.fetchReport(candidate);
+      // Carried to the floor area on the listing, when the agent captured one.
+      final report = (await _repo.fetchReport(
+        candidate,
+      )).forListingFloorArea(_hints.floorM2);
       final map = report.areaMapUrl;
       final results = await Future.wait([
         _repo.fetchSitePlan(report.sitePlanUrl),
@@ -233,7 +236,9 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
   Future<void> _reloadReport() async {
     final candidate = _candidate;
     if (candidate == null) return;
-    final report = await _repo.fetchReport(candidate);
+    final report = (await _repo.fetchReport(
+      candidate,
+    )).forListingFloorArea(_hints.floorM2);
     if (ref.mounted) state = state.copyWith(report: report);
   }
 

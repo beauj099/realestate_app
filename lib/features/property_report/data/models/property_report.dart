@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 // The property report the API assembles from public municipal data
 // (`GET /api/property/{municipality}/{erf}`): site, buildings, municipal value,
 // suburb trend and filtered comparable sales.
@@ -376,6 +378,10 @@ class PropertyReport {
   final ComparableSummary? comparableSummary;
   final ValueRange? indicativeValue;
 
+  /// Set when [indicativeValue] was carried to the floor area captured on the
+  /// listing (not the City's dwelling extent); see [forListingFloorArea].
+  final double? sizedFromListingM2;
+
   final List<ImageryRef> imagery;
   final String sitePlanUrl;
 
@@ -450,6 +456,7 @@ class PropertyReport {
     this.suburbStats,
     this.comparableSummary,
     this.indicativeValue,
+    this.sizedFromListingM2,
   });
 
   factory PropertyReport.fromJson(Map<String, dynamic> j) {
@@ -526,6 +533,85 @@ class PropertyReport {
     if (s.isEmpty || !a.endsWith(s)) return a;
     return '${a.substring(0, a.length - s.length).trim()}, $s';
   }
+
+  /// This report with the indicative range carried to [floorM2], the floor
+  /// area the agent captured, when it differs from the City's dwelling extent
+  /// by more than 5%: each included sale (indexed to today) scaled with the
+  /// same size elasticity the API uses (0.6), then the median and the
+  /// interpolated quartiles, rounded to R 10 000.
+  PropertyReport forListingFloorArea(double? floorM2) {
+    final city = dwellingExtentM2;
+    if (floorM2 == null || floorM2 <= 0 || indicativeValue == null) return this;
+    if (city != null && city > 0 && (floorM2 / city - 1).abs() <= 0.05) {
+      return this;
+    }
+    final implied = [
+      for (final c in includedComparables)
+        if (c.dwellingExtentM2 > 0)
+          (c.indexedPriceZar ?? c.salePriceZar) *
+              math.pow(floorM2 / c.dwellingExtentM2, sizeElasticity),
+    ]..sort();
+    if (implied.isEmpty) return this;
+    double at(double q) {
+      final pos = q * (implied.length - 1);
+      final lo = pos.floor();
+      final hi = math.min(lo + 1, implied.length - 1);
+      return implied[lo] + (implied[hi] - implied[lo]) * (pos - lo);
+    }
+
+    double r(double v) => (v / 10000).round() * 10000.0;
+    return PropertyReport(
+      municipality: municipality,
+      erf: erf,
+      address: address,
+      suburb: suburb,
+      township: township,
+      buildings: buildings,
+      approvedWork: approvedWork,
+      comparables: comparables,
+      imagery: imagery,
+      sitePlanUrl: sitePlanUrl,
+      areaMapUrl: areaMapUrl,
+      provenance: provenance,
+      generatedAt: generatedAt,
+      dataSource: dataSource,
+      comparablesMethod: comparablesMethod,
+      coverageNote: coverageNote,
+      rollEffectiveFrom: rollEffectiveFrom,
+      lastSale: lastSale,
+      streetSales: streetSales,
+      areaMarket: areaMarket,
+      agentSales: agentSales,
+      valuationRef: valuationRef,
+      lat: lat,
+      lng: lng,
+      extentM2: extentM2,
+      extentM2Geodesic: extentM2Geodesic,
+      zoningCode: zoningCode,
+      zoningDescription: zoningDescription,
+      ward: ward,
+      subCouncil: subCouncil,
+      legalStatus: legalStatus,
+      dwellingExtentM2: dwellingExtentM2,
+      totalRoofM2: totalRoofM2,
+      municipalValueZar: municipalValueZar,
+      municipalValueAsAt: municipalValueAsAt,
+      ratingCategory: ratingCategory,
+      rollVersion: rollVersion,
+      suburbStats: suburbStats,
+      comparableSummary: comparableSummary,
+      indicativeValue: ValueRange(
+        low: r(at(0.25)),
+        mid: r(at(0.5)),
+        high: r(at(0.75)),
+      ),
+      sizedFromListingM2: floorM2,
+    );
+  }
+
+  /// How much of a price difference a size difference makes: a home twice
+  /// the size sells for about 2^0.6 = 1.5 times as much (as in the API).
+  static const sizeElasticity = 0.6;
 
   /// The range to show: from municipal sales when there is one, otherwise
   /// from agent-reported sales (see [rangeFromAgentSales]).
