@@ -348,7 +348,7 @@ class ReportPackPdf {
             overflow: pw.Overflow.visible,
             children: [
               pw.Container(
-                height: 62,
+                height: 44,
                 margin: const pw.EdgeInsets.only(top: 14),
                 decoration: pw.BoxDecoration(
                   border: pw.Border(
@@ -370,20 +370,19 @@ class ReportPackPdf {
                   ),
                 ),
               ),
+              // The date: a valuation is a snapshot in time.
               pw.Positioned(
                 top: 40,
                 left: 0,
                 right: 0,
                 child: pw.Center(
                   child: pw.Text(
-                    pdfText(
-                      '$street, ${listing.area.isNotEmpty ? listing.area : _title(report.suburb)}   |   Erf ${report.erf}',
-                    ),
+                    _day.format(date),
                     style: pw.TextStyle(
-                      font: _serifBold,
-                      fontSize: 15,
-                      letterSpacing: 0.4,
-                      color: PdfColors.black,
+                      font: _serif,
+                      fontSize: 12,
+                      letterSpacing: 0.6,
+                      color: _muted,
                     ),
                   ),
                 ),
@@ -393,7 +392,7 @@ class ReportPackPdf {
         ),
         // The main photo on the brand colour, with who it is prepared for on it.
         pw.Container(
-          height: 282,
+          height: 300,
           padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
           child: pw.Stack(
             alignment: pw.Alignment.topCenter,
@@ -452,21 +451,31 @@ class ReportPackPdf {
           ),
         if (gallery.isNotEmpty)
           pw.Padding(
-            padding: const pw.EdgeInsets.fromLTRB(_coverSide, 8, _coverSide, 0),
-            child: pw.Row(
-              children: [
-                for (var i = 0; i < 3; i++) ...[
-                  if (i > 0) pw.SizedBox(width: 6),
-                  pw.Expanded(
-                    child: pw.SizedBox(
-                      height: 84,
-                      child: i < gallery.length
-                          ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
-                          : pw.SizedBox(),
+            padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: _ink, width: 1.2),
+              ),
+              child: pw.Row(
+                children: [
+                  for (var i = 0; i < 3; i++)
+                    pw.Expanded(
+                      child: pw.Container(
+                        height: 88,
+                        decoration: i == 0
+                            ? null
+                            : const pw.BoxDecoration(
+                                border: pw.Border(
+                                  left: pw.BorderSide(color: _ink, width: 1.2),
+                                ),
+                              ),
+                        child: i < gallery.length
+                            ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
+                            : pw.SizedBox(),
+                      ),
                     ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         pw.Padding(
@@ -540,37 +549,60 @@ class ReportPackPdf {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        // The street, and beside it where it is and how it is zoned.
+        // The address on the left; the erf and how it is zoned on the right.
         pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
-            pw.Text(
-              pdfText(street),
-              style: pw.TextStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-                color: _ink,
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    pdfText(street),
+                    style: pw.TextStyle(
+                      fontSize: 17,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _ink,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    children: [
+                      if (packIcon('place', _brandHex) case final svg?)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(right: 3),
+                          child: pw.SvgImage(svg: svg, width: 11, height: 11),
+                        ),
+                      pw.Text(
+                        pdfText(area),
+                        style: const pw.TextStyle(
+                          fontSize: 10.5,
+                          color: _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            pw.SizedBox(width: 14),
-            if (packIcon('place', _brandHex) case final svg?)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(right: 3),
-                child: pw.SvgImage(svg: svg, width: 11, height: 11),
-              ),
-            pw.Text(
-              pdfText(
-                [
-                  area,
-                  if (readableZoning(
-                        report.zoningCode,
-                        report.zoningDescription,
-                      )
-                      case final zoning?)
-                    'Zoned $zoning',
-                ].join('   ·   '),
-              ),
-              style: const pw.TextStyle(fontSize: 10, color: _muted),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Text(
+                  'Erf ${report.erf}',
+                  style: pw.TextStyle(
+                    fontSize: 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _brand,
+                  ),
+                ),
+                if (readableZoning(report.zoningCode, report.zoningDescription)
+                    case final zoning?)
+                  pw.Text(
+                    pdfText('Zoned $zoning'),
+                    style: const pw.TextStyle(fontSize: 9, color: _muted),
+                  ),
+              ],
             ),
           ],
         ),
@@ -647,8 +679,9 @@ class ReportPackPdf {
   /// agency's logo in the right corner.
   pw.Widget _agentCard() {
     final photo = _img(pictures.agentPhoto);
-    final onBrandLogo = _logoForBrand;
-    final logo = onBrandLogo ?? _img(pictures.logo);
+    // Used by the logo in the corner, now commented out below:
+    // final onBrandLogo = _logoForBrand;
+    // final logo = onBrandLogo ?? _img(pictures.logo);
     final onBrandHex = (onBrandColor.toARGB32() & 0xFFFFFF)
         .toRadixString(16)
         .padLeft(6, '0');
@@ -707,27 +740,44 @@ class ReportPackPdf {
               ],
             ),
           ),
-          if (logo != null)
-            onBrandLogo != null
-                ? pw.SizedBox(
-                    width: 170,
-                    height: 56,
-                    child: pw.Image(
-                      logo,
-                      fit: pw.BoxFit.contain,
-                      alignment: pw.Alignment.bottomRight,
-                    ),
-                  )
-                : pw.Container(
-                    width: 150,
-                    height: 56,
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: pw.BoxDecoration(
-                      color: _logoBackground,
-                      borderRadius: pw.BorderRadius.circular(6),
-                    ),
-                    child: pw.Image(logo, fit: pw.BoxFit.contain),
-                  ),
+          // The agency's slogan in the corner. (Was the agency's logo, which
+          // repeated the band at the top of the page; kept below in case it
+          // comes back.)
+          if (agent.office.slogan.isNotEmpty)
+            pw.SizedBox(
+              width: 170,
+              child: pw.Text(
+                pdfText(agent.office.slogan),
+                textAlign: pw.TextAlign.right,
+                style: pw.TextStyle(
+                  font: _serif,
+                  fontSize: 14,
+                  color: _onBrand,
+                  lineSpacing: 2,
+                ),
+              ),
+            ),
+          // if (logo != null)
+          //   onBrandLogo != null
+          //       ? pw.SizedBox(
+          //           width: 170,
+          //           height: 56,
+          //           child: pw.Image(
+          //             logo,
+          //             fit: pw.BoxFit.contain,
+          //             alignment: pw.Alignment.bottomRight,
+          //           ),
+          //         )
+          //       : pw.Container(
+          //           width: 150,
+          //           height: 56,
+          //           padding: const pw.EdgeInsets.all(6),
+          //           decoration: pw.BoxDecoration(
+          //             color: _logoBackground,
+          //             borderRadius: pw.BorderRadius.circular(6),
+          //           ),
+          //           child: pw.Image(logo, fit: pw.BoxFit.contain),
+          //         ),
         ],
       ),
     );

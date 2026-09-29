@@ -161,6 +161,15 @@ class ValuationReportPdf {
         ),
       if (report.ward != null) ('Ward', report.ward!),
       if (report.legalStatus != null) ('Legal status', report.legalStatus!),
+      // Said either way: a sale on record, or plainly that there is none in the
+      // municipality's recent sales record (older transfers are with the Deeds Office).
+      if (report.municipality == 'coct' || report.lastSale != null)
+        (
+          'Last registered sale',
+          report.lastSale == null
+              ? "None in the City's recent sales record (older transfers are with the Deeds Office)"
+              : '${_day.format(report.lastSale!.date)} for ${_money(report.lastSale!.priceZar)}',
+        ),
     ]),
     _section('Improvements', [
       if (report.dwellingExtentM2 != null)
