@@ -390,46 +390,85 @@ class ReportPackPdf {
             ],
           ),
         ),
-        // The main photo on the brand colour, with who it is prepared for on it.
+        // The photos in a frame of the agency colour, almost the page's width:
+        // the main photo, then three more, black lines between them (the
+        // black background showing through small gaps, since a photo is drawn
+        // over its own border).
         pw.Container(
-          height: 300,
-          padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
-          child: pw.Stack(
-            alignment: pw.Alignment.topCenter,
-            children: [
-              pw.Positioned.fill(
-                child: cover == null
-                    ? pw.Container(
-                        color: _brand,
-                        alignment: pw.Alignment.center,
-                        child: pw.Text(
-                          pdfText(street),
-                          style: pw.TextStyle(color: _onBrand, fontSize: 18),
-                        ),
-                      )
-                    : pw.Image(cover, fit: pw.BoxFit.cover),
-              ),
-              if (listing.preparedFor.isNotEmpty)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 12),
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.fromLTRB(16, 5, 16, 6),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.white,
-                      borderRadius: pw.BorderRadius.circular(14),
-                    ),
-                    child: pw.Text(
-                      pdfText('Specially prepared for ${listing.preparedFor}.'),
-                      style: pw.TextStyle(
-                        font: _serif,
-                        fontSize: 17,
-                        letterSpacing: 0.4,
-                        color: _brand,
+          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
+          padding: const pw.EdgeInsets.all(10),
+          color: _brand,
+          child: pw.Container(
+            color: PdfColors.black,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.SizedBox(
+                  height: 292,
+                  child: pw.Stack(
+                    alignment: pw.Alignment.topCenter,
+                    children: [
+                      pw.Positioned.fill(
+                        child: cover == null
+                            ? pw.Container(
+                                color: _brand,
+                                alignment: pw.Alignment.center,
+                                child: pw.Text(
+                                  pdfText(street),
+                                  style: pw.TextStyle(
+                                    color: _onBrand,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              )
+                            : pw.Image(cover, fit: pw.BoxFit.cover),
                       ),
-                    ),
+                      if (listing.preparedFor.isNotEmpty)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(top: 12),
+                          child: pw.Container(
+                            padding: const pw.EdgeInsets.fromLTRB(16, 5, 16, 6),
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.white,
+                              borderRadius: pw.BorderRadius.circular(14),
+                            ),
+                            child: pw.Text(
+                              pdfText(
+                                'Specially prepared for ${listing.preparedFor}.',
+                              ),
+                              style: pw.TextStyle(
+                                font: _serif,
+                                fontSize: 17,
+                                letterSpacing: 0.4,
+                                color: _brand,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-            ],
+                if (gallery.isNotEmpty) ...[
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    children: [
+                      for (var i = 0; i < 3; i++) ...[
+                        if (i > 0) pw.SizedBox(width: 2),
+                        pw.Expanded(
+                          child: pw.SizedBox(
+                            height: 88,
+                            child: i < gallery.length
+                                ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
+                                : pw.SizedBox(),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+                pw.SizedBox(height: 2),
+              ],
+            ),
           ),
         ),
         if (sold != null)
@@ -446,35 +485,6 @@ class ReportPackPdf {
                   fontSize: 10,
                   color: PdfColors.black,
                 ),
-              ),
-            ),
-          ),
-        if (gallery.isNotEmpty)
-          pw.Padding(
-            padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
-            child: pw.Container(
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: _ink, width: 1.2),
-              ),
-              child: pw.Row(
-                children: [
-                  for (var i = 0; i < 3; i++)
-                    pw.Expanded(
-                      child: pw.Container(
-                        height: 88,
-                        decoration: i == 0
-                            ? null
-                            : const pw.BoxDecoration(
-                                border: pw.Border(
-                                  left: pw.BorderSide(color: _ink, width: 1.2),
-                                ),
-                              ),
-                        child: i < gallery.length
-                            ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
-                            : pw.SizedBox(),
-                      ),
-                    ),
-                ],
               ),
             ),
           ),
@@ -503,7 +513,7 @@ class ReportPackPdf {
         ? _logoForBrand
         : _img(pictures.logo);
     return pw.Container(
-      height: 90,
+      height: 78,
       color: _logoBackground,
       padding: const pw.EdgeInsets.symmetric(
         horizontal: _coverSide,
@@ -591,9 +601,9 @@ class ReportPackPdf {
                 pw.Text(
                   'Erf ${report.erf}',
                   style: pw.TextStyle(
-                    fontSize: 13,
+                    fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
-                    color: _brand,
+                    color: _ink,
                   ),
                 ),
                 if (readableZoning(report.zoningCode, report.zoningDescription)
@@ -664,16 +674,6 @@ class ReportPackPdf {
     }
     return null;
   }
-
-  /// The listing's own portfolio first, then what the records add.
-  List<String> get _portfolio => [
-    if (readableZoning(report.zoningCode, report.zoningDescription)
-        case final zoning?)
-      'Zoned: $zoning',
-    if (report.extentM2 != null)
-      'Erf size: ${groupDigits(report.extentM2!)} m²',
-    ...listing.portfolio,
-  ];
 
   /// The agent across the foot of the cover, on the brand colour, with the
   /// agency's logo in the right corner.
@@ -887,38 +887,6 @@ class ReportPackPdf {
             ],
           ),
         ),
-      if (_portfolio.isNotEmpty) ...[
-        pw.SizedBox(height: 26),
-        pw.Container(
-          padding: const pw.EdgeInsets.all(14),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: _rule),
-            borderRadius: pw.BorderRadius.circular(6),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'About the property',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _brand,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              for (final line in _portfolio)
-                pw.Bullet(
-                  text: pdfText(line),
-                  style: const pw.TextStyle(fontSize: 9.5, color: _ink),
-                  margin: const pw.EdgeInsets.only(bottom: 3),
-                  bulletColor: _brand,
-                  bulletSize: 3,
-                ),
-            ],
-          ),
-        ),
-      ],
       pw.Spacer(),
       _officeFooter(),
     ],
