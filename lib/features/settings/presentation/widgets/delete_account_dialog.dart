@@ -7,9 +7,10 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/theme/themes.dart';
 
 /// Asks the agent to confirm deleting their account, with their password,
-/// and deletes it (`POST /api/agents/me/delete`): the agent's details go,
-/// their listings stay. True when it was deleted; the caller then signs out.
-/// App stores require this in the app.
+/// and deletes it (`POST /api/agents/me/delete`): switched off at once,
+/// restorable by signing in for 90 days, then the agent's details go; their
+/// listings stay. True when it was deleted; the caller then signs out. App
+/// stores require this in the app.
 Future<bool> showDeleteAccountDialog(
   BuildContext context,
   RealEstateTheme theme,
@@ -83,12 +84,12 @@ class _DeleteAccountDialogState extends ConsumerState<_DeleteAccountDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This permanently deletes your account: your name, contact '
-              'details, registration numbers, photo, signature and profile. '
-              'You will not be able to sign in again. The listings you '
-              'captured stay with your agency, and the sales you logged stay '
-              'in the shared market data, without your name. It cannot be '
-              'undone.',
+              'Your account is switched off straight away. Changed your mind? '
+              'Sign in again within 90 days and everything is back as it was.\n\n'
+              'After 90 days your name, contact details, registration numbers, '
+              'photo, signature and profile are deleted for good. The listings '
+              'you captured stay with your agency, and the sales you logged stay '
+              'in the shared market data, without your name.',
               style: textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
