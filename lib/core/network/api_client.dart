@@ -33,7 +33,8 @@ class ApiClient {
     // web is unaffected: the browser owns TLS validation there.
     applyDebugTlsBypass(_dio);
     _dio.interceptors.addAll([
-      LogInterceptor(requestBody: kDebugMode, responseBody: kDebugMode),
+      // Debug only: the request log prints headers, the sign-in token included.
+      if (kDebugMode) LogInterceptor(requestBody: true, responseBody: true),
       InterceptorsWrapper(
         onRequest: (options, handler) {
           if (_token != null) {

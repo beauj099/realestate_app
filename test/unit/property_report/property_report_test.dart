@@ -62,6 +62,27 @@ void main() {
     });
   });
 
+  group('consistency helpers', () {
+    test('drops this suburb from a sale\'s address, not another\'s', () {
+      final r = _fixture();
+      expect(r.withoutSuburb('3 MAIN ROAD ${r.suburb}'), '3 MAIN ROAD');
+      expect(r.withoutSuburb('3 MAIN ROAD ELSEWHERE'), '3 MAIN ROAD ELSEWHERE');
+    });
+
+    test('warns when the listing\'s floor area moves the range', () {
+      final r = _fixture();
+      expect(r.floorAreaWarning, isNull);
+      final bigger = r.forListingFloorArea(r.dwellingExtentM2! * 1.3);
+      expect(bigger.floorAreaWarning, contains('30% larger'));
+      expect(bigger.cityRange, r.indicativeValue);
+      // Within 5% it is the same home: no second range, no warning.
+      expect(
+        r.forListingFloorArea(r.dwellingExtentM2! * 1.03).floorAreaWarning,
+        isNull,
+      );
+    });
+  });
+
   test('Rand is grouped with non-breaking spaces', () {
     expect(rand(7100000), 'R 7 100 000');
     expect(groupDigits(1085), '1 085');

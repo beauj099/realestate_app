@@ -70,6 +70,8 @@ class AgentSale {
   final double? erfM2;
   final double? floorM2;
   final int? bedrooms;
+  final int? bathrooms;
+  final bool? hasPool;
   final SaleCondition? condition;
   final DateTime saleDate;
   final double salePriceZar;
@@ -102,9 +104,20 @@ class AgentSale {
     this.erfM2,
     this.floorM2,
     this.bedrooms,
+    this.bathrooms,
+    this.hasPool,
     this.condition,
     this.pricePerFloorM2,
   });
+
+  /// "3 bed · 2 bath · pool · Good", from what the agent knew; empty if
+  /// nothing.
+  String get homeSummary => [
+    if (bedrooms != null) '$bedrooms bed',
+    if (bathrooms != null) '$bathrooms bath',
+    if (hasPool == true) 'pool',
+    if (condition != null) condition!.label,
+  ].join(' · ');
 
   factory AgentSale.fromJson(Map<String, dynamic> j) => AgentSale(
     id: j['id'] as String,
@@ -114,6 +127,8 @@ class AgentSale {
     erfM2: _d(j['erfM2']),
     floorM2: _d(j['floorM2']),
     bedrooms: j['bedrooms'] as int?,
+    bathrooms: j['bathrooms'] as int?,
+    hasPool: j['hasPool'] as bool?,
     condition: SaleCondition.fromWire(j['condition'] as String?),
     saleDate: DateTime.parse(j['saleDate'] as String),
     salePriceZar: _d(j['salePriceZar']) ?? 0,
@@ -182,6 +197,8 @@ class NewAgentSale {
   final double? floorM2;
   final double? erfM2;
   final int? bedrooms;
+  final int? bathrooms;
+  final bool? hasPool;
   final SaleCondition? condition;
   final String? notes;
 
@@ -195,6 +212,8 @@ class NewAgentSale {
     this.floorM2,
     this.erfM2,
     this.bedrooms,
+    this.bathrooms,
+    this.hasPool,
     this.condition,
     this.notes,
   });
@@ -212,6 +231,8 @@ class NewAgentSale {
     'floorM2': ?floorM2,
     'erfM2': ?erfM2,
     'bedrooms': ?bedrooms,
+    'bathrooms': ?bathrooms,
+    'hasPool': ?hasPool,
     'condition': ?condition?.wire,
     if ((notes ?? '').trim().isNotEmpty) 'notes': notes!.trim(),
   };

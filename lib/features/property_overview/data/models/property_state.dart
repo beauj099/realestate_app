@@ -269,6 +269,8 @@ class PropertyState {
       listingValuation.ownersNetPrice.trim(),
       listingValuation.agentValuation.trim(),
       listingValuation.commissionPercent.trim(),
+      listingValuation.lastPurchasePrice.trim(),
+      listingValuation.lastPurchaseDate?.toIso8601String() ?? '',
     ],
     [
       propertyRunningCosts.monthlyLevy.trim(),
@@ -320,6 +322,7 @@ class PropertyState {
           listingValuation.ownersNetPrice,
           listingValuation.agentValuation,
           listingValuation.commissionPercent,
+          listingValuation.lastPurchasePrice,
         ].any((v) => v.trim().isNotEmpty) ||
         latitude != null ||
         facingId != null ||

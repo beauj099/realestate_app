@@ -9,16 +9,23 @@ abstract final class ApiConstants {
   /// dev cert, so the web build talks to the backend over plain HTTP instead.
   static const String baseUrlWeb = 'http://localhost:5169';
 
+  /// The live API, which release builds use: `flutter build appbundle
+  /// --dart-define=API_BASE_URL=$baseUrlProduction`.
+  static const String baseUrlProduction = 'https://api.realworth.co.za';
+
   /// Backend base URL injected at build time via
-  /// `--dart-define=API_BASE_URL=https://...` or at runtime via the `.env`
-  /// file. Empty when not supplied, in which case [baseUrlAndroid]/
+  /// `--dart-define=API_BASE_URL=https://...` (wins, so a release build is
+  /// never pointed at a developer's `.env`) or else at runtime via the `.env`
+  /// file. Empty when neither is supplied, in which case [baseUrlAndroid]/
   /// [baseUrlDesktop] are used.
   static String get baseUrlOverride {
+    const defined = String.fromEnvironment('API_BASE_URL');
+    if (defined.isNotEmpty) return defined;
     if (dotenv.isInitialized) {
       final envUrl = dotenv.maybeGet('API_BASE_URL');
       if (envUrl != null && envUrl.isNotEmpty) return envUrl;
     }
-    return const String.fromEnvironment('API_BASE_URL');
+    return '';
   }
 
   static const Duration connectTimeout = Duration(seconds: 10);

@@ -388,6 +388,10 @@ class PropertyReport {
   /// listing (not the City's dwelling extent); see [forListingFloorArea].
   final double? sizedFromListingM2;
 
+  /// The range on the City's dwelling extent, kept when [indicativeValue] was
+  /// carried to the listing's floor area, so the report can show both.
+  final ValueRange? cityRange;
+
   final List<ImageryRef> imagery;
   final String sitePlanUrl;
 
@@ -463,6 +467,7 @@ class PropertyReport {
     this.comparableSummary,
     this.indicativeValue,
     this.sizedFromListingM2,
+    this.cityRange,
   });
 
   factory PropertyReport.fromJson(Map<String, dynamic> j) {
@@ -612,6 +617,7 @@ class PropertyReport {
         high: r(at(0.75)),
       ),
       sizedFromListingM2: floorM2,
+      cityRange: indicativeValue,
     );
   }
 
@@ -630,6 +636,64 @@ class PropertyReport {
 
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();
+
+  /// [address] without this property's suburb or township at the end, for
+  /// tables and the letter where every sale is in the same place.
+  String withoutSuburb(String address) {
+    var a = address.trim();
+    for (final place in {suburb, township}) {
+      final p = place.trim();
+      if (p.isNotEmpty && a.toUpperCase().endsWith(' ${p.toUpperCase()}')) {
+        a = a.substring(0, a.length - p.length - 1).trim();
+      }
+    }
+    return a;
+  }
+
+  /// For the agent before sending: the listing's floor area differs from
+  /// the City's and the two give different ranges. Null when they agree.
+  String? get floorAreaWarning {
+    final listing = sizedFromListingM2, city = dwellingExtentM2;
+    final onCity = cityRange, onListing = indicativeValue;
+    if (listing == null || city == null || city <= 0) return null;
+    if (onCity?.low == null || onCity?.high == null) return null;
+    if (onListing?.low == null || onListing?.high == null) return null;
+    final diff = ((listing / city - 1) * 100).round();
+    return 'The listing\'s floor area (${listing.round()} m²) is '
+        '${diff.abs()}% ${diff > 0 ? 'larger' : 'smaller'} than the City\'s '
+        'record (${city.round()} m²). On the City\'s size the sales indicate '
+        '${rand(onCity!.low!)} to ${rand(onCity.high!)}, against '
+        '${rand(onListing!.low!)} to ${rand(onListing.high!)} on yours. Check '
+        'the floor area before you send the pack.';
+  }
+
+  /// Why the range is less certain than usual, or null: the home is larger
+  /// or smaller than every sale used (so the size adjustment does most of
+  /// the work), or there are few sales.
+  String? get confidenceNote {
+    final used = includedComparables
+        .where((c) => c.dwellingExtentM2 > 0)
+        .toList();
+    final size = sizedFromListingM2 ?? dwellingExtentM2;
+    if (used.isEmpty || size == null || size <= 0) return null;
+    final sizes = used.map((c) => c.dwellingExtentM2).toList()..sort();
+    String m2(double v) => '${v.round()} m²';
+    final notes = [
+      if (size > sizes.last * 1.1)
+        'This home (${m2(size)}) is larger than every comparable sale (the '
+            'largest was ${m2(sizes.last)}), so the range leans on the size '
+            'adjustment.',
+      if (size < sizes.first * 0.9)
+        'This home (${m2(size)}) is smaller than every comparable sale (the '
+            'smallest was ${m2(sizes.first)}), so the range leans on the size '
+            'adjustment.',
+      if (used.length < 5) 'Only ${used.length} comparable sales were found.',
+    ];
+    return notes.isEmpty
+        ? null
+        : '${notes.join(' ')} Few similar homes have sold nearby, so treat the '
+              'range as less certain than usual.';
+  }
 
   /// The comparables table: the sales used, then those listed for reference,
   /// numbered in this order (as on the map).

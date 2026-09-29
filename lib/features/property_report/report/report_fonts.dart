@@ -8,6 +8,16 @@ Future<pw.ThemeData> reportTheme() => _theme ??= _load();
 
 Future<pw.ThemeData>? _theme;
 
+/// The serif for headings of brands with a serif identity: Crimson Text (SIL
+/// Open Font Licence, `assets/fonts/CrimsonText-OFL.txt`), regular and bold.
+Future<(pw.Font, pw.Font)> reportSerif() => _serif ??= () async {
+  Future<pw.Font> font(String name) async =>
+      pw.Font.ttf(await rootBundle.load('assets/fonts/$name.ttf'));
+  return (await font('CrimsonText-Regular'), await font('CrimsonText-Bold'));
+}();
+
+Future<(pw.Font, pw.Font)>? _serif;
+
 Future<pw.ThemeData> _load() async {
   Future<pw.Font> font(String name) async =>
       pw.Font.ttf(await rootBundle.load('assets/fonts/$name.ttf'));

@@ -275,6 +275,10 @@ class PropertyRepository {
         ownersNetPrice: valuation?['ownersNetPrice']?.toString() ?? '',
         agentValuation: valuation?['agentValuation']?.toString() ?? '',
         commissionPercent: valuation?['commissionPercent']?.toString() ?? '',
+        lastPurchasePrice: valuation?['lastPurchasePriceZar']?.toString() ?? '',
+        lastPurchaseDate: DateTime.tryParse(
+          valuation?['lastPurchaseDate']?.toString() ?? '',
+        ),
       ),
       propertyRunningCosts: PropertyRunningCosts(
         monthlyLevy: runningCosts?['monthlyLevy']?.toString() ?? '',
@@ -350,6 +354,15 @@ class PropertyRepository {
       data['commissionPercent'] = _parseDecimal(
         state.listingValuation.commissionPercent,
       );
+    }
+    if (state.listingValuation.lastPurchasePrice.isNotEmpty) {
+      data['lastPurchasePriceZar'] = _parseDecimal(
+        state.listingValuation.lastPurchasePrice,
+      );
+    }
+    if (state.listingValuation.lastPurchaseDate case final date?) {
+      data['lastPurchaseDate'] =
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-01';
     }
     await _client.put(ApiEndpoints.listingValuation(listingId), data: data);
   }

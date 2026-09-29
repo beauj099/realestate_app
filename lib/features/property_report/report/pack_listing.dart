@@ -1,5 +1,7 @@
+import '../../property_overview/data/models/enums/condition_rating.dart';
 import '../../property_overview/data/models/enums/room_category.dart';
 import '../../property_overview/data/models/property_state.dart';
+import 'report_pack_pdf.dart';
 
 /// The cover's "Property portfolio": what the agent captured about the home.
 List<String> packPortfolio(PropertyState s) {
@@ -43,6 +45,47 @@ List<String> packPortfolio(PropertyState s) {
     if (parking > 0) plural(parking, 'parking bay', 'parking bays'),
     if (s.outdoorFeatures.isNotEmpty) s.outdoorFeatures.take(8).join(', '),
   ];
+}
+
+/// The agent's inspection for the pack: every room captured, with its
+/// condition, score, features and notes; the home as a whole; outside.
+/// Empty when no rooms were captured.
+PackInspection packInspection(PropertyState s) {
+  final outside = s.outdoorFeatures.take(8).join(', ');
+  return PackInspection(
+    rooms: [
+      for (final r in s.rooms)
+        PackRoom(
+          name: r.name.trim().isEmpty ? 'Room' : r.name.trim(),
+          condition: ConditionRating.fromStored(r.conditionRating)?.label ?? '',
+          conditionLevel: ConditionRating.fromStored(r.conditionRating)?.level,
+          score: r.score,
+          features: [
+            for (final f in r.features)
+              if (!r.hiddenFeatures.contains(f.description)) f.description,
+          ],
+          notes: r.notes,
+        ),
+    ],
+    houseScore: s.houseScore,
+    building: [
+      for (final line in packPortfolio(s))
+        if (line != outside) line,
+    ],
+    outside: s.outdoorFeatures,
+  );
+}
+
+/// When the owners bought, from the listing's valuation; null unless both
+/// the month and the price were captured.
+({DateTime date, double priceZar})? packOwnersPurchase(PropertyState s) {
+  final date = s.listingValuation.lastPurchaseDate;
+  final price = double.tryParse(
+    s.listingValuation.lastPurchasePrice.replaceAll(RegExp(r'[\s,]'), ''),
+  );
+  return date == null || price == null || price <= 0
+      ? null
+      : (date: date, priceZar: price);
 }
 
 /// The owners as the pack names them — "Piet & Mary Swanepoel" when they

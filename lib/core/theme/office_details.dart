@@ -70,6 +70,10 @@ class OfficeDetails {
   /// Logo variants; uploaded separately, never sent with the text fields.
   final OfficeLogos logos;
 
+  /// "serif" to set the report's headings in a serif (brands with a serif
+  /// identity); empty for the body font.
+  final String headingFont;
+
   static const defaultHeadline = 'residential & *lifestyle* realty partner';
 
   const OfficeDetails({
@@ -82,6 +86,7 @@ class OfficeDetails {
     this.slogan = '',
     this.headline = '',
     this.logos = const OfficeLogos(),
+    this.headingFont = '',
   });
 
   bool get isEmpty =>
@@ -92,7 +97,8 @@ class OfficeDetails {
       website.isEmpty &&
       footer.isEmpty &&
       slogan.isEmpty &&
-      headline.isEmpty;
+      headline.isEmpty &&
+      headingFont.isEmpty;
 
   /// This office with each empty field taken from [defaults].
   OfficeDetails orDefaults(OfficeDetails defaults) => OfficeDetails(
@@ -105,6 +111,7 @@ class OfficeDetails {
     slogan: slogan.isNotEmpty ? slogan : defaults.slogan,
     headline: headline.isNotEmpty ? headline : defaults.headline,
     logos: logos.orDefaults(defaults.logos),
+    headingFont: headingFont.isNotEmpty ? headingFont : defaults.headingFont,
   );
 
   OfficeDetails copyWith({
@@ -117,6 +124,7 @@ class OfficeDetails {
     String? slogan,
     String? headline,
     OfficeLogos? logos,
+    String? headingFont,
   }) => OfficeDetails(
     name: name ?? this.name,
     address: address ?? this.address,
@@ -127,6 +135,7 @@ class OfficeDetails {
     slogan: slogan ?? this.slogan,
     headline: headline ?? this.headline,
     logos: logos ?? this.logos,
+    headingFont: headingFont ?? this.headingFont,
   );
 
   factory OfficeDetails.fromJson(Map<String, dynamic>? j) => OfficeDetails(
@@ -139,6 +148,7 @@ class OfficeDetails {
     slogan: j?['slogan'] as String? ?? '',
     headline: j?['headline'] as String? ?? '',
     logos: OfficeLogos.fromJson(j?['logos'] as Map<String, dynamic>?),
+    headingFont: j?['headingFont'] as String? ?? '',
   );
 
   /// Empty strings are sent as "" so the API clears them.
@@ -151,6 +161,7 @@ class OfficeDetails {
     'footer': footer,
     'slogan': slogan,
     'headline': headline,
+    'headingFont': headingFont,
   };
 
   /// For the device cache: the text fields and the logos.
@@ -167,6 +178,7 @@ class OfficeDetails {
       other.footer == footer &&
       other.slogan == slogan &&
       other.headline == headline &&
+      other.headingFont == headingFont &&
       other.logos == logos;
 
   @override
@@ -180,5 +192,6 @@ class OfficeDetails {
     slogan,
     headline,
     logos,
+    headingFont,
   );
 }
