@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Network configuration constants.
@@ -9,18 +10,22 @@ abstract final class ApiConstants {
   /// dev cert, so the web build talks to the backend over plain HTTP instead.
   static const String baseUrlWeb = 'http://localhost:5169';
 
-  /// The live API, which release builds use: `flutter build appbundle
-  /// --dart-define=API_BASE_URL=$baseUrlProduction`.
+  /// The live API. Release builds use it unless told otherwise, so a plain
+  /// `flutter build apk --release` talks to the real server.
   static const String baseUrlProduction = 'https://api.realworth.co.za';
 
-  /// Backend base URL injected at build time via
-  /// `--dart-define=API_BASE_URL=https://...` (wins, so a release build is
-  /// never pointed at a developer's `.env`) or else at runtime via the `.env`
-  /// file. Empty when neither is supplied, in which case [baseUrlAndroid]/
-  /// [baseUrlDesktop] are used.
+  /// The backend base URL, in order:
+  /// 1. `--dart-define=API_BASE_URL=https://...` at build time, for a release
+  ///    against another server (e.g. a test API);
+  /// 2. in a release build, [baseUrlProduction] (never a developer's `.env`,
+  ///    whose emulator address leads nowhere on a real phone);
+  /// 3. in debug and profile builds, `API_BASE_URL` from the `.env` file.
+  /// Empty when none applies, in which case [baseUrlAndroid]/[baseUrlDesktop]
+  /// are used.
   static String get baseUrlOverride {
     const defined = String.fromEnvironment('API_BASE_URL');
     if (defined.isNotEmpty) return defined;
+    if (kReleaseMode) return baseUrlProduction;
     if (dotenv.isInitialized) {
       final envUrl = dotenv.maybeGet('API_BASE_URL');
       if (envUrl != null && envUrl.isNotEmpty) return envUrl;

@@ -28,12 +28,16 @@ refused by Play.
 
 1. Raise the version in `pubspec.yaml`: `version: 1.0.1+2` (the number after `+` must go up for
    every upload).
-2. Build against the live API. The `--dart-define` wins over any `.env`, so the release never
-   points at a developer machine:
+2. Build. Release builds use the live API (`https://api.realworth.co.za`) by default, never a
+   developer's `.env`:
 
    ```powershell
-   flutter build appbundle --release --dart-define=API_BASE_URL=https://api.realworth.co.za
+   flutter build appbundle --release
    ```
+
+   (For a phone test without Play: `flutter build apk --release --split-per-abi`, then install
+   `app-arm64-v8a-release.apk`. To point a release at another server, add
+   `--dart-define=API_BASE_URL=https://...`.)
 
    The bundle is `build/app/outputs/bundle/release/app-release.aab`.
 3. Play Console → the app → Testing → Internal testing → Create release → upload the `.aab`.
