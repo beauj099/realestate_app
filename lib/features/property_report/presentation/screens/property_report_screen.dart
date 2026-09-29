@@ -241,7 +241,10 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       final profile = ref.read(agentProfileProvider);
       final agency = ref.read(agencyProvider);
       final forSale = state.forSale;
-      final brochure = profile.brochurePages ?? agency.brochurePages;
+      // The agent's own pages when they have any, else the agency's (an
+      // empty list from the API means "none of my own", not "no pages").
+      final own = profile.brochurePages ?? const <String>[];
+      final brochure = own.isNotEmpty ? own : agency.brochurePages;
       final office = profile.office.orDefaults(agency.office);
       final fetched = await Future.wait([
         packImageBytes(options.coverPhoto, api),

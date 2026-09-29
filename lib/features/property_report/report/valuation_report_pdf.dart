@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../data/models/property_report.dart';
+import 'report_fonts.dart';
 
 /// Text for the PDF's built-in fonts, which have no typographic dashes,
 /// curly quotes or ellipsis: those become their plain equivalents rather
@@ -68,6 +69,10 @@ class ValuationReportPdf {
   /// agent on its cover and "Your agent" page.
   final bool showAuthor;
 
+  /// The "Sources" section and the notes naming where figures come from; off
+  /// in the report pack, which the agent hands over as their own.
+  final bool showSources;
+
   ValuationReportPdf({
     required this.report,
     required this.sitePlanSvg,
@@ -79,6 +84,7 @@ class ValuationReportPdf {
     this.onBrandColor = const Color(0xFFFFFFFF),
     this.logo,
     this.showAuthor = true,
+    this.showSources = true,
     DateTime? date,
   }) : date = date ?? DateTime.now();
 
@@ -110,6 +116,7 @@ class ValuationReportPdf {
       title: 'Valuation report - ${report.displayAddress}',
       author: author.name.isEmpty ? null : author.name,
       creator: 'RealWorth',
+      theme: await reportTheme(),
     );
 
     doc.addPage(
@@ -130,14 +137,14 @@ class ValuationReportPdf {
     _title(),
     pw.SizedBox(height: 14),
     _rangeBox(),
-    if (report.coverageNote != null)
+    if (showSources && report.coverageNote != null)
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           pdfText(report.coverageNote!),
           style: pw.TextStyle(
             color: _muted,
-            fontSize: 8.5,
+            fontSize: 9.5,
             fontStyle: pw.FontStyle.italic,
           ),
         ),
@@ -218,7 +225,7 @@ class ValuationReportPdf {
     ..._agentSales(),
     _method(),
     _disclaimer(),
-    _sources(),
+    if (showSources) _sources(),
   ];
 
   pw.Widget header(pw.Context context) => _header(context);
@@ -249,12 +256,12 @@ class ValuationReportPdf {
             style: pw.TextStyle(
               color: _brand,
               fontWeight: pw.FontWeight.bold,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
         pw.Text(
           _day.format(date),
-          style: const pw.TextStyle(color: _muted, fontSize: 9),
+          style: const pw.TextStyle(color: _muted, fontSize: 10),
         ),
       ],
     ),
@@ -265,7 +272,7 @@ class ValuationReportPdf {
     children: [
       pw.Text(
         'Page ${context.pageNumber} of ${context.pagesCount}',
-        style: const pw.TextStyle(color: _muted, fontSize: 8),
+        style: const pw.TextStyle(color: _muted, fontSize: 9),
       ),
     ],
   );
@@ -277,7 +284,7 @@ class ValuationReportPdf {
         'PROPERTY VALUATION REPORT',
         style: pw.TextStyle(
           color: _brand,
-          fontSize: 9,
+          fontSize: 10,
           letterSpacing: 1.2,
           fontWeight: pw.FontWeight.bold,
         ),
@@ -298,7 +305,7 @@ class ValuationReportPdf {
           if (report.valuationRef != null)
             'Valuation ref ${report.valuationRef}',
         ].join('   ·   '),
-        style: const pw.TextStyle(color: _muted, fontSize: 10),
+        style: const pw.TextStyle(color: _muted, fontSize: 11),
       ),
       // In the report pack the agent has pages of their own.
       if (showAuthor && author.name.isNotEmpty) ...[
@@ -310,7 +317,7 @@ class ValuationReportPdf {
             if (author.mobile.isNotEmpty) author.mobile,
             if (author.email.isNotEmpty) author.email,
           ].join('   ·   '),
-          style: const pw.TextStyle(color: _ink, fontSize: 9),
+          style: const pw.TextStyle(color: _ink, fontSize: 10),
         ),
       ],
     ],
@@ -337,7 +344,7 @@ class ValuationReportPdf {
                   'INDICATIVE MARKET RANGE',
                   style: pw.TextStyle(
                     color: _onBrand,
-                    fontSize: 8,
+                    fontSize: 9,
                     letterSpacing: 1,
                   ),
                 ),
@@ -355,12 +362,12 @@ class ValuationReportPdf {
                 if (range?.mid != null)
                   pw.Text(
                     'Midpoint ${_money(range!.mid)}',
-                    style: pw.TextStyle(color: _onBrand, fontSize: 10),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 11),
                   ),
                 if (report.rangeFromAgentSales)
                   pw.Text(
                     'From agent-reported sales, not registered transfers',
-                    style: pw.TextStyle(color: _onBrand, fontSize: 8),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 9),
                   ),
               ],
             ),
@@ -373,7 +380,7 @@ class ValuationReportPdf {
                 'MUNICIPAL VALUE',
                 style: pw.TextStyle(
                   color: _onBrand,
-                  fontSize: 8,
+                  fontSize: 9,
                   letterSpacing: 1,
                 ),
               ),
@@ -389,7 +396,7 @@ class ValuationReportPdf {
               if (summary != null)
                 pw.Text(
                   '${_count(summary.included)} comparable sales',
-                  style: pw.TextStyle(color: _onBrand, fontSize: 9),
+                  style: pw.TextStyle(color: _onBrand, fontSize: 10),
                 ),
             ],
           ),
@@ -484,7 +491,7 @@ class ValuationReportPdf {
         pw.SizedBox(height: 3),
         pw.Text(
           i.attribution,
-          style: const pw.TextStyle(color: _muted, fontSize: 8),
+          style: const pw.TextStyle(color: _muted, fontSize: 9),
         ),
         pw.SizedBox(height: 16),
       ],
@@ -531,14 +538,17 @@ class ValuationReportPdf {
                       flex: 4,
                       child: pw.Text(
                         label,
-                        style: const pw.TextStyle(color: _muted, fontSize: 9.5),
+                        style: const pw.TextStyle(
+                          color: _muted,
+                          fontSize: 10.5,
+                        ),
                       ),
                     ),
                     pw.Expanded(
                       flex: 6,
                       child: pw.Text(
                         value,
-                        style: const pw.TextStyle(color: _ink, fontSize: 9.5),
+                        style: const pw.TextStyle(color: _ink, fontSize: 10.5),
                       ),
                     ),
                   ],
@@ -548,7 +558,7 @@ class ValuationReportPdf {
               pw.SizedBox(height: 4),
               pw.Text(
                 note,
-                style: const pw.TextStyle(color: _muted, fontSize: 8),
+                style: const pw.TextStyle(color: _muted, fontSize: 9),
               ),
             ],
           ],
@@ -563,8 +573,11 @@ class ValuationReportPdf {
         .whereType<String>()
         .firstOrNull;
     if (captured == null) return null;
-    return 'Building footprints are from the City\'s aerial survey of $captured; '
-        'later additions appear under approved building work.';
+    return showSources
+        ? 'Building footprints are from the City\'s aerial survey of $captured; '
+              'later additions appear under approved building work.'
+        : 'Building footprints date from $captured; later additions appear '
+              'under approved building work.';
   }
 
   pw.Widget _approvedWork() => _section('Approved building work', [
@@ -584,8 +597,8 @@ class ValuationReportPdf {
     if (used.isEmpty) return const [];
     final withDistance = used.any((c) => c.distanceM != null);
     final s = report.comparableSummary;
-    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
-    const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 9.5);
+    const cell = pw.TextStyle(color: _ink, fontSize: 9.5);
     return [
       _heading('Comparable sales'),
       if (s != null)
@@ -600,7 +613,7 @@ class ValuationReportPdf {
             '${_count(s.excludedDissimilar)} too different in size. '
             '${s.radiusM != null ? 'The comparables are the sales within ${s.radiusM} m of the property. ' : ''}'
             'The most recent ${used.length} used are listed.',
-            style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+            style: const pw.TextStyle(color: _muted, fontSize: 9.5),
           ),
         ),
       pw.TableHelper.fromTextArray(
@@ -670,15 +683,15 @@ class ValuationReportPdf {
     final agent = report.agentSales;
     if (agent == null || agent.sales.isEmpty) return const [];
     final shown = agent.sales.take(15).toList();
-    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
-    const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 9.5);
+    const cell = pw.TextStyle(color: _ink, fontSize: 9.5);
     return [
       _heading('Sales reported by agents'),
       pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 6),
         child: pw.Text(
           pdfText(agent.evidenceStatement),
-          style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+          style: const pw.TextStyle(color: _muted, fontSize: 9.5),
         ),
       ),
       pw.TableHelper.fromTextArray(
@@ -787,7 +800,7 @@ class ValuationReportPdf {
             _heading('The market around the property'),
             pw.Text(
               '${_count(m.sales)} market sales $where$median.',
-              style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+              style: const pw.TextStyle(color: _muted, fontSize: 9.5),
             ),
             pw.SizedBox(height: 8),
             _chartCard(
@@ -863,13 +876,13 @@ class ValuationReportPdf {
               title,
               style: pw.TextStyle(
                 color: _ink,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
             pw.Text(
               pdfText(subtitle),
-              style: const pw.TextStyle(color: _muted, fontSize: 7),
+              style: const pw.TextStyle(color: _muted, fontSize: 8),
             ),
             pw.SizedBox(height: 8),
             chart,
@@ -910,14 +923,14 @@ class ValuationReportPdf {
                       ),
                       child: pw.Text(
                         highlightLabel,
-                        style: pw.TextStyle(color: _onBrand, fontSize: 5.5),
+                        style: pw.TextStyle(color: _onBrand, fontSize: 6.5),
                       ),
                     ),
                   pw.Text(
                     '${value == value.roundToDouble() ? value.toInt() : value.toStringAsFixed(1)}$unit',
                     style: pw.TextStyle(
                       color: i == highlight ? _brand : _muted,
-                      fontSize: 6.5,
+                      fontSize: 7.5,
                       fontWeight: i == highlight ? pw.FontWeight.bold : null,
                     ),
                   ),
@@ -944,7 +957,7 @@ class ValuationReportPdf {
                     label,
                     style: pw.TextStyle(
                       color: i == highlight ? _brand : _ink,
-                      fontSize: 5.5,
+                      fontSize: 6.5,
                       fontWeight: i == highlight ? pw.FontWeight.bold : null,
                     ),
                     textAlign: pw.TextAlign.center,
@@ -1028,18 +1041,18 @@ class ValuationReportPdf {
                     pw.Text(
                       '${yr.year}',
                       style: pw.TextStyle(
-                        fontSize: 7,
+                        fontSize: 8,
                         color: _ink,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.Text(
                       '${yr.sales} sales',
-                      style: const pw.TextStyle(fontSize: 5.5, color: _muted),
+                      style: const pw.TextStyle(fontSize: 6.5, color: _muted),
                     ),
                     pw.Text(
                       _short(yr.medianPriceZar),
-                      style: pw.TextStyle(fontSize: 6, color: _brand),
+                      style: pw.TextStyle(fontSize: 7, color: _brand),
                     ),
                   ],
                 ),
@@ -1118,14 +1131,14 @@ class ValuationReportPdf {
                         pw.Text(
                           'This home',
                           style: pw.TextStyle(
-                            fontSize: 7,
+                            fontSize: 8,
                             color: _brand,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
                         pw.Text(
                           _short(range.mid!),
-                          style: pw.TextStyle(fontSize: 7, color: _brand),
+                          style: pw.TextStyle(fontSize: 8, color: _brand),
                         ),
                       ],
                     ),
@@ -1145,7 +1158,7 @@ class ValuationReportPdf {
                     child: pw.Text(
                       '$label ${_short(v)}',
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(fontSize: 6.5, color: colour),
+                      style: pw.TextStyle(fontSize: 7.5, color: colour),
                     ),
                   ),
                 ),
@@ -1155,7 +1168,7 @@ class ValuationReportPdf {
                 top: 0,
                 child: pw.Text(
                   _short(lo),
-                  style: const pw.TextStyle(fontSize: 6, color: _muted),
+                  style: const pw.TextStyle(fontSize: 7, color: _muted),
                 ),
               ),
               pw.Positioned(
@@ -1163,7 +1176,7 @@ class ValuationReportPdf {
                 top: 0,
                 child: pw.Text(
                   _short(hi),
-                  style: const pw.TextStyle(fontSize: 6, color: _muted),
+                  style: const pw.TextStyle(fontSize: 7, color: _muted),
                 ),
               ),
             ],
@@ -1182,9 +1195,9 @@ class ValuationReportPdf {
   }) => pw.TableHelper.fromTextArray(
     headers: headers,
     data: rows,
-    headerStyle: pw.TextStyle(color: _onBrand, fontSize: 8.5),
+    headerStyle: pw.TextStyle(color: _onBrand, fontSize: 9.5),
     headerDecoration: pw.BoxDecoration(color: _brand),
-    cellStyle: const pw.TextStyle(color: _ink, fontSize: 8.5),
+    cellStyle: const pw.TextStyle(color: _ink, fontSize: 9.5),
     cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
     border: null,
     rowDecoration: const pw.BoxDecoration(

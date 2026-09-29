@@ -59,6 +59,8 @@ ReportPackPdf _pack({AreaDetails? area, ForSale? forSale}) => ReportPackPdf(
 );
 
 void main() {
+  // The PDFs load their font from the asset bundle.
+  TestWidgetsFlutterBinding.ensureInitialized();
   test('builds the pack, leaving out sections without data', () async {
     final bare = _pack();
     expect(bare.sections, isNot(contains('Area details')));

@@ -13,6 +13,7 @@ import 'pack_icons.dart';
 import 'pack_listing.dart';
 import 'valuation_report_pdf.dart';
 import 'world_map.dart';
+import 'report_fonts.dart';
 
 /// Who the pack is from: printed on the cover, the "Your agent" page and the
 /// letter.
@@ -227,6 +228,7 @@ class ReportPackPdf {
     onBrandColor: onBrandColor,
     logo: pictures.logo,
     showAuthor: false,
+    showSources: false,
     date: date,
   );
 
@@ -249,6 +251,7 @@ class ReportPackPdf {
       title: 'Valuation - ${report.displayAddress}',
       author: agent.name.isEmpty ? null : agent.name,
       creator: 'RealWorth',
+      theme: await reportTheme(),
     );
     final format = PdfPageFormat.a4;
 
@@ -485,7 +488,7 @@ class ReportPackPdf {
                 ),
                 style: pw.TextStyle(
                   font: _serif,
-                  fontSize: 10,
+                  fontSize: 11,
                   color: PdfColors.black,
                 ),
               ),
@@ -589,7 +592,7 @@ class ReportPackPdf {
                       pw.Text(
                         pdfText(area),
                         style: const pw.TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11.5,
                           color: _muted,
                         ),
                       ),
@@ -613,7 +616,7 @@ class ReportPackPdf {
                     case final zoning?)
                   pw.Text(
                     pdfText('Zoned $zoning'),
-                    style: const pw.TextStyle(fontSize: 9, color: _muted),
+                    style: const pw.TextStyle(fontSize: 10, color: _muted),
                   ),
               ],
             ),
@@ -648,7 +651,7 @@ class ReportPackPdf {
             // A feature without a number: its name, as on the portals.
             ? pw.Text(
                 pdfText(value),
-                style: const pw.TextStyle(fontSize: 10, color: _ink),
+                style: const pw.TextStyle(fontSize: 11, color: _ink),
               )
             : pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -663,7 +666,7 @@ class ReportPackPdf {
                   ),
                   pw.Text(
                     label,
-                    style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+                    style: const pw.TextStyle(fontSize: 8.5, color: _muted),
                   ),
                 ],
               ),
@@ -697,7 +700,7 @@ class ReportPackPdf {
               padding: const pw.EdgeInsets.only(right: 7),
               child: pw.SvgImage(svg: svg, width: 10, height: 10),
             ),
-          pw.Text(value, style: pw.TextStyle(color: _onBrand, fontSize: 9.5)),
+          pw.Text(value, style: pw.TextStyle(color: _onBrand, fontSize: 10.5)),
         ],
       ),
     );
@@ -734,7 +737,7 @@ class ReportPackPdf {
                 if (agent.jobTitle.isNotEmpty)
                   pw.Text(
                     agent.jobTitle,
-                    style: pw.TextStyle(color: _onBrand, fontSize: 9.5),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 10.5),
                   ),
                 pw.SizedBox(height: 6),
                 if (agent.mobile.isNotEmpty) contact('phone', agent.mobile),
@@ -835,7 +838,7 @@ class ReportPackPdf {
             child: pw.Text(
               pdfText(agent.office.footer),
               textAlign: pw.TextAlign.center,
-              style: const pw.TextStyle(fontSize: 7, color: _muted),
+              style: const pw.TextStyle(fontSize: 8, color: _muted),
             ),
           ),
         );
@@ -931,7 +934,7 @@ class ReportPackPdf {
                       child: pw.Text(
                         pdfText(agent.office.slogan),
                         style: const pw.TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: _ink,
                           letterSpacing: 0.3,
                         ),
@@ -952,7 +955,7 @@ class ReportPackPdf {
                               agent.agencyName,
                               style: pw.TextStyle(
                                 color: _onBrand,
-                                fontSize: 10,
+                                fontSize: 11,
                               ),
                             ),
                           )
@@ -1026,7 +1029,7 @@ class ReportPackPdf {
                             pw.Text(
                               'Qualifications & Registrations',
                               style: pw.TextStyle(
-                                fontSize: 10.5,
+                                fontSize: 11.5,
                                 fontWeight: pw.FontWeight.bold,
                                 color: _ink,
                               ),
@@ -1055,7 +1058,7 @@ class ReportPackPdf {
                                       child: pw.Text(
                                         pdfText(q),
                                         style: const pw.TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 11,
                                           color: _ink,
                                         ),
                                       ),
@@ -1099,7 +1102,7 @@ class ReportPackPdf {
                             pw.Text(
                               pdfText(agent.bio),
                               style: const pw.TextStyle(
-                                fontSize: 10.5,
+                                fontSize: 11.5,
                                 color: _ink,
                                 lineSpacing: 3.5,
                               ),
@@ -1125,7 +1128,7 @@ class ReportPackPdf {
                   'registered professional property professional in real estate',
                   style: pw.TextStyle(
                     color: _onBrand,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     letterSpacing: 2.5,
                   ),
                 ),
@@ -1162,7 +1165,7 @@ class ReportPackPdf {
           pw.Text(
             'GET IN TOUCH',
             style: pw.TextStyle(
-              fontSize: 8.5,
+              fontSize: 9.5,
               letterSpacing: 2,
               fontWeight: pw.FontWeight.bold,
               color: _brand,
@@ -1182,7 +1185,7 @@ class ReportPackPdf {
                   pw.Text(
                     value,
                     style: const pw.TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: _ink,
                       letterSpacing: 0.4,
                     ),
@@ -1207,14 +1210,14 @@ class ReportPackPdf {
                         pw.TextSpan(
                           text: '$label  ',
                           style: const pw.TextStyle(
-                            fontSize: 9.5,
+                            fontSize: 10.5,
                             color: _muted,
                           ),
                         ),
                         pw.TextSpan(
                           text: number,
                           style: pw.TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: pw.FontWeight.bold,
                             color: _ink,
                             letterSpacing: 0.4,
@@ -1291,7 +1294,7 @@ class ReportPackPdf {
                         padding: const pw.EdgeInsets.only(top: 3),
                         child: pw.Text(
                           pdfText(office.address),
-                          style: const pw.TextStyle(fontSize: 10, color: _ink),
+                          style: const pw.TextStyle(fontSize: 11, color: _ink),
                         ),
                       ),
                     if (contacts.isNotEmpty)
@@ -1299,7 +1302,7 @@ class ReportPackPdf {
                         padding: const pw.EdgeInsets.only(top: 2),
                         child: pw.Text(
                           contacts.join('   |   '),
-                          style: const pw.TextStyle(fontSize: 10, color: _ink),
+                          style: const pw.TextStyle(fontSize: 11, color: _ink),
                         ),
                       ),
                     if (office.website.isNotEmpty)
@@ -1307,7 +1310,7 @@ class ReportPackPdf {
                         padding: const pw.EdgeInsets.only(top: 2),
                         child: pw.Text(
                           office.website,
-                          style: pw.TextStyle(fontSize: 10, color: _brand),
+                          style: pw.TextStyle(fontSize: 11, color: _brand),
                         ),
                       ),
                   ],
@@ -1320,7 +1323,7 @@ class ReportPackPdf {
             pw.Text(
               pdfText(office.footer),
               textAlign: pw.TextAlign.center,
-              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+              style: const pw.TextStyle(fontSize: 8.5, color: _muted),
             ),
           ],
         ],
@@ -1352,27 +1355,17 @@ class ReportPackPdf {
               groupDigits(people),
               p!.estimatedPopulation != null
                   ? 'People (${p.estimateYear} estimate)'
-                  : 'People (Census ${p.year})',
+                  : 'People (${p.year})',
             ),
           if (p?.households case final households?)
-            (
-              'homes',
-              groupDigits(households),
-              'Households (Census ${p!.year})',
-            ),
+            ('homes', groupDigits(households), 'Households (${p!.year})'),
           if (p?.peoplePerKm2 case final density?)
             ('area', groupDigits(density), 'People per km²'),
           if (income != null)
             ('income', income.medianBand, 'Middle household income'),
         ]),
-        _note(
-          [
-            p?.source,
-            p?.estimateSource,
-            if (income != null)
-              '${income.source} (whole ${income.municipality}; Census 2022 income is not yet released)',
-          ].whereType<String>().join('; '),
-        ),
+        if (income != null)
+          _note('Household income is for the whole ${income.municipality}.'),
       ],
       if (a.nearby.isNotEmpty) ..._nearbyBlock(a.nearby),
       if (c != null) ..._crimeBlock(c),
@@ -1431,7 +1424,7 @@ class ReportPackPdf {
                 pw.Text(
                   pdfText(g.title),
                   style: pw.TextStyle(
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: pw.FontWeight.bold,
                     color: _ink,
                   ),
@@ -1447,14 +1440,14 @@ class ReportPackPdf {
                     pw.Expanded(
                       child: pw.Text(
                         pdfText(place.name),
-                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                        style: const pw.TextStyle(fontSize: 9.5, color: _ink),
                         maxLines: 1,
                       ),
                     ),
                     pw.Text(
                       _distance(place.distanceM),
                       style: pw.TextStyle(
-                        fontSize: 8.5,
+                        fontSize: 9.5,
                         fontWeight: pw.FontWeight.bold,
                         color: colour,
                       ),
@@ -1497,9 +1490,7 @@ class ReportPackPdf {
           ],
         ),
       ),
-      _note(
-        'Places from OpenStreetMap (© OpenStreetMap contributors); straight-line distances, not by road.',
-      ),
+      _note('Straight-line distances, not by road.'),
     ];
   }
 
@@ -1523,7 +1514,7 @@ class ReportPackPdf {
                       child: pw.Text(
                         '${y.year}',
                         style: pw.TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: pw.FontWeight.bold,
                           color: _ink,
                         ),
@@ -1563,7 +1554,7 @@ class ReportPackPdf {
                         '${groupDigits(y.hours)} h over ${y.days} days'
                         '${y.worstMonth == null ? '' : '  ·  worst ${y.worstMonth!.split(' ').first}'}',
                         textAlign: pw.TextAlign.right,
-                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                        style: const pw.TextStyle(fontSize: 9.5, color: _ink),
                       ),
                     ),
                   ],
@@ -1574,7 +1565,7 @@ class ReportPackPdf {
               pw.Text(
                 pdfText(h.summary),
                 style: const pw.TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: _ink,
                   lineSpacing: 2,
                 ),
@@ -1583,7 +1574,7 @@ class ReportPackPdf {
           ],
         ),
       ),
-      _note('${h.caveat} ${h.source}.'),
+      _note(h.caveat),
     ];
   }
 
@@ -1631,7 +1622,7 @@ class ReportPackPdf {
                       pw.Text(
                         water.band,
                         style: pw.TextStyle(
-                          fontSize: 8.5,
+                          fontSize: 9.5,
                           fontWeight: pw.FontWeight.bold,
                           color: water.scorePct >= 90
                               ? const PdfColor.fromInt(0xFF2E9E5B)
@@ -1680,7 +1671,7 @@ class ReportPackPdf {
                                         name,
                                         textAlign: pw.TextAlign.center,
                                         style: const pw.TextStyle(
-                                          fontSize: 6.5,
+                                          fontSize: 7.5,
                                           color: _muted,
                                         ),
                                       ),
@@ -1726,7 +1717,7 @@ class ReportPackPdf {
       _note(
         'How well the municipality manages and treats its drinking water, audited by the Department of '
         'Water and Sanitation (95% and more is Blue Drop certified). A municipal score, not a test of the '
-        'water at this address. ${water.source}.',
+        'water at this address.',
       ),
     ];
   }
@@ -1764,7 +1755,7 @@ class ReportPackPdf {
                   if (subtitle != null && subtitle.isNotEmpty)
                     pw.Text(
                       pdfText(subtitle),
-                      style: const pw.TextStyle(fontSize: 9, color: _muted),
+                      style: const pw.TextStyle(fontSize: 10, color: _muted),
                     ),
                 ],
               ),
@@ -1805,7 +1796,7 @@ class ReportPackPdf {
                 pw.SizedBox(height: 1),
                 pw.Text(
                   pdfText(t.$3),
-                  style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+                  style: const pw.TextStyle(fontSize: 8.5, color: _muted),
                 ),
               ],
             ),
@@ -1840,7 +1831,7 @@ class ReportPackPdf {
           padding: const pw.EdgeInsets.only(top: 2, bottom: 16),
           child: pw.Text(
             pdfText(text),
-            style: const pw.TextStyle(fontSize: 7, color: _muted),
+            style: const pw.TextStyle(fontSize: 8, color: _muted),
           ),
         );
 
@@ -1918,7 +1909,7 @@ class ReportPackPdf {
             pw.SizedBox(height: 7),
             pw.RichText(
               text: pw.TextSpan(
-                style: const pw.TextStyle(fontSize: 10, color: _ink),
+                style: const pw.TextStyle(fontSize: 11, color: _ink),
                 children: [
                   pw.TextSpan(
                     text: groupDigits(c.total),
@@ -1952,7 +1943,7 @@ class ReportPackPdf {
                       width: 170,
                       child: pw.Text(
                         pdfText(x.crime),
-                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                        style: const pw.TextStyle(fontSize: 9.5, color: _ink),
                         maxLines: 1,
                       ),
                     ),
@@ -1988,7 +1979,7 @@ class ReportPackPdf {
                         groupDigits(x.count),
                         textAlign: pw.TextAlign.right,
                         style: pw.TextStyle(
-                          fontSize: 8.5,
+                          fontSize: 9.5,
                           fontWeight: pw.FontWeight.bold,
                           color: _ink,
                         ),
@@ -2017,7 +2008,7 @@ class ReportPackPdf {
                                 pw.Text(
                                   '${((x.count - x.previousCount) * 100 / x.previousCount).abs().toStringAsFixed(0)}%',
                                   style: pw.TextStyle(
-                                    fontSize: 8,
+                                    fontSize: 9,
                                     color: x.count >= x.previousCount
                                         ? _up
                                         : _down,
@@ -2035,7 +2026,7 @@ class ReportPackPdf {
       _note(
         'Compared with every police precinct in South Africa, per resident. Figures are for the whole precinct; '
         'precincts with a town centre, beachfront or shopping area count crimes against visitors too, so their '
-        'rate per resident reads higher. ${c.source}.',
+        'rate per resident reads higher.',
       ),
     ];
   }
@@ -2100,18 +2091,19 @@ class ReportPackPdf {
               pw.SizedBox(height: 6),
               _climateChart(w.months),
             ],
+            // Inside, so the note never lands on a page of its own.
+            _note(
+              'A regional average (about 50 km), not a street-level reading.',
+            ),
           ],
         ),
-      ),
-      _note(
-        '${w.source}: a regional average (about 50 km), not a street-level reading.',
       ),
     ];
   }
 
   /// Rain per month as bars, the average high and low as lines over them.
   pw.Widget _climateChart(List<ClimateMonth> months) {
-    const height = 120.0;
+    const height = 96.0;
     final maxRain =
         months.fold<double>(10, (m, x) => x.rainMm > m ? x.rainMm : m) * 1.15;
     final maxTemp =
@@ -2132,7 +2124,7 @@ class ReportPackPdf {
             ),
             pw.Text(
               text,
-              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+              style: const pw.TextStyle(fontSize: 8.5, color: _muted),
             ),
             pw.SizedBox(width: 12),
           ],
@@ -2227,7 +2219,7 @@ class ReportPackPdf {
                               pw.Text(
                                 '${m.avgMaxC.round()}°',
                                 style: const pw.TextStyle(
-                                  fontSize: 6.5,
+                                  fontSize: 7.5,
                                   color: _highColour,
                                 ),
                               ),
@@ -2257,14 +2249,14 @@ class ReportPackPdf {
                       pw.Text(
                         _monthLetters[i],
                         style: pw.TextStyle(
-                          fontSize: 8,
+                          fontSize: 9,
                           fontWeight: pw.FontWeight.bold,
                           color: _ink,
                         ),
                       ),
                       pw.Text(
                         '${months[i].rainMm.round()} mm',
-                        style: const pw.TextStyle(fontSize: 6, color: _muted),
+                        style: const pw.TextStyle(fontSize: 7, color: _muted),
                       ),
                     ],
                   ),
@@ -2283,9 +2275,9 @@ class ReportPackPdf {
       _sectionTitle('Homes on the market like yours'),
       pw.Text(
         pdfText(
-          'Advertised on Property24 near ${report.displayAddress}, as listed there; each links to its listing.',
+          'Homes for sale near ${report.displayAddress}; each links to its listing.',
         ),
-        style: const pw.TextStyle(fontSize: 8.5, color: _muted),
+        style: const pw.TextStyle(fontSize: 9.5, color: _muted),
       ),
       pw.SizedBox(height: 10),
       for (final l in f.listings) pw.Inseparable(child: _listingCard(l)),
@@ -2380,7 +2372,7 @@ class ReportPackPdf {
                   pw.Text(
                     pdfText(l.title),
                     style: pw.TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       fontWeight: pw.FontWeight.bold,
                       color: _ink,
                     ),
@@ -2390,7 +2382,7 @@ class ReportPackPdf {
                     pdfText(
                       [l.address, l.suburb].whereType<String>().join(', '),
                     ),
-                    style: const pw.TextStyle(fontSize: 9, color: _ink),
+                    style: const pw.TextStyle(fontSize: 10, color: _ink),
                   ),
                   if (distance != null)
                     pw.Row(
@@ -2403,7 +2395,7 @@ class ReportPackPdf {
                         pw.Text(
                           distance,
                           style: pw.TextStyle(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: pw.FontWeight.bold,
                             color: _ink,
                           ),
@@ -2436,7 +2428,7 @@ class ReportPackPdf {
                         pw.Expanded(
                           child: pw.Text(
                             'Listed ${_shortDay.format(l.listedOn!)}',
-                            style: const pw.TextStyle(fontSize: 8, color: _ink),
+                            style: const pw.TextStyle(fontSize: 9, color: _ink),
                           ),
                         )
                       else
@@ -2446,7 +2438,7 @@ class ReportPackPdf {
                         child: pw.Text(
                           'View on Property24',
                           style: pw.TextStyle(
-                            fontSize: 8.5,
+                            fontSize: 9.5,
                             color: _brand,
                             decoration: pw.TextDecoration.underline,
                           ),
@@ -2474,12 +2466,12 @@ class ReportPackPdf {
           pw.Text(
             pdfText(value),
             style: pw.TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: pw.FontWeight.bold,
               color: _ink,
             ),
           ),
-          pw.Text(label, style: const pw.TextStyle(fontSize: 6.5, color: _ink)),
+          pw.Text(label, style: const pw.TextStyle(fontSize: 7.5, color: _ink)),
         ],
       ),
     ],
@@ -2489,12 +2481,12 @@ class ReportPackPdf {
 
   pw.Widget _letter() {
     final signature = _img(pictures.signature);
-    const body = pw.TextStyle(fontSize: 10, color: _ink, lineSpacing: 2);
+    const body = pw.TextStyle(fontSize: 12, color: _ink, lineSpacing: 2.5);
     final bold = pw.TextStyle(
-      fontSize: 10,
+      fontSize: 12,
       color: _ink,
       fontWeight: pw.FontWeight.bold,
-      lineSpacing: 2,
+      lineSpacing: 2.5,
     );
     final attached = sections
         .where((s) => s != 'Valuation letter' && s != 'Your agent')
@@ -2650,7 +2642,7 @@ class ReportPackPdf {
                 pw.Text(
                   pdfText(agent.name),
                   style: pw.TextStyle(
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: pw.FontWeight.bold,
                     color: _ink,
                   ),
@@ -2658,13 +2650,13 @@ class ReportPackPdf {
                 if (agent.jobTitle.isNotEmpty)
                   pw.Text(
                     pdfText(agent.jobTitle),
-                    style: const pw.TextStyle(fontSize: 9.5, color: _ink),
+                    style: const pw.TextStyle(fontSize: 11.5, color: _ink),
                   ),
                 if (registrations.isNotEmpty) pw.SizedBox(height: 3),
                 for (final line in registrations)
                   pw.Text(
                     line,
-                    style: const pw.TextStyle(fontSize: 8, color: _ink),
+                    style: const pw.TextStyle(fontSize: 10, color: _ink),
                   ),
               ],
             ),
@@ -2686,7 +2678,7 @@ class ReportPackPdf {
                           ),
                         pw.Text(
                           value,
-                          style: const pw.TextStyle(fontSize: 9, color: _ink),
+                          style: const pw.TextStyle(fontSize: 11, color: _ink),
                         ),
                       ],
                     ),
@@ -2702,9 +2694,9 @@ class ReportPackPdf {
   // ---- costs ---------------------------------------------------------------------
 
   pw.Widget _costsPage() {
-    const body = pw.TextStyle(fontSize: 9.5, color: _ink, lineSpacing: 1.5);
+    const body = pw.TextStyle(fontSize: 10.5, color: _ink, lineSpacing: 1.5);
     final bold = pw.TextStyle(
-      fontSize: 9.5,
+      fontSize: 10.5,
       color: _ink,
       fontWeight: pw.FontWeight.bold,
     );
@@ -2740,7 +2732,7 @@ class ReportPackPdf {
         pw.Text(
           'The seller (estimate; commission can be negotiated)',
           style: pw.TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             color: _brand,
             fontWeight: pw.FontWeight.bold,
           ),
@@ -2765,13 +2757,13 @@ class ReportPackPdf {
         pw.Text(
           'Net proceeds exclude bond cancellation, compliance certificates, rates, levies, capital gains tax and '
           'any other costs particular to the sale.',
-          style: const pw.TextStyle(fontSize: 8, color: _muted),
+          style: const pw.TextStyle(fontSize: 9, color: _muted),
         ),
         pw.SizedBox(height: 12),
         pw.Text(
           'The buyer (estimate)',
           style: pw.TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             color: _brand,
             fontWeight: pw.FontWeight.bold,
           ),
@@ -2805,7 +2797,7 @@ class ReportPackPdf {
         pw.Text(
           'Home-loan repayment for the buyer (estimate)',
           style: pw.TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             color: _brand,
             fontWeight: pw.FontWeight.bold,
           ),
@@ -2821,7 +2813,7 @@ class ReportPackPdf {
         pw.Text(
           'Excludes the bank\'s initiation fee, utilities, insurance and maintenance. Transfer duty per SARS (1 April '
           '2026); conveyancing per the LSSA guideline (1 July 2026); Deeds Office fees from 1 April 2026.',
-          style: const pw.TextStyle(fontSize: 8, color: _muted),
+          style: const pw.TextStyle(fontSize: 9, color: _muted),
         ),
         pw.Spacer(),
         _officeFooter(),
