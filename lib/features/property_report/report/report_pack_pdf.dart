@@ -348,13 +348,13 @@ class ReportPackPdf {
             overflow: pw.Overflow.visible,
             children: [
               pw.Container(
-                height: 58,
+                height: 62,
                 margin: const pw.EdgeInsets.only(top: 14),
-                decoration: const pw.BoxDecoration(
+                decoration: pw.BoxDecoration(
                   border: pw.Border(
-                    top: pw.BorderSide(color: PdfColors.black, width: 1.6),
-                    left: pw.BorderSide(color: PdfColors.black, width: 1.6),
-                    right: pw.BorderSide(color: PdfColors.black, width: 1.6),
+                    top: pw.BorderSide(color: _brand, width: 1.6),
+                    left: pw.BorderSide(color: _brand, width: 1.6),
+                    right: pw.BorderSide(color: _brand, width: 1.6),
                   ),
                 ),
               ),
@@ -377,12 +377,12 @@ class ReportPackPdf {
                 child: pw.Center(
                   child: pw.Text(
                     pdfText(
-                      '- $street, ${listing.area.isNotEmpty ? listing.area : _title(report.suburb)}  //  Erf ${report.erf} -',
+                      '$street, ${listing.area.isNotEmpty ? listing.area : _title(report.suburb)}   |   Erf ${report.erf}',
                     ),
                     style: pw.TextStyle(
                       font: _serifBold,
-                      fontSize: 12.5,
-                      letterSpacing: 0.6,
+                      fontSize: 15,
+                      letterSpacing: 0.4,
                       color: PdfColors.black,
                     ),
                   ),
@@ -393,8 +393,7 @@ class ReportPackPdf {
         ),
         // The main photo on the brand colour, with who it is prepared for on it.
         pw.Container(
-          height: 330,
-          color: _brand,
+          height: 282,
           padding: const pw.EdgeInsets.fromLTRB(_coverSide, 0, _coverSide, 0),
           child: pw.Stack(
             alignment: pw.Alignment.topCenter,
@@ -495,11 +494,11 @@ class ReportPackPdf {
         ? _logoForBrand
         : _img(pictures.logo);
     return pw.Container(
-      height: 64,
+      height: 90,
       color: _logoBackground,
       padding: const pw.EdgeInsets.symmetric(
         horizontal: _coverSide,
-        vertical: 9,
+        vertical: 14,
       ),
       alignment: pw.Alignment.centerLeft,
       child: logo == null
@@ -541,17 +540,19 @@ class ReportPackPdf {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          pdfText(street),
-          style: pw.TextStyle(
-            fontSize: 16,
-            fontWeight: pw.FontWeight.bold,
-            color: _ink,
-          ),
-        ),
-        pw.SizedBox(height: 2),
+        // The street, and beside it where it is and how it is zoned.
         pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
+            pw.Text(
+              pdfText(street),
+              style: pw.TextStyle(
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+                color: _ink,
+              ),
+            ),
+            pw.SizedBox(width: 14),
             if (packIcon('place', _brandHex) case final svg?)
               pw.Padding(
                 padding: const pw.EdgeInsets.only(right: 3),
@@ -573,10 +574,10 @@ class ReportPackPdf {
             ),
           ],
         ),
-        pw.SizedBox(height: 10),
+        pw.SizedBox(height: 14),
         for (var r = 0; r < items.length; r += perRow)
           pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 8),
+            padding: const pw.EdgeInsets.only(bottom: 13),
             child: pw.Row(
               children: [
                 for (var i = r; i < r + perRow; i++)
