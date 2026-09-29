@@ -788,9 +788,10 @@ class ReportPackPdf {
 
   // ---- contents and letterhead ---------------------------------------------
 
+  /// The logo over a rule. The office's address and numbers are on the agent
+  /// page only, not repeated at the top of every page.
   pw.Widget _letterhead() {
     final logo = _logoForWhite ?? _img(pictures.logo);
-    final office = agent.office;
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 8),
       margin: const pw.EdgeInsets.only(bottom: 18),
@@ -799,7 +800,6 @@ class ReportPackPdf {
       ),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           logo == null
               ? pw.Text(
@@ -819,21 +819,6 @@ class ReportPackPdf {
                     alignment: pw.Alignment.centerLeft,
                   ),
                 ),
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.end,
-            children: [
-              for (final line in [
-                if (office.name.isNotEmpty) office.name,
-                if (office.address.isNotEmpty) office.address,
-                if (office.phone.isNotEmpty) 'Tel: ${office.phone}',
-                if (office.website.isNotEmpty) office.website,
-              ])
-                pw.Text(
-                  line,
-                  style: const pw.TextStyle(fontSize: 7.5, color: _ink),
-                ),
-            ],
-          ),
         ],
       ),
     );
@@ -2617,17 +2602,100 @@ class ReportPackPdf {
           )
         else
           pw.SizedBox(height: 26),
-        pw.Text(agent.name, style: bold),
-        if (agent.jobTitle.isNotEmpty)
-          pw.Text(agent.jobTitle.toUpperCase(), style: bold),
-        pw.Text('REGISTERED WITH THE PPRA', style: bold),
-        if (agent.ppraNumber.isNotEmpty)
-          pw.Text('Reg no # ${agent.ppraNumber}', style: bold),
-        if (agent.ffcNumber.isNotEmpty)
-          pw.Text('FFC no # ${agent.ffcNumber}', style: bold),
+        pw.SizedBox(height: 6),
+        _businessCard(),
         pw.Spacer(),
         _officeFooter(),
       ],
+    );
+  }
+
+  /// The sign-off as the agent's business card: photo, name and title, how to
+  /// reach them, and their registrations.
+  pw.Widget _businessCard() {
+    final photo = _img(pictures.agentPhoto);
+    final contacts = [
+      if (agent.mobile.isNotEmpty) ('phone', agent.mobile),
+      if (agent.email.isNotEmpty) ('email', agent.email),
+      if (agent.website.isNotEmpty) ('website', agent.website),
+    ];
+    final registrations = [
+      if (agent.ppraNumber.isNotEmpty)
+        'Registered with the PPRA, no. ${agent.ppraNumber}',
+      if (agent.ffcNumber.isNotEmpty) 'FFC no. ${agent.ffcNumber}',
+    ];
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        color: _tint(0.07),
+        border: pw.Border(left: pw.BorderSide(color: _brand, width: 4)),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (photo != null) ...[
+            pw.ClipOval(
+              child: pw.SizedBox(
+                width: 64,
+                height: 64,
+                child: pw.Image(photo, fit: pw.BoxFit.cover),
+              ),
+            ),
+            pw.SizedBox(width: 12),
+          ],
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  pdfText(agent.name),
+                  style: pw.TextStyle(
+                    fontSize: 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: _ink,
+                  ),
+                ),
+                if (agent.jobTitle.isNotEmpty)
+                  pw.Text(
+                    pdfText(agent.jobTitle),
+                    style: const pw.TextStyle(fontSize: 9.5, color: _ink),
+                  ),
+                if (registrations.isNotEmpty) pw.SizedBox(height: 3),
+                for (final line in registrations)
+                  pw.Text(
+                    line,
+                    style: const pw.TextStyle(fontSize: 8, color: _ink),
+                  ),
+              ],
+            ),
+          ),
+          if (contacts.isNotEmpty) ...[
+            pw.SizedBox(width: 12),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                for (final (icon, value) in contacts)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                    child: pw.Row(
+                      children: [
+                        if (packIcon(icon, _brandHex) case final svg?)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(right: 6),
+                            child: pw.SvgImage(svg: svg, width: 10, height: 10),
+                          ),
+                        pw.Text(
+                          value,
+                          style: const pw.TextStyle(fontSize: 9, color: _ink),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 

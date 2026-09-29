@@ -79,6 +79,10 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
   late bool _vat;
   String? _error;
 
+  /// The listing price is suggested, but goes out under the agent's name, so
+  /// they tick it off before the pack is made.
+  bool _priceConfirmed = false;
+
   /// Picked in order: the first is the cover, the next three the row.
   late final List<String> _picked;
   static const _maxPicked = 4;
@@ -137,6 +141,10 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
       setState(
         () => _error = 'Enter your range (low to high) and the listing price.',
       );
+      return;
+    }
+    if (!_priceConfirmed) {
+      setState(() => _error = 'Confirm the recommended listing price first.');
       return;
     }
     final calc = widget.initial.calculator;
@@ -262,6 +270,27 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
               ),
               gap,
               field('listing', 'Recommended listing price', money: true),
+              const SizedBox(height: 4),
+              Text(
+                'Suggested: the top of the range plus 5%, to leave room for '
+                'negotiation. The letter gives it as your recommendation.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: theme.textSecondary,
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _priceConfirmed,
+                onChanged: (v) => setState(() {
+                  _priceConfirmed = v ?? false;
+                  if (_priceConfirmed) _error = null;
+                }),
+                title: Text(
+                  'I have checked this range and listing price',
+                  style: textTheme.bodyMedium,
+                ),
+              ),
               gap,
               Text(
                 'Costs page',
