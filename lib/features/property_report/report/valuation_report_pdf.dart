@@ -671,7 +671,7 @@ class ValuationReportPdf {
           for (final (i, c) in used.indexed)
             [
               if (areaMapSvg != null) '${i + 1}',
-              titleCase(c.address),
+              titleCase(report.withoutSuburb(c.address)),
               if (withDistance)
                 c.distanceM == null ? '-' : '${c.distanceM!.round()} m',
               _month.format(c.saleDate),

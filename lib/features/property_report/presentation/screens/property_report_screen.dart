@@ -219,6 +219,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     final options = await showReportPackSheet(
       context: context,
       theme: brand,
+      floorAreaWarning: report.floorAreaWarning,
       photos: photos,
       baseUrl: ref.read(apiClientProvider).baseUrl,
       initial: initialPackOptions(

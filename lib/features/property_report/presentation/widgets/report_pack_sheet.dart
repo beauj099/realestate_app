@@ -50,6 +50,7 @@ Future<PackOptions?> showReportPackSheet({
   required PackOptions initial,
   List<String> photos = const [],
   String baseUrl = '',
+  String? floorAreaWarning,
 }) => showRealEstateBottomSheet<PackOptions>(
   context: context,
   theme: theme,
@@ -58,6 +59,7 @@ Future<PackOptions?> showReportPackSheet({
     initial: initial,
     photos: photos,
     baseUrl: baseUrl,
+    floorAreaWarning: floorAreaWarning,
   ),
 );
 
@@ -67,9 +69,14 @@ class _ReportPackSheet extends StatefulWidget {
   final List<String> photos;
   final String baseUrl;
 
+  /// Shown above the valuation when the listing's floor area and the City's
+  /// give different ranges ([PropertyReport.floorAreaWarning]).
+  final String? floorAreaWarning;
+
   const _ReportPackSheet({
     required this.theme,
     required this.initial,
+    this.floorAreaWarning,
     this.photos = const [],
     this.baseUrl = '',
   });
@@ -266,6 +273,36 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (widget.floorAreaWarning case final warning?) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6E5),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE0A030)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFB7791F),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          warning,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF5C4210),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               gap,
               Row(
                 children: [

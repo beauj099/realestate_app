@@ -637,6 +637,36 @@ class PropertyReport {
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();
 
+  /// [address] without this property's suburb or township at the end, for
+  /// tables and the letter where every sale is in the same place.
+  String withoutSuburb(String address) {
+    var a = address.trim();
+    for (final place in {suburb, township}) {
+      final p = place.trim();
+      if (p.isNotEmpty && a.toUpperCase().endsWith(' ${p.toUpperCase()}')) {
+        a = a.substring(0, a.length - p.length - 1).trim();
+      }
+    }
+    return a;
+  }
+
+  /// For the agent before sending: the listing's floor area differs from
+  /// the City's and the two give different ranges. Null when they agree.
+  String? get floorAreaWarning {
+    final listing = sizedFromListingM2, city = dwellingExtentM2;
+    final onCity = cityRange, onListing = indicativeValue;
+    if (listing == null || city == null || city <= 0) return null;
+    if (onCity?.low == null || onCity?.high == null) return null;
+    if (onListing?.low == null || onListing?.high == null) return null;
+    final diff = ((listing / city - 1) * 100).round();
+    return 'The listing\'s floor area (${listing.round()} m²) is '
+        '${diff.abs()}% ${diff > 0 ? 'larger' : 'smaller'} than the City\'s '
+        'record (${city.round()} m²). On the City\'s size the sales indicate '
+        '${rand(onCity!.low!)} to ${rand(onCity.high!)}, against '
+        '${rand(onListing!.low!)} to ${rand(onListing.high!)} on yours. Check '
+        'the floor area before you send the pack.';
+  }
+
   /// Why the range is less certain than usual, or null: the home is larger
   /// or smaller than every sale used (so the size adjustment does most of
   /// the work), or there are few sales.

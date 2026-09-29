@@ -273,7 +273,31 @@ class ReportPackPdf {
     if (pictures.brochurePages.isNotEmpty) 'About ${agent.agencyName}',
   ];
 
+  /// Built twice: the first pass finds the page each section starts on, the
+  /// second writes those numbers into the contents (whose layout does not
+  /// depend on them).
   Future<Uint8List> build() async {
+    final found = <String, int>{};
+    await (await _document(found, const {})).save();
+    return (await _document(<String, int>{}, found)).save();
+  }
+
+  Future<pw.Document> _document(
+    Map<String, int> found,
+    Map<String, int> numbers,
+  ) async {
+    // Records the first page each section appears on.
+    void at(String section, pw.Context context) =>
+        found.putIfAbsent(section, () => context.pageNumber);
+    pw.Widget Function(pw.Context) header(String section) => (context) {
+      at(section, context);
+      return _analysis.header(context);
+    };
+    if (agent.office.headingFont == 'serif') {
+      final (regular, bold) = await reportSerif();
+      _headingFont = regular;
+      _headingBold = bold;
+    }
     final doc = pw.Document(
       title: 'Valuation - ${report.displayAddress}',
       author: agent.name.isEmpty ? null : agent.name,
@@ -290,20 +314,27 @@ class ReportPackPdf {
       ),
     );
     doc.addPage(
-      pw.Page(pageFormat: format, margin: _margin, build: (_) => _contents()),
+      pw.Page(
+        pageFormat: format,
+        margin: _margin,
+        build: (_) => _contents(numbers),
+      ),
     );
     doc.addPage(
       pw.Page(
         pageFormat: format,
         margin: pw.EdgeInsets.zero,
-        build: (_) => _agentPage(),
+        build: (context) {
+          at('Your agent', context);
+          return _agentPage();
+        },
       ),
     );
     doc.addPage(
       pw.MultiPage(
         pageFormat: format,
         margin: _margin,
-        header: _analysis.header,
+        header: header('Market valuation analysis'),
         footer: _analysis.footer,
         build: (_) => [
           _sectionTitle('Market valuation analysis'),
@@ -316,7 +347,7 @@ class ReportPackPdf {
         pw.MultiPage(
           pageFormat: format,
           margin: _margin,
-          header: _analysis.header,
+          header: header('Area details'),
           footer: _analysis.footer,
           build: (_) => _areaPage(area!),
         ),
@@ -327,17 +358,31 @@ class ReportPackPdf {
         pw.MultiPage(
           pageFormat: format,
           margin: _margin,
-          header: _analysis.header,
+          header: header('Homes on the market like yours'),
           footer: _analysis.footer,
           build: (_) => _marketPage(forSale!),
         ),
       );
     }
     doc.addPage(
-      pw.Page(pageFormat: format, margin: _margin, build: (_) => _letter()),
+      pw.Page(
+        pageFormat: format,
+        margin: _margin,
+        build: (context) {
+          at('Valuation letter', context);
+          return _letter();
+        },
+      ),
     );
     doc.addPage(
-      pw.Page(pageFormat: format, margin: _margin, build: (_) => _costsPage()),
+      pw.Page(
+        pageFormat: format,
+        margin: _margin,
+        build: (context) {
+          at('Costs to seller and buyer', context);
+          return _costsPage();
+        },
+      ),
     );
     for (final page in pictures.brochurePages) {
       final image = _img(page);
@@ -346,11 +391,14 @@ class ReportPackPdf {
         pw.Page(
           pageFormat: format,
           margin: pw.EdgeInsets.zero,
-          build: (_) => pw.Image(image, fit: pw.BoxFit.contain),
+          build: (context) {
+            at('About ${agent.agencyName}', context);
+            return pw.Image(image, fit: pw.BoxFit.contain);
+          },
         ),
       );
     }
-    return doc.save();
+    return doc;
   }
 
   // ---- cover ---------------------------------------------------------------
@@ -398,10 +446,13 @@ class ReportPackPdf {
                 padding: const pw.EdgeInsets.symmetric(horizontal: 12),
                 child: pw.Text(
                   'Market Related Property Valuation',
-                  style: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 26,
-                    color: PdfColors.black,
+                  style: _h(
+                    pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      // A serif sets smaller: a little larger to match.
+                      fontSize: _headingFont == null ? 26 : 29,
+                      color: PdfColors.black,
+                    ),
                   ),
                 ),
               ),
@@ -471,10 +522,12 @@ class ReportPackPdf {
                     ),
                     child: pw.Text(
                       pdfText('Specially prepared for ${listing.preparedFor}.'),
-                      style: pw.TextStyle(
-                        fontSize: 17,
-                        letterSpacing: 0.4,
-                        color: _brandInk,
+                      style: _h(
+                        pw.TextStyle(
+                          fontSize: _headingFont == null ? 17 : 19,
+                          letterSpacing: 0.4,
+                          color: _brandInk,
+                        ),
                       ),
                     ),
                   ),
@@ -776,10 +829,8 @@ class ReportPackPdf {
               child: pw.Text(
                 pdfText(agent.office.slogan),
                 textAlign: pw.TextAlign.right,
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  color: _onBrand,
-                  lineSpacing: 2,
+                style: _h(
+                  pw.TextStyle(fontSize: 14, color: _onBrand, lineSpacing: 2),
                 ),
               ),
             ),
@@ -863,7 +914,9 @@ class ReportPackPdf {
           ),
         );
 
-  pw.Widget _contents() => pw.Column(
+  /// The contents, with each section's first page from [numbers] (empty on
+  /// the first pass).
+  pw.Widget _contents(Map<String, int> numbers) => pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
       _letterhead(),
@@ -894,7 +947,16 @@ class ReportPackPdf {
                   style: pw.TextStyle(color: _brandInk, fontSize: 12),
                 ),
               ),
-              pw.Text(s, style: pw.TextStyle(color: _ink, fontSize: 13)),
+              pw.Expanded(
+                child: pw.Text(
+                  s,
+                  style: pw.TextStyle(color: _ink, fontSize: 13),
+                ),
+              ),
+              pw.Text(
+                numbers[s] == null ? '' : 'Page ${numbers[s]}',
+                style: pw.TextStyle(color: _muted, fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -903,14 +965,29 @@ class ReportPackPdf {
     ],
   );
 
+  /// The agency's heading font, when it has one (see
+  /// [OfficeDetails.headingFont]); null keeps the body font.
+  pw.Font? _headingFont, _headingBold;
+
+  /// [style] in the agency's heading font, when it has one.
+  pw.TextStyle _h(pw.TextStyle style) => _headingFont == null
+      ? style
+      : style.copyWith(
+          font: _headingFont,
+          fontNormal: _headingFont,
+          fontBold: _headingBold,
+        );
+
   pw.Widget _sectionTitle(String text) => pw.Padding(
     padding: const pw.EdgeInsets.only(bottom: 10),
     child: pw.Text(
       text,
-      style: pw.TextStyle(
-        fontSize: 18,
-        color: _brandInk,
-        fontWeight: pw.FontWeight.bold,
+      style: _h(
+        pw.TextStyle(
+          fontSize: 18,
+          color: _brandInk,
+          fontWeight: pw.FontWeight.bold,
+        ),
       ),
     ),
   );
@@ -953,10 +1030,12 @@ class ReportPackPdf {
                       padding: const pw.EdgeInsets.only(right: 12),
                       child: pw.Text(
                         pdfText(agent.office.slogan),
-                        style: const pw.TextStyle(
-                          fontSize: 12,
-                          color: _ink,
-                          letterSpacing: 0.3,
+                        style: _h(
+                          const pw.TextStyle(
+                            fontSize: 12,
+                            color: _ink,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     ),
@@ -996,11 +1075,11 @@ class ReportPackPdf {
                 children: [
                   pw.Text(
                     'YOUR',
-                    style: const pw.TextStyle(fontSize: 21, color: _ink),
+                    style: _h(const pw.TextStyle(fontSize: 21, color: _ink)),
                   ),
                   pw.RichText(
                     text: pw.TextSpan(
-                      style: const pw.TextStyle(fontSize: 30, color: _ink),
+                      style: _h(const pw.TextStyle(fontSize: 30, color: _ink)),
                       children: [
                         // *word* is printed in the brand colour.
                         for (final (i, part) in pdfText(
@@ -2634,9 +2713,9 @@ class ReportPackPdf {
     final data = report.bestRange;
     final parts = [
       if (used.isNotEmpty)
-        'It rests on ${used.length} recorded sales of similar homes'
-            '${radius == null ? ' in the area' : ' within $radius m of the property'}'
-            '${recent == null ? '' : '; the most recent, ${_title(recent.address)}${recent.distanceM == null ? '' : ' (${_distance(recent.distanceM!)} away)'}, sold for ${rand(recent.salePriceZar)} in ${DateFormat('MMMM yyyy').format(recent.saleDate)}'}.',
+        'It rests on ${used.length} recorded sales'
+            '${radius == null ? ' nearby' : ' within $radius m of the property'}'
+            '${recent == null ? '' : '; the most recent, ${_title(report.withoutSuburb(recent.address))}${recent.distanceM == null ? '' : ' (${_distance(recent.distanceM!)} away)'}, ${recent.dwellingExtentM2 > 0 ? 'a ${recent.dwellingExtentM2.round()} m² home, ' : ''}sold for ${rand(recent.salePriceZar)} in ${DateFormat('MMMM yyyy').format(recent.saleDate)}'}.',
       if (data?.low case final low?)
         if (data?.high case final high?)
           if ((valuation.low / low - 1).abs() > 0.05 ||
