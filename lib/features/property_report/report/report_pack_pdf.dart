@@ -11,6 +11,7 @@ import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import 'costs_calculator.dart';
 import 'pack_icons.dart';
+import 'portrait_crop.dart';
 import 'pack_listing.dart';
 import 'valuation_report_pdf.dart';
 import 'world_map.dart';
@@ -511,7 +512,6 @@ class ReportPackPdf {
       .split(' ')
       .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
-
 
   /// The agency's logo filling the top band, on the logo's own background.
   pw.Widget _coverLogoBand() {
@@ -2630,7 +2630,12 @@ class ReportPackPdf {
   /// The sign-off as the agent's business card: photo, name and title, how to
   /// reach them, and their registrations.
   pw.Widget _businessCard() {
-    final photo = _img(pictures.agentPhoto);
+    // Head and shoulders, so the face sits in the middle of the circle.
+    final photo = _img(
+      ValuationReportPdf.isEmbeddableImage(pictures.agentPhoto)
+          ? headAndShoulders(pictures.agentPhoto!)
+          : null,
+    );
     final contacts = [
       if (agent.mobile.isNotEmpty) ('phone', agent.mobile),
       if (agent.email.isNotEmpty) ('email', agent.email),

@@ -8,7 +8,12 @@ import 'package:image/image.dart' as img;
 /// transparent included; a small margin is kept. Unchanged when the image
 /// cannot be read or has no such border.
 Uint8List trimLogoBorder(Uint8List bytes) {
-  final image = img.decodeImage(bytes);
+  final img.Image? image;
+  try {
+    image = img.decodeImage(bytes);
+  } catch (_) {
+    return bytes;
+  }
   if (image == null || image.width < 8 || image.height < 8) return bytes;
 
   final corner = image.getPixel(0, 0);
