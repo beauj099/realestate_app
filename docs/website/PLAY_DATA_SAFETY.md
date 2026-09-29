@@ -11,6 +11,11 @@ For Play Console → App content → Data safety. Based on what the app and API 
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only) |
 | Do you provide a way for users to request that their data is deleted? | **Yes**: in the app (Settings → Delete Account) and at `https://realworth.co.za/delete-account.html` |
 
+On the account-deletion form, say that some data is kept: an agent's **listings** (property and
+owner details, photos) stay with their agency as its business records of its mandates, and
+**sales they logged** stay in the shared market data. Both are no longer linked to the agent, whose
+name, contact details, registration numbers, password and profile are deleted.
+
 ## Data types
 
 "Shared" means sent to a third party that is not a service provider acting for us. Public

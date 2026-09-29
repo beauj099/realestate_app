@@ -100,7 +100,7 @@ Agencies come from the API: `agencyDirectoryProvider` (`lib/core/theme/agency_di
 
 ## Accounts and store requirements
 
-- **Delete account** (Settings → Delete Account, `delete_account_dialog.dart`; API `POST /api/agents/me/delete` with the password, `AccountDeletionService`) deletes the agent's listings (through `ListingService.DeleteAsync`, so photos and documents go too), logged sales, profile and its images, tokens and reset codes, and the user; an agency they added stays, unlinked. Play requires it, plus the web page `docs/website/delete-account.html`.
+- **Delete account** (Settings → Delete Account, `delete_account_dialog.dart`; API `POST /api/agents/me/delete` with the password, `AccountDeletionService`) deletes the agent's details, not their work: the user row is kept, because listings and logged sales point at it, but anonymised (`deleted-<id>`, "Former agent", no email, phone or numbers, an unusable password) and disabled (`IsActive = 0`; sign-in and refresh refuse it). Their profile and its images, tokens and reset codes are deleted. Listings, photos and logged sales stay. Play requires it, plus the web page `docs/website/delete-account.html`.
 - Privacy policy and the Play Data safety answers: `docs/website/` (to host on realworth.co.za). Update them when a data source, SDK or data type is added.
 
 ## Tests
