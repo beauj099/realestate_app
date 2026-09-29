@@ -79,10 +79,15 @@ class PackValuation {
   final double low;
   final double high;
   final double listingPrice;
+
+  /// Why the agent's range differs from the recorded sales' (the pool, the
+  /// flatlet, the condition…); the letter says it when the two differ.
+  final String adjustmentReason;
   const PackValuation({
     required this.low,
     required this.high,
     required this.listingPrice,
+    this.adjustmentReason = '',
   });
 }
 
@@ -224,8 +229,6 @@ class ReportPackPdf {
       _img(pictures.logoMark) ?? _img(pictures.logo);
 
   // The cover's serif, as on the agencies' own valuation covers.
-  static final _serif = pw.Font.times();
-  static final _serifBold = pw.Font.timesBold();
 
   String get fileName =>
       'Valuation - ${report.displayAddress.replaceAll(',', '')}.pdf';
@@ -396,7 +399,7 @@ class ReportPackPdf {
                 child: pw.Text(
                   'Market Related Property Valuation',
                   style: pw.TextStyle(
-                    font: _serifBold,
+                    fontWeight: pw.FontWeight.bold,
                     fontSize: 26,
                     color: PdfColors.black,
                   ),
@@ -414,11 +417,7 @@ class ReportPackPdf {
                   '•  Last registered sale: ${_day.format(sold.date)}  •  '
                   'Price: ${rand(sold.priceZar)}  •',
                 ),
-                style: pw.TextStyle(
-                  font: _serif,
-                  fontSize: 11,
-                  color: PdfColors.black,
-                ),
+                style: pw.TextStyle(fontSize: 11, color: PdfColors.black),
               ),
             ),
           ),
@@ -473,7 +472,6 @@ class ReportPackPdf {
                     child: pw.Text(
                       pdfText('Specially prepared for ${listing.preparedFor}.'),
                       style: pw.TextStyle(
-                        font: _serif,
                         fontSize: 17,
                         letterSpacing: 0.4,
                         color: _brandInk,
@@ -553,7 +551,6 @@ class ReportPackPdf {
               child: pw.Text(
                 _day.format(date),
                 style: pw.TextStyle(
-                  font: _serif,
                   fontSize: 13,
                   letterSpacing: 0.6,
                   color: _logoOnBrand ? _onBrand : _ink,
@@ -578,7 +575,8 @@ class ReportPackPdf {
       if ((f.floorM2 ?? report.dwellingExtentM2) case final floor?
           when floor > 0)
         ('floor', '${groupDigits(floor)} m²', 'Floor size'),
-      if ((f.erfM2 ?? report.extentM2) case final erf? when erf > 0)
+      // The registered extent first, as on the analysis page.
+      if ((report.extentM2 ?? f.erfM2) case final erf? when erf > 0)
         ('erf', '${groupDigits(erf)} m²', 'Erf size'),
       if (f.yearBuilt != null) ('built', '${f.yearBuilt}', 'Built'),
       // Features without a number: the icon and its name.
@@ -779,7 +777,6 @@ class ReportPackPdf {
                 pdfText(agent.office.slogan),
                 textAlign: pw.TextAlign.right,
                 style: pw.TextStyle(
-                  font: _serif,
                   fontSize: 14,
                   color: _onBrand,
                   lineSpacing: 2,
@@ -1150,7 +1147,7 @@ class ReportPackPdf {
               padding: const pw.EdgeInsets.symmetric(vertical: 9),
               child: pw.Center(
                 child: pw.Text(
-                  'registered professional property professional in real estate',
+                  'registered property practitioner in real estate',
                   style: pw.TextStyle(
                     color: _onBrand,
                     fontSize: 11.5,
@@ -1369,9 +1366,10 @@ class ReportPackPdf {
         _areaHeading(
           'people',
           'The neighbourhood',
+          // Census area names can differ from the suburb the listing uses.
           p?.subPlace == null
               ? null
-              : [p!.subPlace, p.mainPlace].whereType<String>().join(', '),
+              : 'Census area: ${[p!.subPlace, p.mainPlace].whereType<String>().join(', ')}',
         ),
         _tiles([
           if (p?.estimatedPopulation ?? p?.population case final people?)
@@ -1983,7 +1981,9 @@ class ReportPackPdf {
                             child: pw.Container(
                               height: 9,
                               decoration: pw.BoxDecoration(
-                                color: _tint(0.75),
+                                // A fixed slate, whatever the brand: a green or yellow bar
+                                // would read as good news.
+                                color: const PdfColor.fromInt(0xFF7A8490),
                                 borderRadius: pw.BorderRadius.circular(3),
                               ),
                             ),
@@ -2544,24 +2544,18 @@ class ReportPackPdf {
           style: body,
         ),
         pw.SizedBox(height: 8),
-        pw.RichText(
-          text: pw.TextSpan(
-            style: body,
-            children: [
-              const pw.TextSpan(
-                text:
-                    'Having considered all of this, we estimate the current market value of your property at between ',
-              ),
-              pw.TextSpan(
-                text: '${rand(valuation.low)} and ${rand(valuation.high)}',
-                style: bold,
-              ),
-              const pw.TextSpan(text: ', and recommend a listing price of '),
-              pw.TextSpan(text: rand(valuation.listingPrice), style: bold),
-              const pw.TextSpan(text: ' to allow room for negotiation.'),
-            ],
-          ),
+        _moneyText(
+          'Having considered all of this, we estimate the current market value '
+          'of your property at between ${rand(valuation.low)} and '
+          '${rand(valuation.high)}, and recommend a listing price of '
+          '${rand(valuation.listingPrice)} to allow room for negotiation.',
+          body,
+          moneyStyle: bold,
         ),
+        if (_letterEvidence() case final evidence?) ...[
+          pw.SizedBox(height: 8),
+          _moneyText(pdfText(evidence), body),
+        ],
         pw.SizedBox(height: 8),
         pw.Text('The valuation takes into account:', style: body),
         for (final (title, text) in const [
@@ -2624,6 +2618,64 @@ class ReportPackPdf {
         pw.Spacer(),
         _officeFooter(),
       ],
+    );
+  }
+
+  /// The letter's specifics: what the sales used show, the nearest of them,
+  /// and why the agent's range differs from the sales' when it does, so the
+  /// letter and the analysis never disagree unexplained.
+  String? _letterEvidence() {
+    final used = report.includedComparables;
+    // The most recent sale: the one a seller will recognise as today's market.
+    final recent = ([
+      ...used,
+    ]..sort((a, b) => b.saleDate.compareTo(a.saleDate))).firstOrNull;
+    final radius = report.comparableSummary?.radiusM;
+    final data = report.bestRange;
+    final parts = [
+      if (used.isNotEmpty)
+        'It rests on ${used.length} recorded sales of similar homes'
+            '${radius == null ? ' in the area' : ' within $radius m of the property'}'
+            '${recent == null ? '' : '; the most recent, ${_title(recent.address)}${recent.distanceM == null ? '' : ' (${_distance(recent.distanceM!)} away)'}, sold for ${rand(recent.salePriceZar)} in ${DateFormat('MMMM yyyy').format(recent.saleDate)}'}.',
+      if (data?.low case final low?)
+        if (data?.high case final high?)
+          if ((valuation.low / low - 1).abs() > 0.05 ||
+              (valuation.high / high - 1).abs() > 0.05)
+            'Those sales alone indicate ${rand(low)} to ${rand(high)}; our '
+                'estimate is ${valuation.high > high ? 'higher' : 'lower'} '
+                '${valuation.adjustmentReason.trim().isEmpty ? 'because it also reflects our inspection of the home' : 'to allow for ${valuation.adjustmentReason.trim().replaceAll(RegExp(r'[.\s]+$'), '')}'}.',
+    ];
+    return parts.isEmpty ? null : parts.join(' ');
+  }
+
+  /// [text] with every amount ("R 5 000 000") kept on one line, in
+  /// [moneyStyle] when given. The pdf package breaks lines at any whitespace,
+  /// the non-breaking spaces between digit groups included.
+  static pw.Widget _moneyText(
+    String text,
+    pw.TextStyle style, {
+    pw.TextStyle? moneyStyle,
+  }) {
+    final spans = <pw.InlineSpan>[];
+    var at = 0;
+    for (final m in RegExp(
+      r'R[\s\u00A0]\d{1,3}(?:[\s\u00A0]\d{3})*',
+    ).allMatches(text)) {
+      if (m.start > at) {
+        spans.add(pw.TextSpan(text: text.substring(at, m.start)));
+      }
+      spans.add(
+        pw.WidgetSpan(
+          // Down by the font's descent, onto the line's baseline.
+          baseline: -0.22 * (style.fontSize ?? 12),
+          child: pw.Text(m[0]!, style: style.merge(moneyStyle)),
+        ),
+      );
+      at = m.end;
+    }
+    if (at < text.length) spans.add(pw.TextSpan(text: text.substring(at)));
+    return pw.RichText(
+      text: pw.TextSpan(style: style, children: spans),
     );
   }
 

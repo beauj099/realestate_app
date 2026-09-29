@@ -309,6 +309,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           low: options.low,
           high: options.high,
           listingPrice: options.listingPrice,
+          adjustmentReason: options.adjustmentReason,
         ),
         costs: CostsSummary(
           valuationPrice: options.high,

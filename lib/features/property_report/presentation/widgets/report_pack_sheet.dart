@@ -16,6 +16,9 @@ class PackOptions {
   final double low;
   final double high;
   final double listingPrice;
+
+  /// Why the agent's range differs from the recorded sales' (for the letter).
+  final String adjustmentReason;
   final CalculatorDefaults calculator;
 
   /// The cover's main photo and the row of up to three under it (photo
@@ -29,6 +32,7 @@ class PackOptions {
     required this.low,
     required this.high,
     required this.listingPrice,
+    this.adjustmentReason = '',
     required this.calculator,
     this.coverPhoto,
     this.gallery = const [],
@@ -99,6 +103,7 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
       'low': TextEditingController(text: n(i.low)),
       'high': TextEditingController(text: n(i.high)),
       'listing': TextEditingController(text: n(i.listingPrice)),
+      'reason': TextEditingController(text: i.adjustmentReason),
       'early': TextEditingController(text: n(calc.commissionEarlyPercent)),
       'late': TextEditingController(text: n(calc.commissionLatePercent)),
       'rate': TextEditingController(text: n(calc.interestRatePercent)),
@@ -155,6 +160,7 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
         low: low,
         high: high,
         listingPrice: listing,
+        adjustmentReason: _c['reason']!.text.trim(),
         coverPhoto: _picked.firstOrNull,
         gallery: _picked.skip(1).toList(),
         calculator: calc.copyWith(
@@ -270,6 +276,21 @@ class _ReportPackSheetState extends State<_ReportPackSheet> {
               ),
               gap,
               field('listing', 'Recommended listing price', money: true),
+              gap,
+              field(
+                'reason',
+                'If your range differs from the sales: why?',
+                type: TextInputType.text,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'For example "the pool, the flatlet and its condition". The '
+                'letter gives the sales\' own range next to yours and this '
+                'reason, so the two never disagree unexplained.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: theme.textSecondary,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
                 'Suggested: the top of the range plus 5%, to leave room for '

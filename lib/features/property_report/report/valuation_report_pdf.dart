@@ -157,6 +157,24 @@ class ValuationReportPdf {
     _title(),
     pw.SizedBox(height: 14),
     _rangeBox(),
+    if (report.confidenceNote case final note?)
+      pw.Container(
+        margin: const pw.EdgeInsets.only(top: 6),
+        padding: const pw.EdgeInsets.fromLTRB(10, 6, 10, 6),
+        decoration: pw.BoxDecoration(
+          color: const PdfColor.fromInt(0xFFFFF6E5),
+          border: pw.Border(
+            left: pw.BorderSide(
+              color: const PdfColor.fromInt(0xFFE0A030),
+              width: 3,
+            ),
+          ),
+        ),
+        child: pw.Text(
+          pdfText(note),
+          style: const pw.TextStyle(fontSize: 9.5, color: _ink),
+        ),
+      ),
     if (showSources && report.coverageNote != null)
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 6),
@@ -676,8 +694,8 @@ class ValuationReportPdf {
             row > usedCount ? cell.copyWith(color: _muted) : cell,
         columnWidths: {
           for (final (i, w) in [
-            if (areaMapSvg != null) 0.4,
-            3.2,
+            if (areaMapSvg != null) 0.6, // room for "10"
+            3.1,
             if (withDistance) 0.9,
             1.3,
             1.7,
@@ -881,10 +899,14 @@ class ValuationReportPdf {
       ? 'R ${(v / 1000000).toStringAsFixed(v >= 10000000 ? 0 : 1)}m'
       : 'R ${(v / 1000).round()}k';
 
+  /// Chart colour: the brand, or its ink when the brand is too light to
+  /// read on white (a pale yellow bar is barely visible).
+  PdfColor get _chart => _brandInk;
+
   PdfColor _tint(double amount) => PdfColor(
-    1 - (1 - _brand.red) * amount,
-    1 - (1 - _brand.green) * amount,
-    1 - (1 - _brand.blue) * amount,
+    1 - (1 - _chart.red) * amount,
+    1 - (1 - _chart.green) * amount,
+    1 - (1 - _chart.blue) * amount,
   );
 
   pw.Widget _chartCard(String title, String subtitle, pw.Widget chart) =>
@@ -943,7 +965,7 @@ class ValuationReportPdf {
                         vertical: 1,
                       ),
                       decoration: pw.BoxDecoration(
-                        color: _brand,
+                        color: _chart,
                         borderRadius: pw.BorderRadius.circular(3),
                       ),
                       child: pw.Text(
@@ -972,7 +994,7 @@ class ValuationReportPdf {
                         begin: pw.Alignment.topCenter,
                         end: pw.Alignment.bottomCenter,
                         colors: i == highlight || highlight < 0
-                            ? [_tint(0.8), _brand]
+                            ? [_tint(0.8), _chart]
                             : [_tint(0.3), _tint(0.5)],
                       ),
                     ),
@@ -1140,7 +1162,7 @@ class ValuationReportPdf {
                     width: (w * (at(range.high!) - at(range.low!))).clamp(6, w),
                     height: 14,
                     decoration: pw.BoxDecoration(
-                      color: _brand,
+                      color: _chart,
                       borderRadius: pw.BorderRadius.circular(7),
                     ),
                   ),
@@ -1273,7 +1295,8 @@ class ValuationReportPdf {
       if (report.sizedFromListingM2 case final floor?)
         'Each sale was carried to the ${_m2(floor)} floor area captured on the listing'
             '${report.dwellingExtentM2 == null ? '' : ' (the City records ${_m2(report.dwellingExtentM2)})'}; '
-            'the midpoint is their median and the range their middle half.',
+            'the midpoint is their median and the range their middle half.'
+            '${report.cityRange?.low != null && report.cityRange?.high != null ? ' On the City\'s ${_m2(report.dwellingExtentM2)} the range would be ${_money(report.cityRange!.low)} to ${_money(report.cityRange!.high)}.' : ''}',
     ]);
   }
 
