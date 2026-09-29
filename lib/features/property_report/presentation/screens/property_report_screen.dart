@@ -23,6 +23,7 @@ import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../../../report_settings/providers/report_settings_provider.dart';
+import '../../report/logo_trim.dart';
 import '../../report/agency_logo_bytes.dart';
 import '../../report/costs_calculator.dart';
 import '../../report/pack_images.dart';
@@ -328,7 +329,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           gallery: [for (final g in gallery) ?g],
           agentPhoto: fetched[2],
           signature: fetched[3],
-          logo: fetched[4],
+          // Square logo tiles trimmed to their artwork, to fill the band.
+          logo: fetched[4] == null ? null : trimLogoBorder(fetched[4]!),
           logoMark: logos[0],
           logoWide: logos[1],
           logoWideOnBrand: logos[2],
@@ -380,7 +382,10 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         author: _author(),
         brandColor: brand.primaryColor,
         onBrandColor: brand.onPrimary,
-        logo: await agencyLogoBytes(ref.read(agencyProvider)),
+        logo: switch (await agencyLogoBytes(ref.read(agencyProvider))) {
+          final bytes? => trimLogoBorder(bytes),
+          null => null,
+        },
       );
       final bytes = await pdf.build();
       if (print) {

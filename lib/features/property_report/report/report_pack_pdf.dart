@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/painting.dart' show Color;
@@ -177,6 +178,28 @@ class ReportPackPdf {
   static const _margin = pw.EdgeInsets.fromLTRB(40, 36, 40, 40);
 
   PdfColor get _brand => PdfColor.fromInt(brandColor.toARGB32());
+
+  /// The brand colour for text and small icons on white: the brand itself
+  /// when it reads well there (contrast 3:1 or more), else the agency's ink
+  /// (a yellow like Rawson's is unreadable as text on white). Bands, frames
+  /// and bars keep the brand colour.
+  PdfColor get _brandInk => _readableOnWhite(brandColor)
+      ? _brand
+      : _readableOnWhite(onBrandColor)
+      ? PdfColor.fromInt(onBrandColor.toARGB32())
+      : const PdfColor.fromInt(0xFF1E1E1E);
+
+  static bool _readableOnWhite(Color c) {
+    double lin(double v) => v <= 0.03928
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+    final l = 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+    return 1.05 / (l + 0.05) >= 3;
+  }
+
+  String get _brandInkHex =>
+      (_brandInk.toInt() & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+
   PdfColor get _onBrand => PdfColor.fromInt(onBrandColor.toARGB32());
   PdfColor get _logoBackground =>
       PdfColor.fromInt((logoBackground ?? brandColor).toARGB32());
@@ -452,7 +475,7 @@ class ReportPackPdf {
                         font: _serif,
                         fontSize: 17,
                         letterSpacing: 0.4,
-                        color: _brand,
+                        color: _brandInk,
                       ),
                     ),
                   ),
@@ -489,8 +512,6 @@ class ReportPackPdf {
       .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
       .join(' ');
 
-  String get _brandHex =>
-      (brandColor.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
 
   /// The agency's logo filling the top band, on the logo's own background.
   pw.Widget _coverLogoBand() {
@@ -522,17 +543,21 @@ class ReportPackPdf {
                     alignment: pw.Alignment.centerLeft,
                   ),
           ),
-          // The date: a valuation is a snapshot in time.
+          // The date: a valuation is a snapshot in time. Right, and in the
+          // middle of the band's height.
           pw.Positioned(
             right: 0,
             top: 0,
-            child: pw.Text(
-              _day.format(date),
-              style: pw.TextStyle(
-                font: _serif,
-                fontSize: 13,
-                letterSpacing: 0.6,
-                color: _logoOnBrand ? _onBrand : _ink,
+            bottom: 0,
+            child: pw.Center(
+              child: pw.Text(
+                _day.format(date),
+                style: pw.TextStyle(
+                  font: _serif,
+                  fontSize: 13,
+                  letterSpacing: 0.6,
+                  color: _logoOnBrand ? _onBrand : _ink,
+                ),
               ),
             ),
           ),
@@ -582,7 +607,7 @@ class ReportPackPdf {
                   pw.SizedBox(height: 2),
                   pw.Row(
                     children: [
-                      if (packIcon('place', _brandHex) case final svg?)
+                      if (packIcon('place', _brandInkHex) case final svg?)
                         pw.Padding(
                           padding: const pw.EdgeInsets.only(right: 3),
                           child: pw.SvgImage(svg: svg, width: 11, height: 11),
@@ -641,7 +666,7 @@ class ReportPackPdf {
 
   pw.Widget _fact(String icon, String value, String label) => pw.Row(
     children: [
-      if (packIcon(icon, _brandHex) case final svg?)
+      if (packIcon(icon, _brandInkHex) case final svg?)
         pw.SvgImage(svg: svg, width: 20, height: 20),
       pw.SizedBox(width: 7),
       pw.Expanded(
@@ -806,7 +831,7 @@ class ReportPackPdf {
               ? pw.Text(
                   agent.agencyName,
                   style: pw.TextStyle(
-                    color: _brand,
+                    color: _brandInk,
                     fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
                   ),
@@ -850,7 +875,7 @@ class ReportPackPdf {
           children: [
             pw.Text(
               'MARKET RELATED VALUATION REPORT',
-              style: pw.TextStyle(fontSize: 20, color: _brand),
+              style: pw.TextStyle(fontSize: 20, color: _brandInk),
             ),
             pw.Text(
               'Contents',
@@ -869,7 +894,7 @@ class ReportPackPdf {
                 width: 28,
                 child: pw.Text(
                   '${i + 1}',
-                  style: pw.TextStyle(color: _brand, fontSize: 12),
+                  style: pw.TextStyle(color: _brandInk, fontSize: 12),
                 ),
               ),
               pw.Text(s, style: pw.TextStyle(color: _ink, fontSize: 13)),
@@ -887,7 +912,7 @@ class ReportPackPdf {
       text,
       style: pw.TextStyle(
         fontSize: 18,
-        color: _brand,
+        color: _brandInk,
         fontWeight: pw.FontWeight.bold,
       ),
     ),
@@ -988,7 +1013,9 @@ class ReportPackPdf {
                         ).split('*').indexed)
                           pw.TextSpan(
                             text: part,
-                            style: i.isOdd ? pw.TextStyle(color: _brand) : null,
+                            style: i.isOdd
+                                ? pw.TextStyle(color: _brandInk)
+                                : null,
                           ),
                       ],
                     ),
@@ -1166,7 +1193,7 @@ class ReportPackPdf {
               fontSize: 9.5,
               letterSpacing: 2,
               fontWeight: pw.FontWeight.bold,
-              color: _brand,
+              color: _brandInk,
             ),
           ),
           pw.SizedBox(height: 6),
@@ -1175,7 +1202,7 @@ class ReportPackPdf {
               padding: const pw.EdgeInsets.only(top: 4),
               child: pw.Row(
                 children: [
-                  if (packIcon(icon, _brandHex) case final svg?)
+                  if (packIcon(icon, _brandInkHex) case final svg?)
                     pw.Padding(
                       padding: const pw.EdgeInsets.only(right: 9),
                       child: pw.SvgImage(svg: svg, width: 14, height: 14),
@@ -1260,7 +1287,7 @@ class ReportPackPdf {
                     ? pw.Text(
                         agent.agencyName,
                         style: pw.TextStyle(
-                          color: _brand,
+                          color: _brandInk,
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,
                         ),
@@ -1308,7 +1335,7 @@ class ReportPackPdf {
                         padding: const pw.EdgeInsets.only(top: 2),
                         child: pw.Text(
                           office.website,
-                          style: pw.TextStyle(fontSize: 11, color: _brand),
+                          style: pw.TextStyle(fontSize: 11, color: _brandInk),
                         ),
                       ),
                   ],
@@ -1726,7 +1753,7 @@ class ReportPackPdf {
         child: pw.Row(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
-            if (packIcon(icon, _brandHex) case final svg?)
+            if (packIcon(icon, _brandInkHex) case final svg?)
               pw.Container(
                 width: 26,
                 height: 26,
@@ -1774,7 +1801,7 @@ class ReportPackPdf {
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          if (packIcon(t.$1, _brandHex) case final svg?)
+          if (packIcon(t.$1, _brandInkHex) case final svg?)
             pw.Padding(
               padding: const pw.EdgeInsets.only(right: 7, top: 1),
               child: pw.SvgImage(svg: svg, width: 17, height: 17),
@@ -2363,7 +2390,7 @@ class ReportPackPdf {
                         : rand(l.priceZar!),
                     style: pw.TextStyle(
                       fontSize: 16,
-                      color: _brand,
+                      color: _brandInk,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
@@ -2437,7 +2464,7 @@ class ReportPackPdf {
                           'View on Property24',
                           style: pw.TextStyle(
                             fontSize: 9.5,
-                            color: _brand,
+                            color: _brandInk,
                             decoration: pw.TextDecoration.underline,
                           ),
                         ),
@@ -2455,7 +2482,7 @@ class ReportPackPdf {
 
   pw.Widget _smallFact(String icon, String value, String label) => pw.Row(
     children: [
-      if (packIcon(icon, _brandHex) case final svg?)
+      if (packIcon(icon, _brandInkHex) case final svg?)
         pw.SvgImage(svg: svg, width: 15, height: 15),
       pw.SizedBox(width: 5),
       pw.Column(
@@ -2558,7 +2585,7 @@ class ReportPackPdf {
           pw.Bullet(
             text: '$title: $text',
             style: body,
-            bulletColor: _brand,
+            bulletColor: _brandInk,
             bulletSize: 3,
           ),
         pw.SizedBox(height: 8),
@@ -2669,7 +2696,7 @@ class ReportPackPdf {
                     padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
                     child: pw.Row(
                       children: [
-                        if (packIcon(icon, _brandHex) case final svg?)
+                        if (packIcon(icon, _brandInkHex) case final svg?)
                           pw.Padding(
                             padding: const pw.EdgeInsets.only(right: 6),
                             child: pw.SvgImage(svg: svg, width: 10, height: 10),
@@ -2721,7 +2748,7 @@ class ReportPackPdf {
             'COSTS TO SELLER AND BUYER',
             style: pw.TextStyle(
               fontSize: 18,
-              color: _brand,
+              color: _brandInk,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
@@ -2731,7 +2758,7 @@ class ReportPackPdf {
           'The seller (estimate; commission can be negotiated)',
           style: pw.TextStyle(
             fontSize: 12,
-            color: _brand,
+            color: _brandInk,
             fontWeight: pw.FontWeight.bold,
           ),
         ),
@@ -2762,7 +2789,7 @@ class ReportPackPdf {
           'The buyer (estimate)',
           style: pw.TextStyle(
             fontSize: 12,
-            color: _brand,
+            color: _brandInk,
             fontWeight: pw.FontWeight.bold,
           ),
         ),
@@ -2796,7 +2823,7 @@ class ReportPackPdf {
           'Home-loan repayment for the buyer (estimate)',
           style: pw.TextStyle(
             fontSize: 12,
-            color: _brand,
+            color: _brandInk,
             fontWeight: pw.FontWeight.bold,
           ),
         ),

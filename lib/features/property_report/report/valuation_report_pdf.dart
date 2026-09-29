@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/painting.dart' show Color;
@@ -103,6 +104,25 @@ class ValuationReportPdf {
   static String _count(int v) => groupDigits(v);
 
   PdfColor get _brand => PdfColor.fromInt(brandColor.toARGB32());
+
+  /// The brand colour for text and small icons on white: the brand itself
+  /// when it reads well there (contrast 3:1 or more), else the agency's ink
+  /// (a yellow like Rawson's is unreadable as text on white). Bands, frames
+  /// and bars keep the brand colour.
+  PdfColor get _brandInk => _readableOnWhite(brandColor)
+      ? _brand
+      : _readableOnWhite(onBrandColor)
+      ? PdfColor.fromInt(onBrandColor.toARGB32())
+      : const PdfColor.fromInt(0xFF1E1E1E);
+
+  static bool _readableOnWhite(Color c) {
+    double lin(double v) => v <= 0.03928
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+    final l = 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+    return 1.05 / (l + 0.05) >= 3;
+  }
+
   PdfColor get _onBrand => PdfColor.fromInt(onBrandColor.toARGB32());
   static const _ink = PdfColor.fromInt(0xFF1E1E1E);
   static const _muted = PdfColor.fromInt(0xFF6B6F76);
@@ -254,7 +274,7 @@ class ValuationReportPdf {
                 ? 'Property valuation report'
                 : author.agencyName,
             style: pw.TextStyle(
-              color: _brand,
+              color: _brandInk,
               fontWeight: pw.FontWeight.bold,
               fontSize: 12,
             ),
@@ -283,7 +303,7 @@ class ValuationReportPdf {
       pw.Text(
         'PROPERTY VALUATION REPORT',
         style: pw.TextStyle(
-          color: _brand,
+          color: _brandInk,
           fontSize: 10,
           letterSpacing: 1.2,
           fontWeight: pw.FontWeight.bold,
@@ -502,7 +522,7 @@ class ValuationReportPdf {
     child: pw.Text(
       text,
       style: pw.TextStyle(
-        color: _brand,
+        color: _brandInk,
         fontSize: 12,
         fontWeight: pw.FontWeight.bold,
       ),
@@ -1057,7 +1077,7 @@ class ValuationReportPdf {
                     ),
                     pw.Text(
                       _short(yr.medianPriceZar),
-                      style: pw.TextStyle(fontSize: 7, color: _brand),
+                      style: pw.TextStyle(fontSize: 7, color: _brandInk),
                     ),
                   ],
                 ),
@@ -1137,13 +1157,13 @@ class ValuationReportPdf {
                           'This home',
                           style: pw.TextStyle(
                             fontSize: 8,
-                            color: _brand,
+                            color: _brandInk,
                             fontWeight: pw.FontWeight.bold,
                           ),
                         ),
                         pw.Text(
                           _short(range.mid!),
-                          style: pw.TextStyle(fontSize: 8, color: _brand),
+                          style: pw.TextStyle(fontSize: 8, color: _brandInk),
                         ),
                       ],
                     ),
