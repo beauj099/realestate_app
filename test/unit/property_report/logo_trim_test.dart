@@ -22,6 +22,31 @@ void main() {
     expect(trimmed.height, 52);
   });
 
+  test('ignores light-grey noise and stray specks in a white border', () {
+    // A web thumbnail: a navy box on white with compression noise around it.
+    final tile = img.Image(width: 160, height: 160)
+      ..clear(img.ColorRgb8(255, 255, 255));
+    for (var i = 0; i < 160; i += 7) {
+      tile.setPixel(i, 3, img.ColorRgb8(232, 232, 232)); // grey noise
+      tile.setPixel(3, i, img.ColorRgb8(236, 236, 236));
+    }
+    tile.setPixel(150, 150, img.ColorRgb8(90, 90, 90)); // one dark speck
+    img.fillRect(
+      tile,
+      x1: 10,
+      y1: 50,
+      x2: 149,
+      y2: 109,
+      color: img.ColorRgb8(0, 36, 84),
+    );
+
+    final trimmed = img.decodePng(trimLogoBorder(img.encodePng(tile)))!;
+
+    // The box (140 x 60) plus 6% of 140 on each side, within the image.
+    expect(trimmed.height, lessThan(80));
+    expect(trimmed.width, lessThanOrEqualTo(160));
+  });
+
   test('leaves a logo that already fills its image alone', () {
     final full = img.Image(width: 100, height: 40)
       ..clear(img.ColorRgb8(24, 24, 24));
