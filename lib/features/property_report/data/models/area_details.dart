@@ -276,6 +276,72 @@ class WaterQuality {
         );
 }
 
+/// One year of scheduled load-shedding for the property's area.
+class LoadSheddingYear {
+  final int year;
+  final double hours;
+  final int days;
+  final double hoursPerDay;
+  final String? worstMonth;
+  final double worstMonthHours;
+  final double percentOfYear;
+  const LoadSheddingYear({
+    required this.year,
+    required this.hours,
+    required this.days,
+    required this.hoursPerDay,
+    this.worstMonth,
+    this.worstMonthHours = 0,
+    this.percentOfYear = 0,
+  });
+}
+
+/// Past scheduled load-shedding for the area (only once the API has the
+/// schedule imported).
+class LoadSheddingHistory {
+  final String area;
+  final String areaLabel;
+  final List<LoadSheddingYear> years;
+  final List<String> usualTimes;
+  final String summary;
+  final String source;
+  final String caveat;
+  const LoadSheddingHistory({
+    required this.area,
+    required this.areaLabel,
+    required this.years,
+    this.usualTimes = const [],
+    this.summary = '',
+    this.source = '',
+    this.caveat = '',
+  });
+
+  static LoadSheddingHistory? fromJson(Map<String, dynamic>? j) => j == null
+      ? null
+      : LoadSheddingHistory(
+          area: j['area'] as String? ?? '',
+          areaLabel: j['areaLabel'] as String? ?? '',
+          years: [
+            for (final y in (j['years'] as List? ?? const []))
+              LoadSheddingYear(
+                year: _i((y as Map<String, dynamic>)['year']) ?? 0,
+                hours: _d(y['hours']) ?? 0,
+                days: _i(y['days']) ?? 0,
+                hoursPerDay: _d(y['hoursPerDay']) ?? 0,
+                worstMonth: y['worstMonth'] as String?,
+                worstMonthHours: _d(y['worstMonthHours']) ?? 0,
+                percentOfYear: _d(y['percentOfYear']) ?? 0,
+              ),
+          ],
+          usualTimes: [
+            for (final t in (j['usualTimes'] as List? ?? const [])) t as String,
+          ],
+          summary: j['summary'] as String? ?? '',
+          source: j['source'] as String? ?? '',
+          caveat: j['caveat'] as String? ?? '',
+        );
+}
+
 class AreaDetails {
   final Climate? climate;
   final Population? population;
@@ -283,6 +349,7 @@ class AreaDetails {
   final CrimeStats? crime;
   final List<NearbyGroup> nearby;
   final WaterQuality? water;
+  final LoadSheddingHistory? loadShedding;
 
   const AreaDetails({
     this.climate,
@@ -291,6 +358,7 @@ class AreaDetails {
     this.crime,
     this.nearby = const [],
     this.water,
+    this.loadShedding,
   });
 
   bool get isEmpty =>
@@ -299,7 +367,8 @@ class AreaDetails {
       income == null &&
       crime == null &&
       nearby.isEmpty &&
-      water == null;
+      water == null &&
+      loadShedding == null;
 
   factory AreaDetails.fromJson(Map<String, dynamic> j) => AreaDetails(
     climate: Climate.fromJson(j['climate'] as Map<String, dynamic>?),
@@ -322,6 +391,9 @@ class AreaDetails {
         ),
     ],
     water: WaterQuality.fromJson(j['water'] as Map<String, dynamic>?),
+    loadShedding: LoadSheddingHistory.fromJson(
+      j['loadShedding'] as Map<String, dynamic>?,
+    ),
   );
 }
 

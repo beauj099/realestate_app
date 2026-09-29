@@ -1421,6 +1421,8 @@ class ReportPackPdf {
       if (a.nearby.isNotEmpty) ..._nearbyBlock(a.nearby),
       if (c != null) ..._crimeBlock(c),
       if (a.water != null) ..._waterBlock(a.water!),
+      if (a.loadShedding case final shedding? when shedding.years.isNotEmpty)
+        ..._loadSheddingBlock(shedding),
       if (w != null) ..._climateBlock(w),
     ];
   }
@@ -1542,6 +1544,90 @@ class ReportPackPdf {
       _note(
         'Places from OpenStreetMap (© OpenStreetMap contributors); straight-line distances, not by road.',
       ),
+    ];
+  }
+
+  /// Past scheduled load-shedding: hours per year as bars, when it usually
+  /// fell, and what the figures are (scheduled, not measured).
+  List<pw.Widget> _loadSheddingBlock(LoadSheddingHistory h) {
+    final most = h.years.fold<double>(1, (m, y) => y.hours > m ? y.hours : m);
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _areaHeading('backup', 'Load-shedding', h.areaLabel),
+            for (final y in h.years)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 5),
+                child: pw.Row(
+                  children: [
+                    pw.SizedBox(
+                      width: 34,
+                      child: pw.Text(
+                        '${y.year}',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: _ink,
+                        ),
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Row(
+                        children: [
+                          pw.Expanded(
+                            flex: (1000 * y.hours / most).round().clamp(
+                              1,
+                              1000,
+                            ),
+                            child: pw.Container(
+                              height: 11,
+                              decoration: pw.BoxDecoration(
+                                borderRadius: pw.BorderRadius.circular(3),
+                                gradient: pw.LinearGradient(
+                                  colors: [_tint(0.55), _brand],
+                                ),
+                              ),
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: (1000 - 1000 * y.hours / most).round().clamp(
+                              1,
+                              1000,
+                            ),
+                            child: pw.SizedBox(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(
+                      width: 190,
+                      child: pw.Text(
+                        '${groupDigits(y.hours)} h over ${y.days} days'
+                        '${y.worstMonth == null ? '' : '  ·  worst ${y.worstMonth!.split(' ').first}'}',
+                        textAlign: pw.TextAlign.right,
+                        style: const pw.TextStyle(fontSize: 8.5, color: _ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (h.summary.isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                pdfText(h.summary),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  color: _ink,
+                  lineSpacing: 2,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      _note('${h.caveat} ${h.source}.'),
     ];
   }
 
