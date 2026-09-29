@@ -6,6 +6,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/locale/region_provider.dart';
 import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/wizard_section_scaffold.dart';
@@ -109,7 +110,112 @@ class ValuationScreen extends ConsumerWidget {
               textTheme: textTheme,
             ),
           ],
+          const SizedBox(height: 28),
+          Text(
+            'When the owners bought',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ask the owners. The report shows it as their last purchase when '
+            "the City's records do not go back that far.",
+            style: textTheme.bodySmall?.copyWith(color: theme.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          CustomTextInput(
+            theme: theme,
+            label: 'Bought for',
+            prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
+            placeholder: 'e.g. 1900000',
+            initialValue: state.listingValuation.lastPurchasePrice,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: currencyOnly(),
+            onChanged: (val) =>
+                viewModel.updateValuation(lastPurchasePrice: val),
+          ),
+          const SizedBox(height: 14),
+          _PurchaseMonthField(
+            value: state.listingValuation.lastPurchaseDate,
+            theme: theme,
+            onChanged: (date) => date == null
+                ? viewModel.updateValuation(clearLastPurchaseDate: true)
+                : viewModel.updateValuation(lastPurchaseDate: date),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// The month and year the owners bought: a year picker then a month, since
+/// owners rarely remember the day.
+class _PurchaseMonthField extends StatelessWidget {
+  final DateTime? value;
+  final RealEstateTheme theme;
+  final ValueChanged<DateTime?> onChanged;
+
+  const _PurchaseMonthField({
+    required this.value,
+    required this.theme,
+    required this.onChanged,
+  });
+
+  static const _months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  Future<void> _pick(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: value ?? DateTime(now.year - 5, now.month),
+      firstDate: DateTime(1950),
+      lastDate: now,
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: 'When did the owners buy?',
+    );
+    if (picked != null) onChanged(DateTime(picked.year, picked.month));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = theme.toThemeData().textTheme;
+    final v = value;
+    return InkWell(
+      onTap: () => _pick(context),
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Bought in',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          suffixIcon: v == null
+              ? const Icon(Icons.calendar_month_outlined)
+              : IconButton(
+                  tooltip: 'Clear',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => onChanged(null),
+                ),
+        ),
+        child: Text(
+          v == null ? 'Month and year' : '${_months[v.month - 1]} ${v.year}',
+          style: textTheme.bodyLarge?.copyWith(
+            color: v == null ? theme.textSecondary : theme.textPrimary,
+          ),
+        ),
       ),
     );
   }

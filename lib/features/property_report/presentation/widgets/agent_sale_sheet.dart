@@ -38,7 +38,9 @@ class _AgentSaleSheetState extends State<_AgentSaleSheet> {
   final _floor = TextEditingController();
   final _erf = TextEditingController();
   final _bedrooms = TextEditingController();
+  final _bathrooms = TextEditingController();
   final _notes = TextEditingController();
+  bool? _pool;
   DateTime? _saleDate;
   EvidenceLevel? _evidence;
   SaleCondition? _condition;
@@ -46,7 +48,15 @@ class _AgentSaleSheetState extends State<_AgentSaleSheet> {
 
   @override
   void dispose() {
-    for (final c in [_address, _price, _floor, _erf, _bedrooms, _notes]) {
+    for (final c in [
+      _address,
+      _price,
+      _floor,
+      _erf,
+      _bedrooms,
+      _bathrooms,
+      _notes,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -92,6 +102,8 @@ class _AgentSaleSheetState extends State<_AgentSaleSheet> {
         floorM2: double.tryParse(_floor.text),
         erfM2: double.tryParse(_erf.text),
         bedrooms: int.tryParse(_bedrooms.text),
+        bathrooms: int.tryParse(_bathrooms.text),
+        hasPool: _pool,
         condition: _condition,
         notes: _notes.text,
       ),
@@ -218,14 +230,43 @@ class _AgentSaleSheetState extends State<_AgentSaleSheet> {
                 ],
               ),
               gap,
-              CustomTextInput(
-                theme: theme,
-                label: 'Bedrooms',
-                controller: _bedrooms,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
+              Row(
+                children: [
+                  for (final (i, (name, controller)) in [
+                    ('Bedrooms', _bedrooms),
+                    ('Bathrooms', _bathrooms),
+                  ].indexed) ...[
+                    if (i > 0) const SizedBox(width: 12),
+                    Expanded(
+                      child: CustomTextInput(
+                        theme: theme,
+                        label: name,
+                        controller: controller,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(2),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              gap,
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final (value, text) in [
+                    (true, 'Pool'),
+                    (false, 'No pool'),
+                  ])
+                    ChoiceChip(
+                      label: Text(text),
+                      selected: _pool == value,
+                      selectedColor: theme.primaryColor.withValues(alpha: 0.15),
+                      onSelected: (on) =>
+                          setState(() => _pool = on ? value : null),
+                    ),
                 ],
               ),
               gap,

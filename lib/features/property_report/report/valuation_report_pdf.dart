@@ -70,6 +70,10 @@ class ValuationReportPdf {
   /// agent on its cover and "Your agent" page.
   final bool showAuthor;
 
+  /// When the owners bought and for how much, as they told the agent: shown
+  /// when the City's record has no sale of its own.
+  final ({DateTime date, double priceZar})? ownersPurchase;
+
   /// The "Sources" section and the notes naming where figures come from; off
   /// in the report pack, which the agent hands over as their own.
   final bool showSources;
@@ -85,6 +89,7 @@ class ValuationReportPdf {
     this.onBrandColor = const Color(0xFFFFFFFF),
     this.logo,
     this.showAuthor = true,
+    this.ownersPurchase,
     this.showSources = true,
     DateTime? date,
   }) : date = date ?? DateTime.now();
@@ -208,12 +213,21 @@ class ValuationReportPdf {
       if (report.legalStatus != null) ('Legal status', report.legalStatus!),
       // Said either way: a sale on record, or plainly that there is none in the
       // municipality's recent sales record (older transfers are with the Deeds Office).
-      if (report.municipality == 'coct' || report.lastSale != null)
+      if (report.lastSale case final sale?)
         (
           'Last registered sale',
-          report.lastSale == null
-              ? "None in the City's recent sales record (older transfers are with the Deeds Office)"
-              : '${_day.format(report.lastSale!.date)} for ${_money(report.lastSale!.priceZar)}',
+          '${_day.format(sale.date)} for ${_money(sale.priceZar)}',
+        )
+      else if (ownersPurchase case final bought?)
+        (
+          'Last purchase',
+          '${DateFormat('MMMM yyyy').format(bought.date)} for '
+              '${_money(bought.priceZar)} (as the owners recall it)',
+        )
+      else if (report.municipality == 'coct')
+        (
+          'Last registered sale',
+          "None in the City's recent sales record (older transfers are with the Deeds Office)",
         ),
     ]),
     _section('Improvements', [
@@ -742,7 +756,10 @@ class ValuationReportPdf {
         data: [
           for (final a in shown)
             [
-              titleCase(a.address),
+              [
+                titleCase(report.withoutSuburb(a.address)),
+                if (a.homeSummary.isNotEmpty) a.homeSummary,
+              ].join('\n'),
               _month.format(a.saleDate),
               _money(a.salePriceZar),
               a.floorM2 == null ? '-' : _m2(a.floorM2!),

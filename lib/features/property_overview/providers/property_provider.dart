@@ -880,12 +880,18 @@ class PropertyViewModel extends Notifier<PropertyState> {
     String? ownersNetPrice,
     String? agentValuation,
     String? commissionPercent,
+    String? lastPurchasePrice,
+    DateTime? lastPurchaseDate,
+    bool clearLastPurchaseDate = false,
   }) {
     state = state.copyWith(
       listingValuation: state.listingValuation.copyWith(
         ownersNetPrice: ownersNetPrice,
         agentValuation: agentValuation,
         commissionPercent: commissionPercent,
+        lastPurchasePrice: lastPurchasePrice,
+        lastPurchaseDate: lastPurchaseDate,
+        clearLastPurchaseDate: clearLastPurchaseDate,
       ),
     );
   }

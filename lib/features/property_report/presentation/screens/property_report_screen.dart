@@ -305,6 +305,8 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           street: street,
           area: area,
           facts: packFacts(listing, parkingTypes),
+          ownersPurchase: packOwnersPurchase(listing),
+          inspection: packInspection(listing),
         ),
         valuation: PackValuation(
           low: options.low,
@@ -384,6 +386,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         author: _author(),
         brandColor: brand.primaryColor,
         onBrandColor: brand.onPrimary,
+        ownersPurchase: packOwnersPurchase(ref.read(propertyViewModelProvider)),
         logo: switch (await agencyLogoBytes(ref.read(agencyProvider))) {
           final bytes? => trimLogoBorder(bytes),
           null => null,

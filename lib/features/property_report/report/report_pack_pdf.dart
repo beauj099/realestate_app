@@ -64,6 +64,12 @@ class PackListing {
   final String area;
   final PackFacts facts;
 
+  /// When the owners bought and for how much, as they told the agent.
+  final ({DateTime date, double priceZar})? ownersPurchase;
+
+  /// The agent's walk-through: the rooms as captured in the listing.
+  final PackInspection? inspection;
+
   const PackListing({
     this.preparedFor = '',
     this.greeting = '',
@@ -71,6 +77,56 @@ class PackListing {
     this.street = '',
     this.area = '',
     this.facts = const PackFacts(),
+    this.ownersPurchase,
+    this.inspection,
+  });
+}
+
+/// The agent's inspection of the home, from the rooms captured in the
+/// listing: proof the agent walked it, which no data source can give.
+class PackInspection {
+  final List<PackRoom> rooms;
+
+  /// The overall house score, 0-100.
+  final double? houseScore;
+
+  /// "Built in 1985", "620 m² under roof", "2 garages"…: the home as a whole.
+  final List<String> building;
+
+  /// Outside: pool, garden, borehole…
+  final List<String> outside;
+
+  const PackInspection({
+    this.rooms = const [],
+    this.houseScore,
+    this.building = const [],
+    this.outside = const [],
+  });
+
+  bool get isEmpty => rooms.isEmpty;
+}
+
+class PackRoom {
+  final String name;
+
+  /// "Very good", on the app's six-band scale; empty when not rated.
+  final String condition;
+
+  /// 1 (to be remodeled) to 6 (excellent); null when not rated.
+  final int? conditionLevel;
+
+  /// The agent's 0-10 score; null when not scored.
+  final double? score;
+  final List<String> features;
+  final String notes;
+
+  const PackRoom({
+    required this.name,
+    this.condition = '',
+    this.conditionLevel,
+    this.score,
+    this.features = const [],
+    this.notes = '',
   });
 }
 
@@ -253,6 +309,7 @@ class ReportPackPdf {
     ),
     brandColor: brandColor,
     onBrandColor: onBrandColor,
+    ownersPurchase: listing.ownersPurchase,
     logo: pictures.logo,
     showAuthor: false,
     showSources: false,
@@ -263,8 +320,11 @@ class ReportPackPdf {
   bool get _hasMarket => forSale?.listings.isNotEmpty ?? false;
 
   /// The sections, in order, for the contents page and the letter.
+  bool get _hasInspection => !(listing.inspection?.isEmpty ?? true);
+
   List<String> get sections => [
     'Your agent',
+    if (_hasInspection) 'Property inspection',
     'Market valuation analysis',
     if (_hasArea) 'Area details',
     if (_hasMarket) 'Homes on the market like yours',
@@ -330,6 +390,17 @@ class ReportPackPdf {
         },
       ),
     );
+    if (_hasInspection) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: format,
+          margin: _margin,
+          header: header('Property inspection'),
+          footer: _analysis.footer,
+          build: (_) => _inspectionPage(listing.inspection!),
+        ),
+      );
+    }
     doc.addPage(
       pw.MultiPage(
         pageFormat: format,
@@ -410,7 +481,6 @@ class ReportPackPdf {
     final gallery = [
       for (final g in pictures.gallery) ?_img(g),
     ].take(3).toList();
-    final sold = report.lastSale;
     final street = listing.street.isNotEmpty
         ? listing.street
         : report.displayAddress.split(',').first;
@@ -439,7 +509,13 @@ class ReportPackPdf {
                     right: pw.BorderSide(color: _brand, width: 1.6),
                   ),
                 ),
-                child: _coverPhotos(cover, gallery, street),
+                // A little shorter when the note line takes room below.
+                child: _coverPhotos(
+                  cover,
+                  gallery,
+                  street,
+                  mainHeight: _coverNote == null ? 318 : 300,
+                ),
               ),
               pw.Container(
                 color: PdfColors.white,
@@ -459,15 +535,12 @@ class ReportPackPdf {
             ],
           ),
         ),
-        if (sold != null)
+        if (_coverNote case final note?)
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 5),
             child: pw.Center(
               child: pw.Text(
-                pdfText(
-                  '•  Last registered sale: ${_day.format(sold.date)}  •  '
-                  'Price: ${rand(sold.priceZar)}  •',
-                ),
+                pdfText(note),
                 style: pw.TextStyle(fontSize: 11, color: PdfColors.black),
               ),
             ),
@@ -488,14 +561,15 @@ class ReportPackPdf {
   pw.Widget _coverPhotos(
     pw.ImageProvider? cover,
     List<pw.ImageProvider> gallery,
-    String street,
-  ) => pw.Container(
+    String street, {
+    double mainHeight = 318,
+  }) => pw.Container(
     color: PdfColors.black,
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
         pw.SizedBox(
-          height: 318,
+          height: mainHeight,
           child: pw.Stack(
             alignment: pw.Alignment.topCenter,
             children: [
@@ -557,6 +631,25 @@ class ReportPackPdf {
       ],
     ),
   );
+
+  /// Under the cover photos: the last registered sale (or, failing that,
+  /// the owners' own purchase) and the agent's inspection. Null if neither.
+  String? get _coverNote {
+    final sold = report.lastSale;
+    final bought = listing.ownersPurchase;
+    final seen = listing.inspection;
+    final first = agent.name.split(' ').first;
+    final parts = [
+      if (sold != null)
+        'Last registered sale: ${DateFormat('MMM yyyy').format(sold.date)} · ${rand(sold.priceZar)}'
+      else if (bought != null)
+        'Bought: ${DateFormat('MMM yyyy').format(bought.date)} · ${rand(bought.priceZar)}',
+      if (seen != null && !seen.isEmpty)
+        'Inspected by $first: ${seen.rooms.length} rooms'
+            '${seen.houseScore == null ? '' : ', overall ${seen.houseScore!.round()}%'}',
+    ];
+    return parts.isEmpty ? null : parts.join('   •   ');
+  }
 
   static String _title(String s) => s
       .toLowerCase()
@@ -2580,6 +2673,105 @@ class ReportPackPdf {
       ),
     ],
   );
+
+  // ---- property inspection ---------------------------------------------------
+
+  /// The agent's walk-through: the home as a whole, every room with its
+  /// condition and score, and outside.
+  List<pw.Widget> _inspectionPage(PackInspection v) {
+    const cell = pw.TextStyle(fontSize: 10, color: _ink);
+    final bold = pw.TextStyle(
+      fontSize: 10,
+      color: _ink,
+      fontWeight: pw.FontWeight.bold,
+    );
+    // The app's condition colours, red to green.
+    PdfColor conditionColour(int level) => switch (level) {
+      <= 2 => const PdfColor.fromInt(0xFFD9534F),
+      3 => const PdfColor.fromInt(0xFF8A95A1),
+      _ => const PdfColor.fromInt(0xFF2E9E5B),
+    };
+    return [
+      _sectionTitle('Property inspection'),
+      pw.Text(
+        pdfText(
+          'What ${agent.name.isEmpty ? 'your agent' : agent.name} found walking through the home'
+          '${v.houseScore == null ? '.' : ': an overall score of ${v.houseScore!.round()}%.'}',
+        ),
+        style: const pw.TextStyle(fontSize: 10.5, color: _ink),
+      ),
+      pw.SizedBox(height: 10),
+      if (v.building.isNotEmpty) ...[
+        pw.Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final b in v.building)
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: pw.BoxDecoration(
+                  color: _tint(0.08),
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                child: pw.Text(pdfText(b), style: cell),
+              ),
+          ],
+        ),
+        pw.SizedBox(height: 12),
+      ],
+      pw.TableHelper.fromTextArray(
+        headers: ['Room', 'Condition', 'Score', 'Features and notes'],
+        data: [
+          for (final r in v.rooms)
+            [
+              pdfText(r.name),
+              r.condition.isEmpty ? '-' : r.condition,
+              r.score == null
+                  ? '-'
+                  : '${r.score! == r.score!.roundToDouble() ? r.score!.round() : r.score} / 10',
+              pdfText(
+                [
+                  if (r.features.isNotEmpty) r.features.join(', '),
+                  if (r.notes.trim().isNotEmpty) r.notes.trim(),
+                ].join('. '),
+              ),
+            ],
+        ],
+        headerStyle: pw.TextStyle(color: _onBrand, fontSize: 10),
+        headerDecoration: pw.BoxDecoration(color: _brand),
+        cellStyle: cell,
+        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        border: null,
+        rowDecoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
+        ),
+        // Room names in bold; the condition in its colour.
+        textStyleBuilder: (col, _, row) {
+          if (row == 0) return null;
+          if (col == 0) return bold;
+          final level = v.rooms[row - 1].conditionLevel;
+          return col == 1 && level != null
+              ? bold.copyWith(color: conditionColour(level))
+              : cell;
+        },
+        columnWidths: const {
+          0: pw.FlexColumnWidth(2),
+          1: pw.FlexColumnWidth(1.4),
+          2: pw.FlexColumnWidth(0.9),
+          3: pw.FlexColumnWidth(4.2),
+        },
+      ),
+      if (v.outside.isNotEmpty) ...[
+        pw.SizedBox(height: 14),
+        pw.Text('Outside', style: bold.copyWith(fontSize: 11.5)),
+        pw.SizedBox(height: 4),
+        pw.Text(pdfText(v.outside.join(', ')), style: cell),
+      ],
+    ];
+  }
 
   // ---- valuation letter ------------------------------------------------------------
 
