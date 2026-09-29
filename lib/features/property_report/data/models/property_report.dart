@@ -77,6 +77,10 @@ class ComparableSale {
   final bool included;
   final String? excludedBecause;
 
+  /// Listed so the report shows at least ten sales, but not used for the
+  /// range (the next most alike after the ones used).
+  final bool reference;
+
   /// How far from the subject, when the source gives locations.
   final double? distanceM;
   final double? lat;
@@ -96,6 +100,7 @@ class ComparableSale {
     this.distanceM,
     this.lat,
     this.lng,
+    this.reference = false,
   });
 
   factory ComparableSale.fromJson(Map<String, dynamic> j) => ComparableSale(
@@ -112,6 +117,7 @@ class ComparableSale {
     distanceM: _d(j['distanceM']),
     lat: _d(j['lat']),
     lng: _d(j['lng']),
+    reference: j['reference'] as bool? ?? false,
   );
 }
 
@@ -624,6 +630,13 @@ class PropertyReport {
 
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();
+
+  /// The comparables table: the sales used, then those listed for reference,
+  /// numbered in this order (as on the map).
+  List<ComparableSale> get listedComparables => [
+    ...includedComparables,
+    ...comparables.where((c) => c.reference && !c.included),
+  ];
 
   /// Imagery that may go into the PDF. Street View is excluded by the server.
   List<ImageryRef> get printableImagery =>

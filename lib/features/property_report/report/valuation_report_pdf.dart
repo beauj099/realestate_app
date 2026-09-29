@@ -593,8 +593,9 @@ class ValuationReportPdf {
   ]);
 
   List<pw.Widget> _comparables() {
-    final used = report.includedComparables.take(15).toList();
-    if (used.isEmpty) return const [];
+    final used = report.listedComparables.take(15).toList();
+    final usedCount = used.where((c) => c.included).length;
+    if (usedCount == 0) return const [];
     final withDistance = used.any((c) => c.distanceM != null);
     final s = report.comparableSummary;
     final header = pw.TextStyle(color: _onBrand, fontSize: 9.5);
@@ -612,7 +613,8 @@ class ValuationReportPdf {
             '${_count(s.excludedTooOld)} too old and '
             '${_count(s.excludedDissimilar)} too different in size. '
             '${s.radiusM != null ? 'The comparables are the sales within ${s.radiusM} m of the property. ' : ''}'
-            'The most recent ${used.length} used are listed.',
+            'The most recent $usedCount used are listed'
+            '${used.length > usedCount ? ', then the next ${used.length - usedCount} most alike for reference (in grey; not used for the range)' : ''}.',
             style: const pw.TextStyle(color: _muted, fontSize: 9.5),
           ),
         ),
@@ -649,6 +651,9 @@ class ValuationReportPdf {
         rowDecoration: const pw.BoxDecoration(
           border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
         ),
+        // Sales listed for reference in grey.
+        textStyleBuilder: (_, _, row) =>
+            row > usedCount ? cell.copyWith(color: _muted) : cell,
         columnWidths: {
           for (final (i, w) in [
             if (areaMapSvg != null) 0.4,

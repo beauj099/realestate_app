@@ -72,8 +72,9 @@ class AddressSuggestion {
     return AddressSuggestion(
       kind: SuggestionKind.values.firstWhere(
         (k) => k.name == j['kind'],
-        orElse: () =>
-            text('erf') != null ? SuggestionKind.property : SuggestionKind.street,
+        orElse: () => text('erf') != null
+            ? SuggestionKind.property
+            : SuggestionKind.street,
       ),
       title: text('title') ?? label,
       subtitle: text('subtitle') ?? '',

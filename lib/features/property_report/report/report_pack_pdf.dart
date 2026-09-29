@@ -345,17 +345,18 @@ class ReportPackPdf {
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
         _coverLogoBand(),
-        // The headline in a half frame, open at the bottom where the photo
-        // band starts.
+        // One thin frame in the agency colour: its top line runs out from the
+        // headline to the page's sides and down both sides of the photos,
+        // open at the bottom.
         pw.Padding(
-          padding: const pw.EdgeInsets.fromLTRB(_coverSide, 18, _coverSide, 0),
+          padding: const pw.EdgeInsets.fromLTRB(6, 16, 6, 0),
           child: pw.Stack(
             alignment: pw.Alignment.topCenter,
             overflow: pw.Overflow.visible,
             children: [
               pw.Container(
-                height: 44,
-                margin: const pw.EdgeInsets.only(top: 14),
+                margin: const pw.EdgeInsets.only(top: 16),
+                padding: const pw.EdgeInsets.fromLTRB(6, 26, 6, 0),
                 decoration: pw.BoxDecoration(
                   border: pw.Border(
                     top: pw.BorderSide(color: _brand, width: 1.6),
@@ -363,6 +364,7 @@ class ReportPackPdf {
                     right: pw.BorderSide(color: _brand, width: 1.6),
                   ),
                 ),
+                child: _coverPhotos(cover, gallery, street),
               ),
               pw.Container(
                 color: PdfColors.white,
@@ -376,105 +378,7 @@ class ReportPackPdf {
                   ),
                 ),
               ),
-              // The date: a valuation is a snapshot in time.
-              pw.Positioned(
-                top: 40,
-                left: 0,
-                right: 0,
-                child: pw.Center(
-                  child: pw.Text(
-                    _day.format(date),
-                    style: pw.TextStyle(
-                      font: _serif,
-                      fontSize: 12,
-                      letterSpacing: 0.6,
-                      color: _muted,
-                    ),
-                  ),
-                ),
-              ),
             ],
-          ),
-        ),
-        // The photos in a frame of the agency colour, almost the page's width:
-        // the main photo, then three more, black lines between them (the
-        // black background showing through small gaps, since a photo is drawn
-        // over its own border).
-        pw.Container(
-          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
-          padding: const pw.EdgeInsets.all(10),
-          color: _brand,
-          child: pw.Container(
-            color: PdfColors.black,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.SizedBox(
-                  height: 292,
-                  child: pw.Stack(
-                    alignment: pw.Alignment.topCenter,
-                    children: [
-                      pw.Positioned.fill(
-                        child: cover == null
-                            ? pw.Container(
-                                color: _brand,
-                                alignment: pw.Alignment.center,
-                                child: pw.Text(
-                                  pdfText(street),
-                                  style: pw.TextStyle(
-                                    color: _onBrand,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              )
-                            : pw.Image(cover, fit: pw.BoxFit.cover),
-                      ),
-                      if (listing.preparedFor.isNotEmpty)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.only(top: 12),
-                          child: pw.Container(
-                            padding: const pw.EdgeInsets.fromLTRB(16, 5, 16, 6),
-                            decoration: pw.BoxDecoration(
-                              color: PdfColors.white,
-                              borderRadius: pw.BorderRadius.circular(14),
-                            ),
-                            child: pw.Text(
-                              pdfText(
-                                'Specially prepared for ${listing.preparedFor}.',
-                              ),
-                              style: pw.TextStyle(
-                                font: _serif,
-                                fontSize: 17,
-                                letterSpacing: 0.4,
-                                color: _brand,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (gallery.isNotEmpty) ...[
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    children: [
-                      for (var i = 0; i < 3; i++) ...[
-                        if (i > 0) pw.SizedBox(width: 2),
-                        pw.Expanded(
-                          child: pw.SizedBox(
-                            height: 88,
-                            child: i < gallery.length
-                                ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
-                                : pw.SizedBox(),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-                pw.SizedBox(height: 2),
-              ],
-            ),
           ),
         ),
         if (sold != null)
@@ -504,6 +408,81 @@ class ReportPackPdf {
     );
   }
 
+  /// The main photo and the three under it, black lines between them (the
+  /// black background showing through small gaps, since a photo is drawn
+  /// over its own border).
+  pw.Widget _coverPhotos(
+    pw.ImageProvider? cover,
+    List<pw.ImageProvider> gallery,
+    String street,
+  ) => pw.Container(
+    color: PdfColors.black,
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.SizedBox(
+          height: 318,
+          child: pw.Stack(
+            alignment: pw.Alignment.topCenter,
+            children: [
+              pw.Positioned.fill(
+                child: cover == null
+                    ? pw.Container(
+                        color: _brand,
+                        alignment: pw.Alignment.center,
+                        child: pw.Text(
+                          pdfText(street),
+                          style: pw.TextStyle(color: _onBrand, fontSize: 18),
+                        ),
+                      )
+                    : pw.Image(cover, fit: pw.BoxFit.cover),
+              ),
+              if (listing.preparedFor.isNotEmpty)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 12),
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.fromLTRB(16, 5, 16, 6),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.white,
+                      borderRadius: pw.BorderRadius.circular(14),
+                    ),
+                    child: pw.Text(
+                      pdfText('Specially prepared for ${listing.preparedFor}.'),
+                      style: pw.TextStyle(
+                        font: _serif,
+                        fontSize: 17,
+                        letterSpacing: 0.4,
+                        color: _brand,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (gallery.isNotEmpty) ...[
+          pw.SizedBox(height: 2),
+          pw.Row(
+            children: [
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) pw.SizedBox(width: 2),
+                pw.Expanded(
+                  child: pw.SizedBox(
+                    height: 90,
+                    child: i < gallery.length
+                        ? pw.Image(gallery[i], fit: pw.BoxFit.cover)
+                        : pw.SizedBox(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+        pw.SizedBox(height: 2),
+      ],
+    ),
+  );
+
   static String _title(String s) => s
       .toLowerCase()
       .split(' ')
@@ -525,21 +504,40 @@ class ReportPackPdf {
         horizontal: _coverSide,
         vertical: 14,
       ),
-      alignment: pw.Alignment.centerLeft,
-      child: logo == null
-          ? pw.Text(
-              agent.agencyName,
+      child: pw.Stack(
+        children: [
+          pw.Positioned.fill(
+            child: logo == null
+                ? pw.Text(
+                    agent.agencyName,
+                    style: pw.TextStyle(
+                      color: _logoOnBrand ? _onBrand : _brand,
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  )
+                : pw.Image(
+                    logo,
+                    fit: pw.BoxFit.contain,
+                    alignment: pw.Alignment.centerLeft,
+                  ),
+          ),
+          // The date: a valuation is a snapshot in time.
+          pw.Positioned(
+            right: 0,
+            top: 0,
+            child: pw.Text(
+              _day.format(date),
               style: pw.TextStyle(
-                color: _logoOnBrand ? _onBrand : _brand,
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
+                font: _serif,
+                fontSize: 13,
+                letterSpacing: 0.6,
+                color: _logoOnBrand ? _onBrand : _ink,
               ),
-            )
-          : pw.Image(
-              logo,
-              fit: pw.BoxFit.contain,
-              alignment: pw.Alignment.centerLeft,
             ),
+          ),
+        ],
+      ),
     );
   }
 

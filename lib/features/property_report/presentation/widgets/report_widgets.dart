@@ -413,7 +413,9 @@ class ComparablesList extends StatelessWidget {
                   ),
                   if (!c.included && c.excludedBecause != null)
                     Text(
-                      'Not used: ${c.excludedBecause}',
+                      c.reference
+                          ? 'For reference, not in the range: ${c.excludedBecause}'
+                          : 'Not used: ${c.excludedBecause}',
                       style: textTheme.bodySmall?.copyWith(
                         color: theme.textSecondary,
                         fontStyle: FontStyle.italic,
