@@ -17,7 +17,7 @@ The app is useless without the local .NET backend. Source lives in a **separate 
 - Base URL is platform-dependent, set in `lib/core/constants/api_constants.dart`:
   - Android emulator: `https://10.0.2.2:7063`
   - Desktop: `https://localhost:7063`
-- Dev HTTPS uses self-signed certs: `ApiClient` (`lib/core/network/api_client.dart:38`) disables certificate validation via `badCertificateCallback`. Do NOT "fix" this — the backend runs on a self-signed dev cert. `Image.network` uses its own client, so `main.dart` also installs `allowApiImagesWithDevCert` (an `HttpOverrides` that accepts the bad cert **only for the API host**); without it every server photo shows "Unavailable".
+- Dev HTTPS uses self-signed certs: `applyDebugTlsBypass` (Dio) and `allowApiImagesWithDevCert` (an `HttpOverrides` for `Image.network`, which uses its own client; without it every server photo shows "Unavailable") accept a bad certificate **only for dev hosts** (`isDevHost`: localhost, 127.0.0.1, the emulator's 10.0.2.2, private networks). Keep both, and keep that restriction: the live API (`https://api.realworth.co.za`, `ApiConstants.baseUrlProduction`) has a real certificate that release builds must check. `--dart-define=API_BASE_URL` wins over `.env`; request logging (it prints the token) is debug-only. Releasing: `docs/RELEASE.md`.
 - Photo paths: only `http(s)://…` and `/uploads/…` are server photos (`isRemotePhoto`). Device paths also start with `/` — never treat a bare `/` as remote.
 - All endpoints are under `/api/...`; see `lib/core/network/api_endpoints.dart`.
 
@@ -97,6 +97,11 @@ Agencies come from the API: `agencyDirectoryProvider` (`lib/core/theme/agency_di
 ## Known backend gaps
 
 `docs/BACKEND_CHANGES.md` lists what the app needs from `realestate_api` but cannot do locally — listings are not scoped per agent, agent profiles have no read/update endpoint, and there is no listing-level photo upload. Features depending on those are built but device-local; read it before assuming one of them is an app bug.
+
+## Accounts and store requirements
+
+- **Delete account** (Settings → Delete Account, `delete_account_dialog.dart`; API `POST /api/agents/me/delete` with the password, `AccountDeletionService`) deletes the agent's listings (through `ListingService.DeleteAsync`, so photos and documents go too), logged sales, profile and its images, tokens and reset codes, and the user; an agency they added stays, unlinked. Play requires it, plus the web page `docs/website/delete-account.html`.
+- Privacy policy and the Play Data safety answers: `docs/website/` (to host on realworth.co.za). Update them when a data source, SDK or data type is added.
 
 ## Tests
 
