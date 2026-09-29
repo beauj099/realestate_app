@@ -106,6 +106,14 @@ class AgentProfileNotifier extends Notifier<AgentProfile> {
   Future<void> uploadSignature(String path) =>
       _apply(ref.read(agentApiServiceProvider).uploadSignature(path));
 
+  /// Uploads one of the office's logos (mark, wide or wideOnBrand).
+  Future<void> uploadOfficeLogo(String kind, String path) =>
+      _apply(ref.read(agentApiServiceProvider).uploadOfficeLogo(kind, path));
+
+  /// Removes one of the office's logos.
+  Future<void> removeOfficeLogo(String kind) =>
+      _apply(ref.read(agentApiServiceProvider).removeOfficeLogo(kind));
+
   /// Adds pages to the agent's own brochure (replacing the agency's pages in
   /// their reports).
   Future<void> addBrochurePages(List<String> paths) =>

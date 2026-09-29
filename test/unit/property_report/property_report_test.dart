@@ -20,6 +20,8 @@ PropertyReport _fixture({List<Map<String, dynamic>>? imagery}) {
 }
 
 void main() {
+  // The PDFs load their font from the asset bundle.
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('PropertyReport.fromJson', () {
     test('reads the live report', () {
       final r = _fixture();

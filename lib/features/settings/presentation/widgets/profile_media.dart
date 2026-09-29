@@ -247,3 +247,92 @@ class BrochurePagesEditor extends StatelessWidget {
     );
   }
 }
+
+/// One of the office's logos: shown on white, or on the agency colour for the
+/// logo drawn for it; tap to upload, the cross to go back to the agency's.
+class LogoSlotTile extends StatelessWidget {
+  final String label;
+  final String? url;
+  final bool onBrand;
+  final bool busy;
+  final RealEstateTheme theme;
+  final VoidCallback onTap;
+  final VoidCallback? onRemove;
+
+  const LogoSlotTile({
+    super.key,
+    required this.label,
+    required this.url,
+    required this.onBrand,
+    required this.busy,
+    required this.theme,
+    required this.onTap,
+    this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = theme.toThemeData().textTheme;
+    final background = onBrand ? theme.primaryColor : Colors.white;
+    final ink = onBrand ? theme.onPrimary : theme.textSecondary;
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: busy ? null : onTap,
+            child: Container(
+              height: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.borderLight),
+              ),
+              child: busy
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: ink,
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: url == null
+                              ? Text(
+                                  label,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: ink,
+                                  ),
+                                )
+                              : Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Image.network(
+                                    url!,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                        ),
+                        Icon(
+                          url == null
+                              ? Icons.add_photo_alternate_outlined
+                              : Icons.edit_outlined,
+                          color: ink,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+        if (onRemove != null)
+          IconButton(
+            tooltip: 'Use the agency\'s',
+            icon: Icon(Icons.close, color: theme.textSecondary),
+            onPressed: busy ? null : onRemove,
+          ),
+      ],
+    );
+  }
+}

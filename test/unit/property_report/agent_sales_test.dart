@@ -58,6 +58,8 @@ final _agent = {
 };
 
 void main() {
+  // The PDFs load their font from the asset bundle.
+  TestWidgetsFlutterBinding.ensureInitialized();
   test('reads agent-reported sales from the report', () {
     final r = _report(agent: _agent);
     final agent = r.agentSales!;

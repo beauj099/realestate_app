@@ -12,9 +12,11 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../property_report/data/models/address_suggestion.dart';
 import '../../../property_report/presentation/widgets/address_search_field.dart';
+import '../../../property_report/providers/property_report_provider.dart';
 import '../../../property_report/providers/city_records_autofill.dart';
 import '../../data/models/nominatim_result.dart';
 import '../../providers/property_provider.dart';
+import '../widgets/property_pin_map.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
 class AddressScreen extends ConsumerStatefulWidget {
@@ -31,6 +33,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   String _detectedAddress = '';
   bool _isFetchingLocation = false;
   bool _retryAfterResume = false;
+  bool _placingPin = false;
 
   @override
   void initState() {
@@ -68,8 +71,6 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   }
 
   Future<void> _detectAddress() async {
-    final viewModel = ref.read(propertyViewModelProvider.notifier);
-    final current = ref.read(propertyViewModelProvider);
     final theme = ref.read(themeConfigProvider);
     setState(() => _isFetchingLocation = true);
     try {
@@ -142,66 +143,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         ),
       );
 
-      NominatimResult? result;
-      try {
-        result = await _nominatimService.reverseGeocode(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-      } catch (_) {
-        result = null;
-      }
-
-      if (result == null) {
-        viewModel.updateCoordinates(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Could not determine the address from your location.',
-            ),
-            backgroundColor: theme.error,
-          ),
-        );
-        return;
-      }
-
-      setState(() => _detectedAddress = result!.displayName);
-      viewModel.updateAddress(
-        // Keep whatever is already typed when the lookup has no number —
-        // detection should fill gaps, never clear work the agent did.
-        streetNumber: result.houseNumber ?? current.streetNumber,
-        street: result.road ?? current.street,
-        unitNumber: current.unitNumber,
-        suburb: result.suburb ?? result.neighbourhood ?? current.suburb,
-        city: result.cityOrTown.isNotEmpty ? result.cityOrTown : current.city,
-        province: result.state ?? current.province,
-        country: result.country ?? current.country,
-        postalCode: result.postcode ?? current.postalCode,
-      );
-      viewModel.updateCoordinates(
-        latitude: result.latitude,
-        longitude: result.longitude,
-      );
-      if (!mounted) return;
-
-      final missingNumber = result.houseNumber == null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            missingNumber
-                ? 'Address detected. Add the street number — GPS could not '
-                      'pinpoint it.'
-                : 'Address detected and filled in below.',
-          ),
-          backgroundColor: missingNumber
-              ? theme.pendingColor
-              : theme.primaryColor,
-        ),
-      );
+      await _placeAt(position.latitude, position.longitude, fromGps: true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -215,57 +157,174 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     }
   }
 
-  /// A Cape Town address picked from the search: a real erf, with its
-  /// location. Filling it replaces the address fields (the agent chose it).
-  void _pickCityAddress(AddressSuggestion s) {
+  /// Puts the pin at [lat]/[lng] (the GPS fix, or where the agent tapped the
+  /// map) and fills the address from it: the City's own record for the erf
+  /// there (Cape Town, Johannesburg: house number, street, official suburb,
+  /// erf), else OpenStreetMap's reverse lookup. The pin itself is kept as the
+  /// location, never the road's position from a lookup.
+  Future<void> _placeAt(double lat, double lng, {required bool fromGps}) async {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
-    final current = ref.read(propertyViewModelProvider);
     final theme = ref.read(themeConfigProvider);
-    viewModel.updateAddress(
-      streetNumber: s.streetNumber ?? current.streetNumber,
-      street: s.streetName,
-      unitNumber: current.unitNumber,
-      suburb: s.suburb,
-      city: s.city,
-      province: s.province,
-      country: s.country,
-      postalCode: current.postalCode,
-    );
-    if (s.erf != null) viewModel.updateIdentifiers(erfNumber: s.erf);
-    if (s.lat != null && s.lng != null) {
-      viewModel.updateCoordinates(latitude: s.lat, longitude: s.lng);
+    viewModel.updateCoordinates(latitude: lat, longitude: lng);
+    setState(() => _placingPin = true);
+    try {
+      List<AddressSuggestion> city = const [];
+      try {
+        city = await ref
+            .read(propertyReportRepositoryProvider)
+            .addressAt(lat, lng);
+      } catch (_) {
+        // Not reachable: fall back to OpenStreetMap below.
+      }
+      if (!mounted) return;
+      if (city.isNotEmpty) {
+        _fillFrom(city.first, keepPin: true);
+        _snack(
+          'Pin placed on ${city.first.title}, ${city.first.suburb}. '
+          'Not the right house? Tap it on the map.',
+          theme.primaryColor,
+        );
+        return;
+      }
+
+      NominatimResult? result;
+      try {
+        result = await _nominatimService.reverseGeocode(
+          latitude: lat,
+          longitude: lng,
+        );
+      } catch (_) {
+        result = null;
+      }
+      if (!mounted) return;
+      if (result == null) {
+        _snack(
+          'Pin placed. Could not find the address there; type it below.',
+          theme.pendingColor,
+        );
+        return;
+      }
+      final current = ref.read(propertyViewModelProvider);
+      setState(() => _detectedAddress = result!.displayName);
+      viewModel.updateAddress(
+        // Keep whatever is already typed when the lookup has no number —
+        // detection should fill gaps, never clear work the agent did.
+        streetNumber: result.houseNumber ?? current.streetNumber,
+        street: result.road ?? current.street,
+        unitNumber: current.unitNumber,
+        suburb: result.suburb ?? result.neighbourhood ?? current.suburb,
+        city: result.cityOrTown.isNotEmpty
+            ? _plainTown(result.cityOrTown)
+            : current.city,
+        province: result.state ?? current.province,
+        country: result.country ?? current.country,
+        postalCode: result.postcode ?? current.postalCode,
+      );
+      final missingNumber = result.houseNumber == null;
+      _snack(
+        missingNumber
+            ? (fromGps
+                  ? 'Address detected. Add the street number — GPS could not pinpoint it.'
+                  : 'Pin placed. Add the street number.')
+            : 'Address filled in from the pin.',
+        missingNumber ? theme.pendingColor : theme.primaryColor,
+      );
+    } finally {
+      if (mounted) setState(() => _placingPin = false);
     }
-    setState(() => _detectedAddress = s.label);
+  }
+
+  /// "Stellenbosch Local Municipality" → "Stellenbosch".
+  static String _plainTown(String name) => name
+      .replaceAll(RegExp(r'\s+(Local|Metropolitan|District) Municipality$'), '')
+      .replaceFirst(RegExp(r'^City of '), '');
+
+  void _snack(String message, Color colour) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: colour));
+  }
+
+  /// An address picked from the search. What it fills depends on what it is:
+  /// a numbered erf from City records fills the address, erf and location;
+  /// a numbered house from OpenStreetMap the address and location; a street
+  /// the street (and the number typed, still to check); a suburb or town
+  /// only those; a complex or estate its name. A unit typed in the search
+  /// ("Unit 5, …") goes to Unit Number.
+  void _pickAddress(AddressSuggestion s) {
+    final theme = ref.read(themeConfigProvider);
+    final (message, complete) = _fillFrom(s, keepPin: false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          s.isProperty
-              ? 'Address filled in. When you save, the erf size, floor area '
-                    'and zoning are filled in from City records.'
-              : 'Street filled in. Add the street number.',
-        ),
-        backgroundColor: s.isProperty ? theme.primaryColor : theme.pendingColor,
+        content: Text(message),
+        backgroundColor: complete ? theme.primaryColor : theme.pendingColor,
       ),
     );
   }
 
-  /// An address found through OpenStreetMap (outside Cape Town, or not in
-  /// the City's list): fill what it knows, keep what the agent typed.
-  void _pickOtherAddress(NominatimResult r) {
+  /// Fills the address fields from a suggestion; returns what to tell the
+  /// agent and whether the address is complete. With [keepPin] the location
+  /// stays where the pin is.
+  (String, bool) _fillFrom(AddressSuggestion s, {required bool keepPin}) {
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     final current = ref.read(propertyViewModelProvider);
-    viewModel.updateAddress(
-      streetNumber: r.houseNumber ?? current.streetNumber,
-      street: r.road ?? current.street,
-      unitNumber: current.unitNumber,
-      suburb: r.suburb ?? r.neighbourhood ?? current.suburb,
-      city: r.cityOrTown.isNotEmpty ? r.cityOrTown : current.city,
-      province: r.state ?? current.province,
-      country: r.country ?? current.country,
-      postalCode: r.postcode ?? current.postalCode,
-    );
-    viewModel.updateCoordinates(latitude: r.latitude, longitude: r.longitude);
-    setState(() => _detectedAddress = r.displayName);
+    String keep(String value, String fallback) =>
+        value.isNotEmpty ? value : fallback;
+
+    final String message;
+    var complete = false;
+    switch (s.kind) {
+      case SuggestionKind.area:
+      case SuggestionKind.estate:
+        viewModel.updateAddress(
+          suburb: keep(s.suburb, current.suburb),
+          city: keep(s.city, current.city),
+          province: keep(s.province, current.province),
+          country: keep(s.country, current.country),
+          postalCode: s.postalCode ?? current.postalCode,
+        );
+        if (s.kind == SuggestionKind.estate) {
+          viewModel.updateIdentifiers(estateName: s.title);
+          message = 'Complex filled in. Now search the street address.';
+        } else {
+          message = 'Area filled in. Now search the street address.';
+        }
+      case SuggestionKind.property:
+      case SuggestionKind.address:
+      case SuggestionKind.street:
+        viewModel.updateAddress(
+          streetNumber: s.streetNumber ?? current.streetNumber,
+          street: s.streetName,
+          unitNumber: s.unit ?? current.unitNumber,
+          suburb: keep(s.suburb, current.suburb),
+          city: keep(s.city, current.city),
+          province: keep(s.province, current.province),
+          country: keep(s.country, current.country),
+          postalCode: s.postalCode ?? current.postalCode,
+        );
+        if (s.erf != null) viewModel.updateIdentifiers(erfNumber: s.erf);
+        // Only a numbered address has a location of its own; a point on the
+        // street is not the property.
+        if (!keepPin &&
+            s.kind != SuggestionKind.street &&
+            s.lat != null &&
+            s.lng != null) {
+          viewModel.updateCoordinates(latitude: s.lat, longitude: s.lng);
+        }
+        complete = s.kind != SuggestionKind.street;
+        message = switch (s.kind) {
+          SuggestionKind.property =>
+            'Address filled in. When you save, the erf size, floor area '
+                'and zoning are filled in from City records.',
+          SuggestionKind.address => 'Address filled in.',
+          _ =>
+            s.streetNumber == null
+                ? 'Street filled in. Add the street number.'
+                : 'Street filled in. Check the street number.',
+        };
+    }
+    setState(() => _detectedAddress = s.label.isEmpty ? s.title : s.label);
+    return (message, complete);
   }
 
   Future<String?> _save() async {
@@ -305,8 +364,18 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
           AddressSearchField(
             theme: theme,
             textTheme: textTheme,
-            onPickCity: _pickCityAddress,
-            onPickElsewhere: _pickOtherAddress,
+            onPick: _pickAddress,
+            nearLat: state.latitude,
+            nearLng: state.longitude,
+          ),
+          const SizedBox(height: 12),
+          PropertyPinMap(
+            theme: theme,
+            lat: state.latitude,
+            lng: state.longitude,
+            busy: _placingPin,
+            onPlacePin: (p) =>
+                _placeAt(p.latitude, p.longitude, fromGps: false),
           ),
           const SizedBox(height: 12),
           SizedBox(

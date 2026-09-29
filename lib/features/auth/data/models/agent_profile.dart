@@ -151,7 +151,7 @@ class AgentProfile {
     'website': website,
     'photoUrl': photoUrl,
     'signatureUrl': signatureUrl,
-    'office': office.toJson(),
+    'office': office.toCacheJson(),
     'brochurePages': brochurePages,
     'reportSettings': reportSettings.toJson(),
   };

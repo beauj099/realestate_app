@@ -5,6 +5,15 @@
 double? _d(Object? v) => (v as num?)?.toDouble();
 int? _i(Object? v) => (v as num?)?.toInt();
 
+/// One month of the climate average (January is 1).
+class ClimateMonth {
+  final int month;
+  final double avgMaxC;
+  final double avgMinC;
+  final double rainMm;
+  const ClimateMonth(this.month, this.avgMaxC, this.avgMinC, this.rainMm);
+}
+
 class Climate {
   final double meanC;
   final double avgMaxC;
@@ -18,6 +27,15 @@ class Climate {
   final String source;
   final double? humidityPct;
 
+  /// Month by month, January first (empty from an older API).
+  final List<ClimateMonth> months;
+  final int? rainDaysPerYear;
+  final int? hotDaysPerYear;
+
+  /// Sunshine on flat ground, kWh/m² a day.
+  final double? solarKwhM2Day;
+  final double? windMs;
+
   const Climate({
     required this.meanC,
     required this.avgMaxC,
@@ -30,6 +48,11 @@ class Climate {
     required this.years,
     required this.source,
     this.humidityPct,
+    this.months = const [],
+    this.rainDaysPerYear,
+    this.hotDaysPerYear,
+    this.solarKwhM2Day,
+    this.windMs,
   });
 
   static Climate? fromJson(Map<String, dynamic>? j) => j == null
@@ -46,6 +69,19 @@ class Climate {
           years: j['years'] as String? ?? '',
           source: j['source'] as String? ?? '',
           humidityPct: _d(j['humidityPct']),
+          months: [
+            for (final m in (j['months'] as List? ?? const []))
+              ClimateMonth(
+                _i((m as Map<String, dynamic>)['month']) ?? 0,
+                _d(m['avgMaxC']) ?? 0,
+                _d(m['avgMinC']) ?? 0,
+                _d(m['rainMm']) ?? 0,
+              ),
+          ],
+          rainDaysPerYear: _i(j['rainDaysPerYear']),
+          hotDaysPerYear: _i(j['hotDaysPerYear']),
+          solarKwhM2Day: _d(j['solarKwhM2Day']),
+          windMs: _d(j['windMs']),
         );
 }
 
@@ -194,22 +230,170 @@ class CrimeStats {
         );
 }
 
+/// A place near the property (OpenStreetMap), with how far it is.
+class NearbyPlace {
+  final String name;
+  final String kind;
+  final double distanceM;
+  const NearbyPlace(this.name, this.kind, this.distanceM);
+}
+
+/// A group of nearby places ("Schools"), nearest first. [key] is the icon
+/// and colour: schools, shopping, health, parks, beach, transport, police.
+class NearbyGroup {
+  final String key;
+  final String title;
+  final List<NearbyPlace> places;
+  const NearbyGroup(this.key, this.title, this.places);
+}
+
+/// The municipality's drinking-water score in the Blue Drop report.
+class WaterQuality {
+  final String municipality;
+  final String authority;
+  final double scorePct;
+  final String band;
+  final String year;
+  final String source;
+  const WaterQuality({
+    required this.municipality,
+    required this.authority,
+    required this.scorePct,
+    required this.band,
+    required this.year,
+    required this.source,
+  });
+
+  static WaterQuality? fromJson(Map<String, dynamic>? j) => j == null
+      ? null
+      : WaterQuality(
+          municipality: j['municipality'] as String? ?? '',
+          authority: j['authority'] as String? ?? '',
+          scorePct: _d(j['scorePct']) ?? 0,
+          band: j['band'] as String? ?? '',
+          year: j['year'] as String? ?? '',
+          source: j['source'] as String? ?? '',
+        );
+}
+
+/// One year of scheduled load-shedding for the property's area.
+class LoadSheddingYear {
+  final int year;
+  final double hours;
+  final int days;
+  final double hoursPerDay;
+  final String? worstMonth;
+  final double worstMonthHours;
+  final double percentOfYear;
+  const LoadSheddingYear({
+    required this.year,
+    required this.hours,
+    required this.days,
+    required this.hoursPerDay,
+    this.worstMonth,
+    this.worstMonthHours = 0,
+    this.percentOfYear = 0,
+  });
+}
+
+/// Past scheduled load-shedding for the area (only once the API has the
+/// schedule imported).
+class LoadSheddingHistory {
+  final String area;
+  final String areaLabel;
+  final List<LoadSheddingYear> years;
+  final List<String> usualTimes;
+  final String summary;
+  final String source;
+  final String caveat;
+  const LoadSheddingHistory({
+    required this.area,
+    required this.areaLabel,
+    required this.years,
+    this.usualTimes = const [],
+    this.summary = '',
+    this.source = '',
+    this.caveat = '',
+  });
+
+  static LoadSheddingHistory? fromJson(Map<String, dynamic>? j) => j == null
+      ? null
+      : LoadSheddingHistory(
+          area: j['area'] as String? ?? '',
+          areaLabel: j['areaLabel'] as String? ?? '',
+          years: [
+            for (final y in (j['years'] as List? ?? const []))
+              LoadSheddingYear(
+                year: _i((y as Map<String, dynamic>)['year']) ?? 0,
+                hours: _d(y['hours']) ?? 0,
+                days: _i(y['days']) ?? 0,
+                hoursPerDay: _d(y['hoursPerDay']) ?? 0,
+                worstMonth: y['worstMonth'] as String?,
+                worstMonthHours: _d(y['worstMonthHours']) ?? 0,
+                percentOfYear: _d(y['percentOfYear']) ?? 0,
+              ),
+          ],
+          usualTimes: [
+            for (final t in (j['usualTimes'] as List? ?? const [])) t as String,
+          ],
+          summary: j['summary'] as String? ?? '',
+          source: j['source'] as String? ?? '',
+          caveat: j['caveat'] as String? ?? '',
+        );
+}
+
 class AreaDetails {
   final Climate? climate;
   final Population? population;
   final HouseholdIncome? income;
   final CrimeStats? crime;
+  final List<NearbyGroup> nearby;
+  final WaterQuality? water;
+  final LoadSheddingHistory? loadShedding;
 
-  const AreaDetails({this.climate, this.population, this.income, this.crime});
+  const AreaDetails({
+    this.climate,
+    this.population,
+    this.income,
+    this.crime,
+    this.nearby = const [],
+    this.water,
+    this.loadShedding,
+  });
 
   bool get isEmpty =>
-      climate == null && population == null && income == null && crime == null;
+      climate == null &&
+      population == null &&
+      income == null &&
+      crime == null &&
+      nearby.isEmpty &&
+      water == null &&
+      loadShedding == null;
 
   factory AreaDetails.fromJson(Map<String, dynamic> j) => AreaDetails(
     climate: Climate.fromJson(j['climate'] as Map<String, dynamic>?),
     population: Population.fromJson(j['population'] as Map<String, dynamic>?),
     income: HouseholdIncome.fromJson(j['income'] as Map<String, dynamic>?),
     crime: CrimeStats.fromJson(j['crime'] as Map<String, dynamic>?),
+    nearby: [
+      for (final g in (j['nearby'] as List? ?? const []))
+        NearbyGroup(
+          (g as Map<String, dynamic>)['key'] as String? ?? '',
+          g['title'] as String? ?? '',
+          [
+            for (final p in (g['places'] as List? ?? const []))
+              NearbyPlace(
+                (p as Map<String, dynamic>)['name'] as String? ?? '',
+                p['kind'] as String? ?? '',
+                _d(p['distanceM']) ?? 0,
+              ),
+          ],
+        ),
+    ],
+    water: WaterQuality.fromJson(j['water'] as Map<String, dynamic>?),
+    loadShedding: LoadSheddingHistory.fromJson(
+      j['loadShedding'] as Map<String, dynamic>?,
+    ),
   );
 }
 
@@ -230,6 +414,12 @@ class ForSaleListing {
   final String? imageUrl;
   final DateTime? listedOn;
 
+  /// How far from the property, when both are placed on the map.
+  final double? distanceM;
+
+  /// Three more of the listing's photos, spread through its gallery.
+  final List<String> morePhotos;
+
   const ForSaleListing({
     required this.listingNumber,
     required this.url,
@@ -245,6 +435,8 @@ class ForSaleListing {
     this.erfM2,
     this.imageUrl,
     this.listedOn,
+    this.distanceM,
+    this.morePhotos = const [],
   });
 
   factory ForSaleListing.fromJson(Map<String, dynamic> j) => ForSaleListing(
@@ -262,6 +454,10 @@ class ForSaleListing {
     erfM2: _d(j['erfM2']),
     imageUrl: j['imageUrl'] as String?,
     listedOn: DateTime.tryParse(j['listedOn'] as String? ?? ''),
+    distanceM: _d(j['distanceM']),
+    morePhotos: [
+      for (final p in (j['morePhotos'] as List? ?? const [])) p as String,
+    ],
   );
 }
 

@@ -288,6 +288,7 @@ class PropertyState {
   ];
 
   static List<String> _contactContent(Contact c) => [
+    c.title,
     c.fullName.trim(),
     c.idNumber.trim(),
     c.companyName.trim(),

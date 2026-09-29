@@ -12,17 +12,58 @@ import 'package:realworth/features/property_report/data/property_report_reposito
 import 'package:realworth/features/property_report/presentation/widgets/address_search_field.dart';
 import 'package:realworth/features/property_report/providers/property_report_provider.dart';
 
-/// Answers suggestions from memory and counts how often it was asked.
+/// Answers suggestions from memory and counts how often it was asked: the
+/// City records answer with the erf, OpenStreetMap with the same address as a
+/// street and with a suburb.
 class _FakeRepo implements PropertyReportRepository {
   int calls = 0;
-  String? lastQuery;
+  final queries = <String>[];
 
   @override
-  Future<List<AddressSuggestion>> suggest(String text) async {
+  Future<List<AddressSuggestion>> suggest(
+    String text, {
+    bool national = false,
+    double? lat,
+    double? lng,
+  }) async {
     calls++;
-    lastQuery = text;
+    queries.add(text);
+    if (national) {
+      return const [
+        AddressSuggestion(
+          kind: SuggestionKind.street,
+          title: '17 Pine Road',
+          subtitle: 'Claremont, Cape Town',
+          streetNumber: '17',
+          streetName: 'Pine Road',
+          suburb: 'Claremont',
+          city: 'Cape Town',
+          province: 'Western Cape',
+          country: 'South Africa',
+          source: 'OpenStreetMap',
+          rank: 92,
+          key: 'place 17 pine road claremont',
+        ),
+        AddressSuggestion(
+          kind: SuggestionKind.area,
+          title: 'Pinelands',
+          subtitle: 'Cape Town, Western Cape',
+          streetName: '',
+          suburb: 'Pinelands',
+          city: 'Cape Town',
+          province: 'Western Cape',
+          country: 'South Africa',
+          source: 'OpenStreetMap',
+          rank: 50,
+          key: 'area pinelands western cape',
+        ),
+      ];
+    }
     return const [
       AddressSuggestion(
+        kind: SuggestionKind.property,
+        title: '17 Pine Road',
+        subtitle: 'Claremont, Cape Town',
         label: '17 Pine Road, Claremont',
         streetNumber: '17',
         streetName: 'Pine Road',
@@ -33,9 +74,17 @@ class _FakeRepo implements PropertyReportRepository {
         erf: '53927',
         lat: -33.98974,
         lng: 18.470992,
+        numberVerified: true,
+        source: 'City records',
+        rank: 118,
+        key: 'place 17 pine road claremont',
       ),
     ];
   }
+
+  @override
+  Future<List<AddressSuggestion>> addressAt(double lat, double lng) =>
+      throw UnimplementedError();
 
   @override
   Future<List<PropertyCandidate>> resolve(ReportQuery q) =>
@@ -52,7 +101,8 @@ class _FakeRepo implements PropertyReportRepository {
     double? floorM2,
     double? erfM2,
     int? p24Suburb,
-    int max = 3,
+    double? priceZar,
+    int max = 4,
   }) => throw UnimplementedError();
 
   @override
@@ -65,6 +115,8 @@ class _FakeRepo implements PropertyReportRepository {
   Future<List<MarketListing>> fetchMarket(
     String suburb, {
     int? excludeListingId,
+    double? lat,
+    double? lng,
   }) => throw UnimplementedError();
   @override
   Future<PropertyReport> fetchReport(PropertyCandidate c) =>
@@ -78,7 +130,7 @@ class _FakeRepo implements PropertyReportRepository {
 
 void main() {
   testWidgets(
-    'suggests Cape Town addresses after a pause and returns the pick',
+    'searches City records and all of South Africa at once, as one list',
     (tester) async {
       final repo = _FakeRepo();
       AddressSuggestion? picked;
@@ -92,33 +144,36 @@ void main() {
               body: AddressSearchField(
                 theme: theme,
                 textTheme: Typography.material2021().black,
-                onPickCity: (s) => picked = s,
-                onPickElsewhere: (_) {},
+                onPick: (s) => picked = s,
+                useDeviceLocation: false,
               ),
             ),
           ),
         ),
       );
 
-      // Typing quickly asks once, for the whole text, after the pause.
+      // Typing quickly searches once, for the whole text, after the pause:
+      // the City records and the national search together.
       await tester.enterText(find.byType(TextField), '17 p');
       await tester.pump(const Duration(milliseconds: 100));
       await tester.enterText(find.byType(TextField), '17 pine');
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump();
-      expect(repo.calls, 1);
-      expect(repo.lastQuery, '17 pine');
+      expect(repo.calls, 2);
+      expect(repo.queries, ['17 pine', '17 pine']);
 
-      expect(find.text('17 Pine Road, Claremont'), findsOneWidget);
-      expect(find.text('Erf 53927 · Cape Town'), findsOneWidget);
-      expect(find.textContaining('Search all of South Africa'), findsOneWidget);
+      // The same address from both sources is one row (the erf); the far
+      // weaker suburb is left off. No "search elsewhere" step.
+      expect(find.text('Claremont, Cape Town'), findsOneWidget);
+      expect(find.text('Pinelands'), findsNothing);
+      expect(find.textContaining('Search all'), findsNothing);
 
-      await tester.tap(find.text('17 Pine Road, Claremont'));
+      await tester.tap(find.text('Claremont, Cape Town'));
       await tester.pump();
       expect(picked?.erf, '53927');
       expect(picked?.isProperty, isTrue);
       // The list closes once an address is chosen.
-      expect(find.text('Erf 53927 · Cape Town'), findsNothing);
+      expect(find.text('Claremont, Cape Town'), findsNothing);
     },
   );
 
@@ -132,8 +187,8 @@ void main() {
             body: AddressSearchField(
               theme: RealEstateTheme.crimson(),
               textTheme: Typography.material2021().black,
-              onPickCity: (_) {},
-              onPickElsewhere: (_) {},
+              onPick: (_) {},
+              useDeviceLocation: false,
             ),
           ),
         ),

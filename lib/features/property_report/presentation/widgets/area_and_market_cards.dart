@@ -158,6 +158,8 @@ class ForSaleCard extends StatelessWidget {
                         ),
                         Text(
                           [
+                            if (l.distanceM != null)
+                              formatDistance(l.distanceM!),
                             if (l.floorM2 != null) formatM2(l.floorM2),
                             if (l.erfM2 != null) '${formatM2(l.erfM2)} erf',
                             if (l.listedOn != null)

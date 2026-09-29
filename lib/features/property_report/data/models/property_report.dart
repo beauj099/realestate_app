@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 // The property report the API assembles from public municipal data
 // (`GET /api/property/{municipality}/{erf}`): site, buildings, municipal value,
 // suburb trend and filtered comparable sales.
@@ -75,6 +77,10 @@ class ComparableSale {
   final bool included;
   final String? excludedBecause;
 
+  /// Listed so the report shows at least ten sales, but not used for the
+  /// range (the next most alike after the ones used).
+  final bool reference;
+
   /// How far from the subject, when the source gives locations.
   final double? distanceM;
   final double? lat;
@@ -94,6 +100,7 @@ class ComparableSale {
     this.distanceM,
     this.lat,
     this.lng,
+    this.reference = false,
   });
 
   factory ComparableSale.fromJson(Map<String, dynamic> j) => ComparableSale(
@@ -110,6 +117,7 @@ class ComparableSale {
     distanceM: _d(j['distanceM']),
     lat: _d(j['lat']),
     lng: _d(j['lng']),
+    reference: j['reference'] as bool? ?? false,
   );
 }
 
@@ -376,8 +384,16 @@ class PropertyReport {
   final ComparableSummary? comparableSummary;
   final ValueRange? indicativeValue;
 
+  /// Set when [indicativeValue] was carried to the floor area captured on the
+  /// listing (not the City's dwelling extent); see [forListingFloorArea].
+  final double? sizedFromListingM2;
+
   final List<ImageryRef> imagery;
   final String sitePlanUrl;
+
+  /// The neighbourhood map (SVG, our drawing from City open data); add
+  /// `&mode=block` for the close-up. Null where it is not drawn.
+  final String? areaMapUrl;
   final List<Provenance> provenance;
   final DateTime generatedAt;
 
@@ -416,6 +432,7 @@ class PropertyReport {
     required this.comparables,
     required this.imagery,
     required this.sitePlanUrl,
+    this.areaMapUrl,
     required this.provenance,
     required this.generatedAt,
     this.dataSource = 'City of Cape Town open data',
@@ -445,6 +462,7 @@ class PropertyReport {
     this.suburbStats,
     this.comparableSummary,
     this.indicativeValue,
+    this.sizedFromListingM2,
   });
 
   factory PropertyReport.fromJson(Map<String, dynamic> j) {
@@ -492,6 +510,7 @@ class PropertyReport {
           : ValueRange.fromJson(j['indicativeValue'] as Map<String, dynamic>),
       imagery: list('imagery', ImageryRef.fromJson),
       sitePlanUrl: j['sitePlanUrl'] as String? ?? '',
+      areaMapUrl: j['areaMapUrl'] as String?,
       provenance: list('provenance', Provenance.fromJson),
       dataSource: j['dataSource'] as String? ?? 'City of Cape Town open data',
       comparablesMethod: j['comparablesMethod'] as String?,
@@ -521,6 +540,85 @@ class PropertyReport {
     return '${a.substring(0, a.length - s.length).trim()}, $s';
   }
 
+  /// This report with the indicative range carried to [floorM2], the floor
+  /// area the agent captured, when it differs from the City's dwelling extent
+  /// by more than 5%: each included sale (indexed to today) scaled with the
+  /// same size elasticity the API uses (0.6), then the median and the
+  /// interpolated quartiles, rounded to R 10 000.
+  PropertyReport forListingFloorArea(double? floorM2) {
+    final city = dwellingExtentM2;
+    if (floorM2 == null || floorM2 <= 0 || indicativeValue == null) return this;
+    if (city != null && city > 0 && (floorM2 / city - 1).abs() <= 0.05) {
+      return this;
+    }
+    final implied = [
+      for (final c in includedComparables)
+        if (c.dwellingExtentM2 > 0)
+          (c.indexedPriceZar ?? c.salePriceZar) *
+              math.pow(floorM2 / c.dwellingExtentM2, sizeElasticity),
+    ]..sort();
+    if (implied.isEmpty) return this;
+    double at(double q) {
+      final pos = q * (implied.length - 1);
+      final lo = pos.floor();
+      final hi = math.min(lo + 1, implied.length - 1);
+      return implied[lo] + (implied[hi] - implied[lo]) * (pos - lo);
+    }
+
+    double r(double v) => (v / 10000).round() * 10000.0;
+    return PropertyReport(
+      municipality: municipality,
+      erf: erf,
+      address: address,
+      suburb: suburb,
+      township: township,
+      buildings: buildings,
+      approvedWork: approvedWork,
+      comparables: comparables,
+      imagery: imagery,
+      sitePlanUrl: sitePlanUrl,
+      areaMapUrl: areaMapUrl,
+      provenance: provenance,
+      generatedAt: generatedAt,
+      dataSource: dataSource,
+      comparablesMethod: comparablesMethod,
+      coverageNote: coverageNote,
+      rollEffectiveFrom: rollEffectiveFrom,
+      lastSale: lastSale,
+      streetSales: streetSales,
+      areaMarket: areaMarket,
+      agentSales: agentSales,
+      valuationRef: valuationRef,
+      lat: lat,
+      lng: lng,
+      extentM2: extentM2,
+      extentM2Geodesic: extentM2Geodesic,
+      zoningCode: zoningCode,
+      zoningDescription: zoningDescription,
+      ward: ward,
+      subCouncil: subCouncil,
+      legalStatus: legalStatus,
+      dwellingExtentM2: dwellingExtentM2,
+      totalRoofM2: totalRoofM2,
+      municipalValueZar: municipalValueZar,
+      municipalValueAsAt: municipalValueAsAt,
+      ratingCategory: ratingCategory,
+      rollVersion: rollVersion,
+      suburbStats: suburbStats,
+      comparableSummary: comparableSummary,
+      indicativeValue: ValueRange(
+        low: r(at(0.25)),
+        mid: r(at(0.5)),
+        high: r(at(0.75)),
+      ),
+      sizedFromListingM2: floorM2,
+    );
+  }
+
+  /// How much of a price difference a size difference makes: a home twice
+  /// the size sells for about 2^0.6 = 1.5 times as much (as in the API).
+  static const sizeElasticity = 0.6;
+
   /// The range to show: from municipal sales when there is one, otherwise
   /// from agent-reported sales (see [rangeFromAgentSales]).
   ValueRange? get bestRange => indicativeValue ?? agentSales?.indicativeValue;
@@ -532,6 +630,13 @@ class PropertyReport {
 
   List<ComparableSale> get includedComparables =>
       comparables.where((c) => c.included).toList();
+
+  /// The comparables table: the sales used, then those listed for reference,
+  /// numbered in this order (as on the map).
+  List<ComparableSale> get listedComparables => [
+    ...includedComparables,
+    ...comparables.where((c) => c.reference && !c.included),
+  ];
 
   /// Imagery that may go into the PDF. Street View is excluded by the server.
   List<ImageryRef> get printableImagery =>

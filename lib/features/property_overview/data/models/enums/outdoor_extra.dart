@@ -4,6 +4,7 @@ enum OutdoorExtraCategory {
   extraStructures,
   security,
   energyWater,
+  lifestyle,
 }
 
 extension OutdoorExtraCategoryExtension on OutdoorExtraCategory {
@@ -19,6 +20,8 @@ extension OutdoorExtraCategoryExtension on OutdoorExtraCategory {
         return 'Security';
       case OutdoorExtraCategory.energyWater:
         return 'Energy & Water';
+      case OutdoorExtraCategory.lifestyle:
+        return 'Lifestyle';
     }
   }
 
@@ -46,6 +49,7 @@ enum OutdoorExtra {
   lapa('Lapa / Entertainment Area', OutdoorExtraCategory.outdoorLiving),
   builtInBraai('Built-in Braai (Outdoor)', OutdoorExtraCategory.outdoorLiving),
   pizzaOven('Pizza Oven', OutdoorExtraCategory.outdoorLiving),
+  garden('Garden', OutdoorExtraCategory.outdoorLiving),
   manicuredGarden('Manicured Garden', OutdoorExtraCategory.outdoorLiving),
   irrigationSystem('Irrigation System', OutdoorExtraCategory.outdoorLiving),
   courtyard('Courtyard', OutdoorExtraCategory.outdoorLiving),
@@ -74,7 +78,9 @@ enum OutdoorExtra {
   borehole('Borehole', OutdoorExtraCategory.energyWater),
   waterTanks('Water Tanks / JoJo Tanks', OutdoorExtraCategory.energyWater),
   rainwaterHarvesting('Rainwater Harvesting', OutdoorExtraCategory.energyWater),
-  gasGeyser('Gas Geyser', OutdoorExtraCategory.energyWater);
+  gasGeyser('Gas Geyser', OutdoorExtraCategory.energyWater),
+  petFriendly('Pet Friendly', OutdoorExtraCategory.lifestyle),
+  fibreInternet('Fibre Internet', OutdoorExtraCategory.lifestyle);
 
   final String displayString;
   final OutdoorExtraCategory category;

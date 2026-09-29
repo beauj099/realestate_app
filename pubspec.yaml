@@ -52,6 +52,8 @@ dependencies:
   flutter_svg: ^2.3.0
   pdf: ^3.13.1
   printing: ^5.15.1
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:
@@ -80,6 +82,8 @@ flutter:
     - .env
     - assets/images/logo.jpg
     - assets/images/logo_wide.png
+    # Lato (SIL OFL) for the PDF reports; see lib/features/property_report/report/report_fonts.dart.
+    - assets/fonts/
     # White-label agency logos, supplied by the brand owner. The folder ships
     # empty; AgencyLogo falls back to a monogram when a file is absent.
     - assets/images/agencies/

@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../data/models/property_report.dart';
+import 'report_fonts.dart';
 
 /// Text for the PDF's built-in fonts, which have no typographic dashes,
 /// curly quotes or ellipsis: those become their plain equivalents rather
@@ -47,6 +48,10 @@ class ReportAuthor {
 class ValuationReportPdf {
   final PropertyReport report;
   final String? sitePlanSvg;
+
+  /// The comparable sales on a map, and the property's block (SVG).
+  final String? areaMapSvg;
+  final String? blockMapSvg;
   final Map<String, Uint8List> images;
   final ReportAuthor author;
   final Color brandColor;
@@ -60,14 +65,26 @@ class ValuationReportPdf {
   final Uint8List? logo;
   final DateTime date;
 
+  /// "Prepared by …" under the title; off in the report pack, which has the
+  /// agent on its cover and "Your agent" page.
+  final bool showAuthor;
+
+  /// The "Sources" section and the notes naming where figures come from; off
+  /// in the report pack, which the agent hands over as their own.
+  final bool showSources;
+
   ValuationReportPdf({
     required this.report,
     required this.sitePlanSvg,
     required this.images,
     required this.author,
     required this.brandColor,
+    this.areaMapSvg,
+    this.blockMapSvg,
     this.onBrandColor = const Color(0xFFFFFFFF),
     this.logo,
+    this.showAuthor = true,
+    this.showSources = true,
     DateTime? date,
   }) : date = date ?? DateTime.now();
 
@@ -99,6 +116,7 @@ class ValuationReportPdf {
       title: 'Valuation report - ${report.displayAddress}',
       author: author.name.isEmpty ? null : author.name,
       creator: 'RealWorth',
+      theme: await reportTheme(),
     );
 
     doc.addPage(
@@ -119,14 +137,14 @@ class ValuationReportPdf {
     _title(),
     pw.SizedBox(height: 14),
     _rangeBox(),
-    if (report.coverageNote != null)
+    if (showSources && report.coverageNote != null)
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           pdfText(report.coverageNote!),
           style: pw.TextStyle(
             color: _muted,
-            fontSize: 8.5,
+            fontSize: 9.5,
             fontStyle: pw.FontStyle.italic,
           ),
         ),
@@ -150,6 +168,15 @@ class ValuationReportPdf {
         ),
       if (report.ward != null) ('Ward', report.ward!),
       if (report.legalStatus != null) ('Legal status', report.legalStatus!),
+      // Said either way: a sale on record, or plainly that there is none in the
+      // municipality's recent sales record (older transfers are with the Deeds Office).
+      if (report.municipality == 'coct' || report.lastSale != null)
+        (
+          'Last registered sale',
+          report.lastSale == null
+              ? "None in the City's recent sales record (older transfers are with the Deeds Office)"
+              : '${_day.format(report.lastSale!.date)} for ${_money(report.lastSale!.priceZar)}',
+        ),
     ]),
     _section('Improvements', [
       if (report.dwellingExtentM2 != null)
@@ -192,12 +219,13 @@ class ValuationReportPdf {
         ),
       ]),
     ..._comparables(),
+    ..._salesMap(),
     ..._streetSales(),
     ..._areaMarket(),
     ..._agentSales(),
     _method(),
     _disclaimer(),
-    _sources(),
+    if (showSources) _sources(),
   ];
 
   pw.Widget header(pw.Context context) => _header(context);
@@ -228,27 +256,23 @@ class ValuationReportPdf {
             style: pw.TextStyle(
               color: _brand,
               fontWeight: pw.FontWeight.bold,
-              fontSize: 11,
+              fontSize: 12,
             ),
           ),
         pw.Text(
           _day.format(date),
-          style: const pw.TextStyle(color: _muted, fontSize: 9),
+          style: const pw.TextStyle(color: _muted, fontSize: 10),
         ),
       ],
     ),
   );
 
   pw.Widget _footer(pw.Context context) => pw.Row(
-    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    mainAxisAlignment: pw.MainAxisAlignment.end,
     children: [
       pw.Text(
-        'Indicative only - not a certified valuation',
-        style: const pw.TextStyle(color: _muted, fontSize: 8),
-      ),
-      pw.Text(
         'Page ${context.pageNumber} of ${context.pagesCount}',
-        style: const pw.TextStyle(color: _muted, fontSize: 8),
+        style: const pw.TextStyle(color: _muted, fontSize: 9),
       ),
     ],
   );
@@ -260,7 +284,7 @@ class ValuationReportPdf {
         'PROPERTY VALUATION REPORT',
         style: pw.TextStyle(
           color: _brand,
-          fontSize: 9,
+          fontSize: 10,
           letterSpacing: 1.2,
           fontWeight: pw.FontWeight.bold,
         ),
@@ -281,9 +305,10 @@ class ValuationReportPdf {
           if (report.valuationRef != null)
             'Valuation ref ${report.valuationRef}',
         ].join('   ·   '),
-        style: const pw.TextStyle(color: _muted, fontSize: 10),
+        style: const pw.TextStyle(color: _muted, fontSize: 11),
       ),
-      if (author.name.isNotEmpty) ...[
+      // In the report pack the agent has pages of their own.
+      if (showAuthor && author.name.isNotEmpty) ...[
         pw.SizedBox(height: 6),
         pw.Text(
           [
@@ -292,7 +317,7 @@ class ValuationReportPdf {
             if (author.mobile.isNotEmpty) author.mobile,
             if (author.email.isNotEmpty) author.email,
           ].join('   ·   '),
-          style: const pw.TextStyle(color: _ink, fontSize: 9),
+          style: const pw.TextStyle(color: _ink, fontSize: 10),
         ),
       ],
     ],
@@ -319,7 +344,7 @@ class ValuationReportPdf {
                   'INDICATIVE MARKET RANGE',
                   style: pw.TextStyle(
                     color: _onBrand,
-                    fontSize: 8,
+                    fontSize: 9,
                     letterSpacing: 1,
                   ),
                 ),
@@ -337,12 +362,12 @@ class ValuationReportPdf {
                 if (range?.mid != null)
                   pw.Text(
                     'Midpoint ${_money(range!.mid)}',
-                    style: pw.TextStyle(color: _onBrand, fontSize: 10),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 11),
                   ),
                 if (report.rangeFromAgentSales)
                   pw.Text(
                     'From agent-reported sales, not registered transfers',
-                    style: pw.TextStyle(color: _onBrand, fontSize: 8),
+                    style: pw.TextStyle(color: _onBrand, fontSize: 9),
                   ),
               ],
             ),
@@ -355,7 +380,7 @@ class ValuationReportPdf {
                 'MUNICIPAL VALUE',
                 style: pw.TextStyle(
                   color: _onBrand,
-                  fontSize: 8,
+                  fontSize: 9,
                   letterSpacing: 1,
                 ),
               ),
@@ -371,7 +396,7 @@ class ValuationReportPdf {
               if (summary != null)
                 pw.Text(
                   '${_count(summary.included)} comparable sales',
-                  style: pw.TextStyle(color: _onBrand, fontSize: 9),
+                  style: pw.TextStyle(color: _onBrand, fontSize: 10),
                 ),
             ],
           ),
@@ -381,15 +406,72 @@ class ValuationReportPdf {
   }
 
   List<pw.Widget> _sitePlan() {
-    final svg = sitePlanSvg;
-    if (svg == null) return const [];
+    final block = blockMapSvg;
+    // The site plan is only worth its space with the buildings on it; an
+    // outline alone says less than the block view beside it.
+    final plan = block != null && report.buildings.isEmpty ? null : sitePlanSvg;
+    if (plan == null && block == null) return const [];
+    pw.Widget frame(String svg, double height) => pw.Container(
+      height: height,
+      decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
+      child: pw.SvgImage(svg: svg, fit: pw.BoxFit.cover),
+    );
     return [
-      _heading('Site plan'),
-      pw.Container(
-        height: 300,
-        width: double.infinity,
-        decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
-        child: pw.SvgImage(svg: svg, fit: pw.BoxFit.contain),
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading(
+              block == null
+                  ? 'Site plan'
+                  : 'The property and its neighbourhood',
+            ),
+            if (block != null && plan != null)
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(flex: 3, child: frame(block, 230)),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Container(
+                      height: 230,
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: _rule),
+                      ),
+                      child: pw.SvgImage(svg: plan, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                ],
+              )
+            else
+              frame(block ?? plan!, block != null ? 360 : 300),
+          ],
+        ),
+      ),
+      pw.SizedBox(height: 16),
+    ];
+  }
+
+  /// Where the comparable sales are: numbered as in the table, in the radius
+  /// they were drawn from.
+  List<pw.Widget> _salesMap() {
+    final svg = areaMapSvg;
+    if (svg == null || report.includedComparables.isEmpty) return const [];
+    return [
+      pw.Inseparable(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _heading('Where the comparable sales are'),
+            pw.Container(
+              height: 470,
+              width: double.infinity,
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: _rule)),
+              child: pw.SvgImage(svg: svg, fit: pw.BoxFit.contain),
+            ),
+          ],
+        ),
       ),
       pw.SizedBox(height: 16),
     ];
@@ -409,7 +491,7 @@ class ValuationReportPdf {
         pw.SizedBox(height: 3),
         pw.Text(
           i.attribution,
-          style: const pw.TextStyle(color: _muted, fontSize: 8),
+          style: const pw.TextStyle(color: _muted, fontSize: 9),
         ),
         pw.SizedBox(height: 16),
       ],
@@ -456,14 +538,17 @@ class ValuationReportPdf {
                       flex: 4,
                       child: pw.Text(
                         label,
-                        style: const pw.TextStyle(color: _muted, fontSize: 9.5),
+                        style: const pw.TextStyle(
+                          color: _muted,
+                          fontSize: 10.5,
+                        ),
                       ),
                     ),
                     pw.Expanded(
                       flex: 6,
                       child: pw.Text(
                         value,
-                        style: const pw.TextStyle(color: _ink, fontSize: 9.5),
+                        style: const pw.TextStyle(color: _ink, fontSize: 10.5),
                       ),
                     ),
                   ],
@@ -473,7 +558,7 @@ class ValuationReportPdf {
               pw.SizedBox(height: 4),
               pw.Text(
                 note,
-                style: const pw.TextStyle(color: _muted, fontSize: 8),
+                style: const pw.TextStyle(color: _muted, fontSize: 9),
               ),
             ],
           ],
@@ -488,8 +573,11 @@ class ValuationReportPdf {
         .whereType<String>()
         .firstOrNull;
     if (captured == null) return null;
-    return 'Building footprints are from the City\'s aerial survey of $captured; '
-        'later additions appear under approved building work.';
+    return showSources
+        ? 'Building footprints are from the City\'s aerial survey of $captured; '
+              'later additions appear under approved building work.'
+        : 'Building footprints date from $captured; later additions appear '
+              'under approved building work.';
   }
 
   pw.Widget _approvedWork() => _section('Approved building work', [
@@ -505,12 +593,13 @@ class ValuationReportPdf {
   ]);
 
   List<pw.Widget> _comparables() {
-    final used = report.includedComparables.take(15).toList();
-    if (used.isEmpty) return const [];
+    final used = report.listedComparables.take(15).toList();
+    final usedCount = used.where((c) => c.included).length;
+    if (usedCount == 0) return const [];
     final withDistance = used.any((c) => c.distanceM != null);
     final s = report.comparableSummary;
-    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
-    const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 9.5);
+    const cell = pw.TextStyle(color: _ink, fontSize: 9.5);
     return [
       _heading('Comparable sales'),
       if (s != null)
@@ -524,12 +613,14 @@ class ValuationReportPdf {
             '${_count(s.excludedTooOld)} too old and '
             '${_count(s.excludedDissimilar)} too different in size. '
             '${s.radiusM != null ? 'The comparables are the sales within ${s.radiusM} m of the property. ' : ''}'
-            'The most recent ${used.length} used are listed.',
-            style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+            'The most recent $usedCount used are listed'
+            '${used.length > usedCount ? ', then the next ${used.length - usedCount} most alike for reference (in grey; not used for the range)' : ''}.',
+            style: const pw.TextStyle(color: _muted, fontSize: 9.5),
           ),
         ),
       pw.TableHelper.fromTextArray(
         headers: [
+          if (areaMapSvg != null) '#',
           'Address',
           if (withDistance) 'Dist',
           'Sold',
@@ -539,8 +630,9 @@ class ValuationReportPdf {
           'Indexed today',
         ],
         data: [
-          for (final c in used)
+          for (final (i, c) in used.indexed)
             [
+              if (areaMapSvg != null) '${i + 1}',
               titleCase(c.address),
               if (withDistance)
                 c.distanceM == null ? '-' : '${c.distanceM!.round()} m',
@@ -559,8 +651,12 @@ class ValuationReportPdf {
         rowDecoration: const pw.BoxDecoration(
           border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
         ),
+        // Sales listed for reference in grey.
+        textStyleBuilder: (_, _, row) =>
+            row > usedCount ? cell.copyWith(color: _muted) : cell,
         columnWidths: {
           for (final (i, w) in [
+            if (areaMapSvg != null) 0.4,
             3.2,
             if (withDistance) 0.9,
             1.3,
@@ -571,11 +667,16 @@ class ValuationReportPdf {
           ].indexed)
             i: pw.FlexColumnWidth(w),
         },
-        cellAlignments: {
-          if (withDistance) 1: pw.Alignment.centerRight,
-          for (var i = withDistance ? 3 : 2; i <= (withDistance ? 6 : 5); i++)
-            i: pw.Alignment.centerRight,
-        },
+        // Numbers to the right: distance, price, building, R/m², indexed.
+        cellAlignments: () {
+          final first = areaMapSvg != null ? 1 : 0; // the address column
+          final sold = first + (withDistance ? 2 : 1);
+          return {
+            if (withDistance) first + 1: pw.Alignment.centerRight,
+            for (var i = sold + 1; i <= sold + 4; i++)
+              i: pw.Alignment.centerRight,
+          };
+        }(),
       ),
       pw.SizedBox(height: 14),
     ];
@@ -587,15 +688,15 @@ class ValuationReportPdf {
     final agent = report.agentSales;
     if (agent == null || agent.sales.isEmpty) return const [];
     final shown = agent.sales.take(15).toList();
-    final header = pw.TextStyle(color: _onBrand, fontSize: 8.5);
-    const cell = pw.TextStyle(color: _ink, fontSize: 8.5);
+    final header = pw.TextStyle(color: _onBrand, fontSize: 9.5);
+    const cell = pw.TextStyle(color: _ink, fontSize: 9.5);
     return [
       _heading('Sales reported by agents'),
       pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 6),
         child: pw.Text(
           pdfText(agent.evidenceStatement),
-          style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+          style: const pw.TextStyle(color: _muted, fontSize: 9.5),
         ),
       ),
       pw.TableHelper.fromTextArray(
@@ -691,37 +792,61 @@ class ValuationReportPdf {
     final median = m.medianPriceZar == null
         ? ''
         : ', median ${_money(m.medianPriceZar)}';
+    // The band the property's indicative value falls in.
+    final value = report.bestRange?.mid ?? report.municipalValueZar;
+    final own = value == null
+        ? -1
+        : m.priceBands.indexWhere((b) => value >= b.fromZar && value < b.toZar);
     return [
       pw.Inseparable(
         child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
             _heading('The market around the property'),
             pw.Text(
               '${_count(m.sales)} market sales $where$median.',
-              style: const pw.TextStyle(color: _muted, fontSize: 8.5),
+              style: const pw.TextStyle(color: _muted, fontSize: 9.5),
+            ),
+            pw.SizedBox(height: 8),
+            _chartCard(
+              'What homes sold for',
+              own >= 0
+                  ? 'Share of sales in each price range; your home\'s range is highlighted'
+                  : 'Share of sales in each price range',
+              _bars(
+                [
+                  for (final b in m.priceBands)
+                    ('${_short(b.fromZar)} -\n${_short(b.toZar)}', b.percent),
+                ],
+                highlight: own,
+                highlightLabel: 'your home',
+                unit: '%',
+                height: 110,
+              ),
             ),
             pw.SizedBox(height: 8),
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Expanded(
-                  child: _bars(
+                  flex: 5,
+                  child: _chartCard(
                     'Sales by year',
-                    [
-                      for (final y in m.byYear)
-                        ('${y.year}', y.sales.toDouble()),
-                    ],
-                    below: [for (final y in m.byYear) _short(y.medianPriceZar)],
+                    'Bars: number of sales · line: median price',
+                    _yearChart(m.byYear),
                   ),
                 ),
-                pw.SizedBox(width: 16),
-                pw.Expanded(
-                  child: _bars('Spread of prices (% of sales)', [
-                    for (final b in m.priceBands)
-                      (_short(b.fromZar), b.percent),
-                  ]),
-                ),
+                if (value != null && m.priceBands.isNotEmpty) ...[
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(
+                    flex: 4,
+                    child: _chartCard(
+                      'Where this home sits',
+                      'Against the prices paid around it',
+                      _valueScale(m),
+                    ),
+                  ),
+                ],
               ],
             ),
             pw.SizedBox(height: 14),
@@ -736,69 +861,333 @@ class ValuationReportPdf {
       ? 'R ${(v / 1000000).toStringAsFixed(v >= 10000000 ? 0 : 1)}m'
       : 'R ${(v / 1000).round()}k';
 
-  /// A small bar chart of [bars] (label, value), with an optional second line
-  /// under each bar.
+  PdfColor _tint(double amount) => PdfColor(
+    1 - (1 - _brand.red) * amount,
+    1 - (1 - _brand.green) * amount,
+    1 - (1 - _brand.blue) * amount,
+  );
+
+  pw.Widget _chartCard(String title, String subtitle, pw.Widget chart) =>
+      pw.Container(
+        padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _rule),
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              title,
+              style: pw.TextStyle(
+                color: _ink,
+                fontSize: 11,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Text(
+              pdfText(subtitle),
+              style: const pw.TextStyle(color: _muted, fontSize: 8),
+            ),
+            pw.SizedBox(height: 8),
+            chart,
+          ],
+        ),
+      );
+
+  /// Rounded, shaded bars with their values; [highlight] in the full brand
+  /// colour with a tag, the rest lighter.
   pw.Widget _bars(
-    String title,
     List<(String, double)> bars, {
-    List<String> below = const [],
+    int highlight = -1,
+    String? highlightLabel,
+    String unit = '',
+    double height = 90,
   }) {
     final max = bars.fold<double>(0, (m, b) => b.$2 > m ? b.$2 : m);
-    const height = 90.0;
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        pw.Text(
-          title,
-          style: pw.TextStyle(
-            color: _ink,
-            fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
+        for (final (i, (label, value)) in bars.indexed)
+          pw.Expanded(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 2),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  if (i == highlight && highlightLabel != null)
+                    pw.Container(
+                      margin: const pw.EdgeInsets.only(bottom: 2),
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 3,
+                        vertical: 1,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        color: _brand,
+                        borderRadius: pw.BorderRadius.circular(3),
+                      ),
+                      child: pw.Text(
+                        highlightLabel,
+                        style: pw.TextStyle(color: _onBrand, fontSize: 6.5),
+                      ),
+                    ),
+                  pw.Text(
+                    '${value == value.roundToDouble() ? value.toInt() : value.toStringAsFixed(1)}$unit',
+                    style: pw.TextStyle(
+                      color: i == highlight ? _brand : _muted,
+                      fontSize: 7.5,
+                      fontWeight: i == highlight ? pw.FontWeight.bold : null,
+                    ),
+                  ),
+                  pw.SizedBox(height: 1),
+                  pw.Container(
+                    height: max == 0
+                        ? 0
+                        : (height * value / max).clamp(1.5, height),
+                    decoration: pw.BoxDecoration(
+                      borderRadius: const pw.BorderRadius.vertical(
+                        top: pw.Radius.circular(3),
+                      ),
+                      gradient: pw.LinearGradient(
+                        begin: pw.Alignment.topCenter,
+                        end: pw.Alignment.bottomCenter,
+                        colors: i == highlight || highlight < 0
+                            ? [_tint(0.8), _brand]
+                            : [_tint(0.3), _tint(0.5)],
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    label,
+                    style: pw.TextStyle(
+                      color: i == highlight ? _brand : _ink,
+                      fontSize: 6.5,
+                      fontWeight: i == highlight ? pw.FontWeight.bold : null,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Sales per year as bars, the median price as a line over them.
+  pw.Widget _yearChart(List<YearlySales> years) {
+    if (years.isEmpty) return pw.SizedBox();
+    const height = 80.0;
+    final maxSales = years.fold<int>(1, (m, y) => y.sales > m ? y.sales : m);
+    final prices = years.map((y) => y.medianPriceZar).toList();
+    final lo = prices.reduce((a, b) => a < b ? a : b) * 0.9;
+    final hi = prices.reduce((a, b) => a > b ? a : b) * 1.08;
+    return pw.Column(
+      children: [
+        pw.SizedBox(
+          height: height,
+          child: pw.Stack(
+            children: [
+              pw.Positioned.fill(
+                child: pw.CustomPaint(
+                  painter: (PdfGraphics g, PdfPoint size) {
+                    final slot = size.x / years.length;
+                    g.setFillColor(_tint(0.35));
+                    for (var i = 0; i < years.length; i++) {
+                      final h = years[i].sales / maxSales * size.y * 0.8;
+                      g.drawRRect(
+                        slot * i + slot * 0.18,
+                        0,
+                        slot * 0.64,
+                        h,
+                        3,
+                        3,
+                      );
+                    }
+                    g.fillPath();
+                    double y(double price) => hi == lo
+                        ? size.y / 2
+                        : (price - lo) / (hi - lo) * size.y;
+                    g.setStrokeColor(_brand);
+                    g.setLineWidth(2);
+                    for (var i = 0; i < years.length; i++) {
+                      final x = slot * i + slot / 2;
+                      if (i == 0) {
+                        g.moveTo(x, y(prices[i]));
+                      } else {
+                        g.lineTo(x, y(prices[i]));
+                      }
+                    }
+                    g.strokePath();
+                    g.setFillColor(_brand);
+                    for (var i = 0; i < years.length; i++) {
+                      g.drawEllipse(
+                        slot * i + slot / 2,
+                        y(prices[i]),
+                        2.4,
+                        2.4,
+                      );
+                    }
+                    g.fillPath();
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-        pw.SizedBox(height: 6),
+        pw.SizedBox(height: 3),
         pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
           children: [
-            for (final (i, (label, value)) in bars.indexed)
+            for (final yr in years)
               pw.Expanded(
-                child: pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 1.5),
-                  child: pw.Column(
-                    mainAxisSize: pw.MainAxisSize.min,
-                    children: [
-                      pw.Text(
-                        value == value.roundToDouble()
-                            ? value.toInt().toString()
-                            : value.toStringAsFixed(1),
-                        style: const pw.TextStyle(color: _muted, fontSize: 6.5),
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      '${yr.year}',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        color: _ink,
+                        fontWeight: pw.FontWeight.bold,
                       ),
-                      pw.Container(
-                        height: max == 0 ? 0 : height * value / max,
-                        color: _brand,
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        label,
-                        style: const pw.TextStyle(color: _ink, fontSize: 6),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                      if (i < below.length)
-                        pw.Text(
-                          below[i],
-                          style: const pw.TextStyle(
-                            color: _muted,
-                            fontSize: 5.5,
-                          ),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                    ],
-                  ),
+                    ),
+                    pw.Text(
+                      '${yr.sales} sales',
+                      style: const pw.TextStyle(fontSize: 6.5, color: _muted),
+                    ),
+                    pw.Text(
+                      _short(yr.medianPriceZar),
+                      style: pw.TextStyle(fontSize: 7, color: _brand),
+                    ),
+                  ],
                 ),
               ),
           ],
         ),
       ],
+    );
+  }
+
+  /// A scale from the lowest to the highest price paid nearby, with this
+  /// home's range, the area's median and the municipal value marked.
+  pw.Widget _valueScale(AreaMarket m) {
+    // Wide enough for this home and the municipal value, even when they lie
+    // beyond every sale nearby.
+    final range = report.bestRange;
+    final points = [
+      m.priceBands.first.fromZar,
+      m.priceBands.last.toZar,
+      ?range?.low,
+      ?range?.high,
+      ?report.municipalValueZar,
+    ];
+    final lo = points.reduce((a, b) => a < b ? a : b);
+    final hi = points.reduce((a, b) => a > b ? a : b) * 1.03;
+    double at(double v) => ((v - lo) / (hi - lo)).clamp(0.0, 1.0);
+    final marks = <(String, double, PdfColor)>[
+      if (m.medianPriceZar case final med?) ('Area median', med, _muted),
+      if (report.municipalValueZar case final mv?)
+        ('Municipal value', mv, _ink),
+    ];
+    return pw.LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints!.maxWidth;
+        return pw.SizedBox(
+          height: 96,
+          child: pw.Stack(
+            children: [
+              // The scale.
+              pw.Positioned(
+                left: 0,
+                right: 0,
+                top: 40,
+                child: pw.Container(
+                  height: 8,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: pw.BorderRadius.circular(4),
+                    gradient: pw.LinearGradient(
+                      colors: [_tint(0.12), _tint(0.45)],
+                    ),
+                  ),
+                ),
+              ),
+              // This home's indicative range, on the scale.
+              if (range?.low != null && range?.high != null)
+                pw.Positioned(
+                  left: w * at(range!.low!),
+                  top: 37,
+                  child: pw.Container(
+                    width: (w * (at(range.high!) - at(range.low!))).clamp(6, w),
+                    height: 14,
+                    decoration: pw.BoxDecoration(
+                      color: _brand,
+                      borderRadius: pw.BorderRadius.circular(7),
+                    ),
+                  ),
+                ),
+              if (range?.mid != null)
+                pw.Positioned(
+                  left: (w * at(range!.mid!) - 40).clamp(0, w - 80),
+                  top: 12,
+                  child: pw.SizedBox(
+                    width: 80,
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          'This home',
+                          style: pw.TextStyle(
+                            fontSize: 8,
+                            color: _brand,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.Text(
+                          _short(range.mid!),
+                          style: pw.TextStyle(fontSize: 8, color: _brand),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              for (final (i, (label, v, colour)) in marks.indexed) ...[
+                pw.Positioned(
+                  left: w * at(v) - 0.75,
+                  top: 36,
+                  child: pw.Container(width: 1.5, height: 16, color: colour),
+                ),
+                pw.Positioned(
+                  left: (w * at(v) - 40).clamp(0, w - 80),
+                  top: 56 + i * 16.0,
+                  child: pw.SizedBox(
+                    width: 80,
+                    child: pw.Text(
+                      '$label ${_short(v)}',
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(fontSize: 7.5, color: colour),
+                    ),
+                  ),
+                ),
+              ],
+              pw.Positioned(
+                left: 0,
+                top: 0,
+                child: pw.Text(
+                  _short(lo),
+                  style: const pw.TextStyle(fontSize: 7, color: _muted),
+                ),
+              ),
+              pw.Positioned(
+                right: 0,
+                top: 0,
+                child: pw.Text(
+                  _short(hi),
+                  style: const pw.TextStyle(fontSize: 7, color: _muted),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -811,9 +1200,9 @@ class ValuationReportPdf {
   }) => pw.TableHelper.fromTextArray(
     headers: headers,
     data: rows,
-    headerStyle: pw.TextStyle(color: _onBrand, fontSize: 8.5),
+    headerStyle: pw.TextStyle(color: _onBrand, fontSize: 9.5),
     headerDecoration: pw.BoxDecoration(color: _brand),
-    cellStyle: const pw.TextStyle(color: _ink, fontSize: 8.5),
+    cellStyle: const pw.TextStyle(color: _ink, fontSize: 9.5),
     cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
     border: null,
     rowDecoration: const pw.BoxDecoration(
@@ -861,6 +1250,10 @@ class ValuationReportPdf {
             '(${_money(s!.medianPricePerDwellingM2)}/m²) applied to this property\'s '
             '${_m2(report.dwellingExtentM2)} gives the midpoint; the lower and upper quartiles '
             'give the range.',
+      if (report.sizedFromListingM2 case final floor?)
+        'Each sale was carried to the ${_m2(floor)} floor area captured on the listing'
+            '${report.dwellingExtentM2 == null ? '' : ' (the City records ${_m2(report.dwellingExtentM2)})'}; '
+            'the midpoint is their median and the range their middle half.',
     ]);
   }
 

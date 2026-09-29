@@ -166,7 +166,7 @@ class Agency {
         : hexOf(_bannerColor),
     'logoUrl': logoUrl,
     'isCustom': isCustom,
-    'office': office.toJson(),
+    'office': office.toCacheJson(),
     'brochurePages': brochurePages,
   };
 

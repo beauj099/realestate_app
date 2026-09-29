@@ -39,13 +39,40 @@ class PropertyReportRepository {
   /// from the API's cache.
   static const Duration _reportTimeout = Duration(seconds: 90);
 
-  /// Addresses matching what the agent has typed so far (Cape Town parcel
-  /// records). Fewer than 3 characters returns nothing.
-  Future<List<AddressSuggestion>> suggest(String text) async {
+  /// Addresses matching what the agent has typed so far. [national] false
+  /// asks the Cape Town and Johannesburg parcel records (fast); true asks
+  /// OpenStreetMap for the whole country (a few seconds). [lat]/[lng] favour
+  /// places nearby. Fewer than 3 characters returns nothing.
+  Future<List<AddressSuggestion>> suggest(
+    String text, {
+    bool national = false,
+    double? lat,
+    double? lng,
+  }) async {
     if (text.trim().length < 3) return const [];
     final response = await _client.get(
-      ApiEndpoints.propertySuggest,
-      queryParameters: {'q': text.trim()},
+      national
+          ? ApiEndpoints.propertySuggestNational
+          : ApiEndpoints.propertySuggest,
+      queryParameters: {
+        'q': text.trim(),
+        if (lat != null && lng != null) ...{'lat': lat, 'lng': lng},
+      },
+      receiveTimeout: national ? const Duration(seconds: 15) : null,
+    );
+    return [
+      for (final e in response.data as List)
+        AddressSuggestion.fromJson(e as Map<String, dynamic>),
+    ];
+  }
+
+  /// The City's address at a GPS point (Cape Town, Johannesburg): the erf
+  /// under the pin first, then its neighbours, with the house number and the
+  /// City's official suburb. Empty elsewhere.
+  Future<List<AddressSuggestion>> addressAt(double lat, double lng) async {
+    final response = await _client.get(
+      ApiEndpoints.propertySuggestAt,
+      queryParameters: {'lat': lat, 'lng': lng},
     );
     return [
       for (final e in response.data as List)
@@ -107,6 +134,8 @@ class PropertyReportRepository {
   Future<List<MarketListing>> fetchMarket(
     String suburb, {
     int? excludeListingId,
+    double? lat,
+    double? lng,
   }) async {
     if (suburb.trim().isEmpty) return const [];
     final response = await _client.get(
@@ -114,6 +143,8 @@ class PropertyReportRepository {
       queryParameters: {
         'suburb': suburb.trim(),
         'excludeListingId': ?excludeListingId,
+        'lat': ?lat,
+        'lng': ?lng,
       },
     );
     return [
@@ -140,7 +171,8 @@ class PropertyReportRepository {
     double? floorM2,
     double? erfM2,
     int? p24Suburb,
-    int max = 3,
+    double? priceZar,
+    int max = 4,
   }) async {
     final response = await _client.get(
       ApiEndpoints.propertyForSale(report.municipality, report.erf),
@@ -152,6 +184,12 @@ class PropertyReportRepository {
         'floorM2': ?floorM2,
         'erfM2': ?erfM2,
         'max': max,
+        // Homes priced like this one rank first.
+        'priceZar': ?priceZar,
+        // With the property's location the nearest homes are kept, whatever
+        // suburb Property24 files them under.
+        'lat': ?report.lat,
+        'lng': ?report.lng,
       },
       receiveTimeout: _reportTimeout,
     );
