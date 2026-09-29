@@ -99,8 +99,10 @@ class PackImages {
   final Uint8List? logoWide;
   final Uint8List? logoWideOnBrand;
 
-  /// Property24 listing photos by listing number.
+  /// Property24 listing photos by listing number: the main one, and up to
+  /// three more for the row under it.
   final Map<String, Uint8List> listingPhotos;
+  final Map<String, List<Uint8List>> listingMorePhotos;
   final List<Uint8List> brochurePages;
 
   const PackImages({
@@ -114,6 +116,7 @@ class PackImages {
     this.logoWide,
     this.logoWideOnBrand,
     this.listingPhotos = const {},
+    this.listingMorePhotos = const {},
     this.brochurePages = const [],
   });
 }
@@ -2295,99 +2298,170 @@ class ReportPackPdf {
       _sectionTitle('Homes on the market like yours'),
       pw.Text(
         pdfText(
-          'Currently advertised on Property24 near ${report.displayAddress}. ${f.attribution}',
+          'Advertised on Property24 near ${report.displayAddress}, as listed there; each links to its listing.',
         ),
         style: const pw.TextStyle(fontSize: 8.5, color: _muted),
       ),
       pw.SizedBox(height: 10),
-      for (final l in f.listings)
-        pw.Inseparable(
-          child: pw.Container(
-            margin: const pw.EdgeInsets.only(bottom: 12),
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: _rule, width: 0.8),
-            ),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+      for (final l in f.listings) pw.Inseparable(child: _listingCard(l)),
+    ];
+  }
+
+  /// A home for sale as the cover shows ours: the main photo and three more
+  /// with black lines between, then the price, where it is, and its features
+  /// as icons. Black text; only the price and the link in the brand colour.
+  pw.Widget _listingCard(ForSaleListing l) {
+    final main = _img(pictures.listingPhotos[l.listingNumber]);
+    final more = [
+      for (final p
+          in pictures.listingMorePhotos[l.listingNumber] ?? const <Uint8List>[])
+        ?_img(p),
+    ].take(3).toList();
+    String n(num v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
+    final facts = <(String, String, String)>[
+      if (l.bedrooms != null) ('bedrooms', n(l.bedrooms!), 'Bedrooms'),
+      if (l.bathrooms != null) ('bathrooms', n(l.bathrooms!), 'Bathrooms'),
+      if (l.parking != null) ('parking', n(l.parking!), 'Parking'),
+      if (l.floorM2 != null)
+        ('floor', '${groupDigits(l.floorM2!)} m²', 'Floor size'),
+      if (l.erfM2 != null) ('erf', '${groupDigits(l.erfM2!)} m²', 'Erf size'),
+    ];
+    final distance = l.distanceM == null
+        ? null
+        : l.distanceM! < 1000
+        ? '${(l.distanceM! / 10).round() * 10} m away'
+        : '${(l.distanceM! / 1000).toStringAsFixed(1)} km away';
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 12),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: _rule, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Photos: black shows through the gaps as lines.
+          pw.Container(
+            width: 250,
+            color: PdfColors.black,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                if (_img(pictures.listingPhotos[l.listingNumber])
-                    case final photo?)
-                  pw.Container(
-                    width: 190,
-                    height: 125,
-                    margin: const pw.EdgeInsets.only(right: 12),
-                    child: pw.Image(photo, fit: pw.BoxFit.cover),
-                  ),
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                pw.SizedBox(
+                  height: 150,
+                  child: main == null
+                      ? pw.Container(color: const PdfColor.fromInt(0xFFF5F6F8))
+                      : pw.Image(main, fit: pw.BoxFit.cover),
+                ),
+                if (more.isNotEmpty) ...[
+                  pw.SizedBox(height: 1.5),
+                  pw.Row(
                     children: [
-                      if (l.listedOn != null)
-                        pw.Text(
-                          'Listed ${_shortDay.format(l.listedOn!)}',
-                          style: const pw.TextStyle(fontSize: 8, color: _muted),
-                        ),
-                      pw.Text(
-                        l.priceZar == null
-                            ? 'Price on application'
-                            : rand(l.priceZar!),
-                        style: pw.TextStyle(
-                          fontSize: 15,
-                          color: _brand,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.Text(
-                        pdfText(l.title),
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          fontWeight: pw.FontWeight.bold,
-                          color: _ink,
-                        ),
-                      ),
-                      pw.Text(
-                        pdfText(
-                          [
-                            l.suburb,
-                            l.address,
-                            if (l.distanceM != null)
-                              l.distanceM! < 1000
-                                  ? '${(l.distanceM! / 10).round() * 10} m away'
-                                  : '${(l.distanceM! / 1000).toStringAsFixed(1)} km away',
-                          ].whereType<String>().join(' · '),
-                        ),
-                        style: const pw.TextStyle(fontSize: 9, color: _ink),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        [
-                          if (l.bedrooms != null) '${l.bedrooms} bed',
-                          if (l.bathrooms != null)
-                            '${l.bathrooms! == l.bathrooms!.roundToDouble() ? l.bathrooms!.toInt() : l.bathrooms} bath',
-                          if (l.parking != null) '${l.parking} parking',
-                          if (l.floorM2 != null)
-                            '${groupDigits(l.floorM2!)} m² floor',
-                          if (l.erfM2 != null)
-                            '${groupDigits(l.erfM2!)} m² erf',
-                        ].join('  ·  '),
-                        style: const pw.TextStyle(fontSize: 9, color: _ink),
-                      ),
-                      if (l.excerpt != null) ...[
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          pdfText(l.excerpt!),
-                          maxLines: 3,
-                          style: const pw.TextStyle(fontSize: 8, color: _muted),
+                      for (var i = 0; i < 3; i++) ...[
+                        if (i > 0) pw.SizedBox(width: 1.5),
+                        pw.Expanded(
+                          child: pw.SizedBox(
+                            height: 52,
+                            child: i < more.length
+                                ? pw.Image(more[i], fit: pw.BoxFit.cover)
+                                : pw.Container(
+                                    color: const PdfColor.fromInt(0xFFF5F6F8),
+                                  ),
+                          ),
                         ),
                       ],
-                      pw.SizedBox(height: 4),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(12, 9, 10, 9),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    l.priceZar == null
+                        ? 'Price on application'
+                        : rand(l.priceZar!),
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      color: _brand,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    pdfText(l.title),
+                    style: pw.TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _ink,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    pdfText(
+                      [l.address, l.suburb].whereType<String>().join(', '),
+                    ),
+                    style: const pw.TextStyle(fontSize: 9, color: _ink),
+                  ),
+                  if (distance != null)
+                    pw.Row(
+                      children: [
+                        if (packIcon('place', _hex(_ink)) case final svg?)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(right: 3),
+                            child: pw.SvgImage(svg: svg, width: 10, height: 10),
+                          ),
+                        pw.Text(
+                          distance,
+                          style: pw.TextStyle(
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                            color: _ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  pw.SizedBox(height: 9),
+                  for (var r = 0; r < facts.length; r += 3)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 7),
+                      child: pw.Row(
+                        children: [
+                          for (var i = r; i < r + 3; i++)
+                            pw.Expanded(
+                              child: i < facts.length
+                                  ? _smallFact(
+                                      facts[i].$1,
+                                      facts[i].$2,
+                                      facts[i].$3,
+                                    )
+                                  : pw.SizedBox(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    children: [
+                      if (l.listedOn != null)
+                        pw.Expanded(
+                          child: pw.Text(
+                            'Listed ${_shortDay.format(l.listedOn!)}',
+                            style: const pw.TextStyle(fontSize: 8, color: _ink),
+                          ),
+                        )
+                      else
+                        pw.Spacer(),
                       pw.UrlLink(
                         destination: l.url,
                         child: pw.Text(
-                          'View on Property24 (listing ${l.listingNumber})',
+                          'View on Property24',
                           style: pw.TextStyle(
-                            fontSize: 8,
+                            fontSize: 8.5,
                             color: _brand,
                             decoration: pw.TextDecoration.underline,
                           ),
@@ -2395,13 +2469,36 @@ class ReportPackPdf {
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-    ];
+        ],
+      ),
+    );
   }
+
+  pw.Widget _smallFact(String icon, String value, String label) => pw.Row(
+    children: [
+      if (packIcon(icon, _brandHex) case final svg?)
+        pw.SvgImage(svg: svg, width: 15, height: 15),
+      pw.SizedBox(width: 5),
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            pdfText(value),
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+              color: _ink,
+            ),
+          ),
+          pw.Text(label, style: const pw.TextStyle(fontSize: 6.5, color: _ink)),
+        ],
+      ),
+    ],
+  );
 
   // ---- valuation letter ------------------------------------------------------------
 

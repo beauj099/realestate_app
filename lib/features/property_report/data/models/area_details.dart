@@ -417,6 +417,9 @@ class ForSaleListing {
   /// How far from the property, when both are placed on the map.
   final double? distanceM;
 
+  /// Three more of the listing's photos, spread through its gallery.
+  final List<String> morePhotos;
+
   const ForSaleListing({
     required this.listingNumber,
     required this.url,
@@ -433,6 +436,7 @@ class ForSaleListing {
     this.imageUrl,
     this.listedOn,
     this.distanceM,
+    this.morePhotos = const [],
   });
 
   factory ForSaleListing.fromJson(Map<String, dynamic> j) => ForSaleListing(
@@ -451,6 +455,9 @@ class ForSaleListing {
     imageUrl: j['imageUrl'] as String?,
     listedOn: DateTime.tryParse(j['listedOn'] as String? ?? ''),
     distanceM: _d(j['distanceM']),
+    morePhotos: [
+      for (final p in (j['morePhotos'] as List? ?? const [])) p as String,
+    ],
   );
 }
 

@@ -16,6 +16,7 @@ import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../../auth/providers/agent_profile_provider.dart';
 import '../../../property_overview/providers/property_provider.dart';
 import '../../data/models/agent_sales.dart';
+import '../../data/models/area_details.dart';
 import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
 import '../../providers/city_records_autofill.dart';
@@ -253,6 +254,13 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         for (final page in brochure) packImageBytes(page, api),
       ]);
       final listingCount = forSale?.listings.length ?? 0;
+      // Three more photos of each home for sale, for its card.
+      final morePhotos = await Future.wait([
+        for (final l in forSale?.listings ?? const <ForSaleListing>[])
+          Future.wait([
+            for (final p in l.morePhotos.take(3)) packImageBytes(p, api),
+          ]),
+      ]);
       // The cover's row of photos under the main one.
       final gallery = await Future.wait([
         for (final g in options.gallery) packImageBytes(g, api),
@@ -324,6 +332,12 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           listingPhotos: {
             for (var i = 0; i < listingCount; i++)
               forSale!.listings[i].listingNumber: ?fetched[5 + i],
+          },
+          listingMorePhotos: {
+            for (var i = 0; i < listingCount; i++)
+              forSale!.listings[i].listingNumber: [
+                for (final bytes in morePhotos[i]) ?bytes,
+              ],
           },
           brochurePages: [
             for (final bytes in fetched.skip(5 + listingCount)) ?bytes,
