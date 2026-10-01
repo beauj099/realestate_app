@@ -23,6 +23,7 @@ import '../widgets/agency_picker.dart';
 import '../widgets/profile_media.dart';
 import '../widgets/signature_pad.dart';
 import '../../../../core/widgets/app_snack.dart';
+import '../../../../core/widgets/circle_crop.dart';
 
 /// Lets an agent review and change everything they entered at registration.
 ///
@@ -374,7 +375,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _changePhoto() async {
-    final path = await pickProfileImage(maxSide: 800);
+    final picked = await pickProfileImage(maxSide: 1600);
+    if (picked == null || !mounted) return;
+    // Framed by the agent in the circle it is shown in.
+    final path = await cropToCircle(context, path: picked);
     if (path == null) return;
     await _upload(
       'photo',

@@ -8,6 +8,7 @@ import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/listing_photo.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/app_snack.dart';
+import '../../../../core/widgets/multi_shot_camera.dart';
 
 /// A picked photo, with its bytes cached for the web (where the path is only
 /// a blob URL).
@@ -19,7 +20,8 @@ const double _maxWidth = 1600;
 const int _quality = 80;
 
 /// Asks camera or gallery, then returns up to [remaining] photos. The gallery
-/// allows picking several at once; the camera takes one.
+/// allows picking several at once; the camera stays open for as many as the
+/// agent takes until Done ([takePhotos]).
 Future<List<PickedShot>> pickPhotos({
   required BuildContext context,
   required RealEstateTheme theme,
@@ -38,7 +40,7 @@ Future<List<PickedShot>> pickPhotos({
             const _SheetHandle(),
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take a photo'),
+              title: Text(remaining == 1 ? 'Take a photo' : 'Take photos'),
               onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
             ),
             ListTile(
@@ -56,6 +58,17 @@ Future<List<PickedShot>> pickPhotos({
     ),
   );
   if (source == null) return const [];
+
+  if (source == ImageSource.camera && context.mounted) {
+    final shots = await takePhotos(context, limit: remaining);
+    if (shots != null) {
+      return [
+        for (final s in shots)
+          (path: s.path, bytes: s.bytes, filename: s.filename),
+      ];
+    }
+    // No in-app camera here: the phone's own camera, one photo.
+  }
 
   final picker = ImagePicker();
   final List<XFile> picked;

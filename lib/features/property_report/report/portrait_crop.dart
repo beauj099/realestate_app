@@ -6,7 +6,8 @@ import 'package:image/image.dart' as img;
 /// A round frame on the whole photo cuts the top of the head off a portrait
 /// and fills the bottom with shoulders; profile photos have the face in the
 /// upper part, so this takes 85% of the width from just below the top.
-/// Unchanged when the image cannot be read.
+/// Unchanged when the image cannot be read, or is already square: the agent
+/// framed it in the circle when uploading it (`cropToCircle`).
 Uint8List headAndShoulders(Uint8List bytes) {
   final img.Image? photo;
   try {
@@ -14,7 +15,7 @@ Uint8List headAndShoulders(Uint8List bytes) {
   } catch (_) {
     return bytes;
   }
-  if (photo == null) return bytes;
+  if (photo == null || (photo.width - photo.height).abs() <= 2) return bytes;
   final side =
       (0.85 * (photo.width < photo.height ? photo.width : photo.height))
           .round();

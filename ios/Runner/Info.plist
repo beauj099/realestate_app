@@ -47,6 +47,8 @@
 		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>RealWorth uses the camera to photograph the property and its rooms for the listing and report.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>RealWorth takes photos only and never records sound.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>RealWorth lets you pick photos of the property, your profile photo, logo and signature from your library.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>

@@ -22,6 +22,7 @@ import '../../providers/agent_profile_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/theme/themes.dart';
+import '../../../../core/widgets/circle_crop.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -157,7 +158,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _photoPath;
 
   Future<void> _pickPhoto() async {
-    final path = await pickProfileImage(maxSide: 800);
+    final picked = await pickProfileImage(maxSide: 1600);
+    if (picked == null || !mounted) return;
+    final path = await cropToCircle(context, path: picked);
     if (path != null && mounted) setState(() => _photoPath = path);
   }
 
