@@ -229,4 +229,55 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(repo.calls, 0);
   });
+
+  testWidgets(
+    'offers the current location as soon as it has focus, and the pin when '
+    'nothing fits',
+    (tester) async {
+      final repo = _FakeRepo();
+      var usedLocation = 0, setPin = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [propertyReportRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: AddressSearchField(
+                theme: RealEstateTheme.crimson(),
+                textTheme: Typography.material2021().black,
+                onPick: (_) {},
+                onUseMyLocation: () => usedLocation++,
+                onSetPinOnMap: () => setPin++,
+                autofocus: true,
+                useDeviceLocation: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // Opened with the keyboard up: the location row is already there.
+      expect(find.text('Use my current location'), findsOneWidget);
+      expect(find.textContaining("Can't find it"), findsNothing);
+
+      await tester.enterText(find.byType(TextField), '17 pine');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(
+        find.text("Can't find it? Set the pin on the map"),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text("Can't find it? Set the pin on the map"));
+      await tester.pump();
+      expect(setPin, 1);
+      // The list closes.
+      expect(find.text('Use my current location'), findsNothing);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.tap(find.text('Use my current location'));
+      await tester.pump();
+      expect(usedLocation, 1);
+    },
+  );
 }

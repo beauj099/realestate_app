@@ -17,12 +17,22 @@ import '../../providers/property_report_provider.dart';
 /// seconds). The list shows whichever has answered, merged into one order
 /// ([mergeSuggestions]), at most six rows. Places near [nearLat]/[nearLng]
 /// (the listing's pin) or else the agent's last known location come first.
+///
+/// With [onUseMyLocation] the list opens as soon as the field has focus, with
+/// "Use my current location" first (agents are usually at the property); with
+/// [onSetPinOnMap] it ends with "Can't find it? Set the pin on the map", for
+/// new developments, farms and plots no search knows.
 class AddressSearchField extends ConsumerStatefulWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
   final ValueChanged<AddressSuggestion> onPick;
   final double? nearLat;
   final double? nearLng;
+  final VoidCallback? onUseMyLocation;
+  final VoidCallback? onSetPinOnMap;
+
+  /// Opens the keyboard on the search at once (a new listing).
+  final bool autofocus;
 
   /// Off in tests: there is no location plugin there.
   final bool useDeviceLocation;
@@ -34,6 +44,9 @@ class AddressSearchField extends ConsumerStatefulWidget {
     required this.onPick,
     this.nearLat,
     this.nearLng,
+    this.onUseMyLocation,
+    this.onSetPinOnMap,
+    this.autofocus = false,
     this.useDeviceLocation = true,
   });
 
@@ -47,6 +60,7 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
   static const _maxRows = 6;
 
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   Timer? _debounce;
 
   /// Only answers to the newest text are shown.
@@ -62,6 +76,7 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_focusChanged);
     if (widget.useDeviceLocation) unawaited(_readLastKnownLocation());
   }
 
@@ -82,9 +97,16 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
     }
   }
 
+  void _focusChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
+    _focus
+      ..removeListener(_focusChanged)
+      ..dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -176,12 +198,24 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
     _clear();
   }
 
+  /// "Use my current location" / "Set the pin on the map": close the list
+  /// and the keyboard first.
+  void _then(VoidCallback action) {
+    _clear();
+    action();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final textTheme = widget.textTheme;
     final rows = mergeSuggestions(_city, _national, limit: _maxRows);
     final searching = _cityPending || _nationalPending;
+    final useLocation = widget.onUseMyLocation;
+    final setPin = widget.onSetPinOnMap;
+    final open = _typed || (_focus.hasFocus && useLocation != null);
+    Widget divider() =>
+        Divider(height: 1, thickness: 1, indent: 62, color: theme.borderLight);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,6 +225,8 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
           label: 'Search address',
           placeholder: 'Street, suburb or complex',
           controller: _controller,
+          focusNode: _focus,
+          autofocus: widget.autofocus,
           onChanged: _onChanged,
           keyboardType: TextInputType.streetAddress,
           textCapitalization: TextCapitalization.words,
@@ -207,7 +243,7 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
         AnimatedSize(
           duration: const Duration(milliseconds: 150),
           alignment: Alignment.topCenter,
-          child: !_typed
+          child: !open
               ? const SizedBox(width: double.infinity)
               : Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -239,14 +275,18 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
                                 )
                               : null,
                         ),
+                        if (useLocation != null) ...[
+                          _ActionRow(
+                            icon: Icons.my_location,
+                            label: 'Use my current location',
+                            theme: theme,
+                            textTheme: textTheme,
+                            onTap: () => _then(useLocation),
+                          ),
+                          if (_typed) divider(),
+                        ],
                         for (var i = 0; i < rows.length; i++) ...[
-                          if (i > 0)
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              indent: 62,
-                              color: theme.borderLight,
-                            ),
+                          if (i > 0) divider(),
                           _SuggestionRow(
                             suggestion: rows[i],
                             typed: _controller.text,
@@ -255,7 +295,12 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
                             onTap: () => _pick(rows[i]),
                           ),
                         ],
-                        if (rows.isEmpty)
+                        // Placeholder rows while the first answers come.
+                        if (rows.isEmpty && searching && _typed) ...[
+                          _SkeletonRow(theme: theme),
+                          divider(),
+                          _SkeletonRow(theme: theme),
+                        ] else if (rows.isEmpty && _typed)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                             child: Text(
@@ -263,18 +308,118 @@ class _AddressSearchFieldState extends ConsumerState<AddressSearchField> {
                                   ? 'Searching…'
                                   : _failed
                                   ? "Couldn't search just now. Check your connection."
+                                  : setPin != null
+                                  ? 'No matches yet. Keep typing, or set the pin on the map.'
                                   : 'No matches yet. Keep typing, or fill in the fields below.',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: theme.textSecondary,
                               ),
                             ),
                           ),
+                        if (setPin != null && _typed) ...[
+                          divider(),
+                          _ActionRow(
+                            icon: Icons.edit_location_alt_outlined,
+                            label: "Can't find it? Set the pin on the map",
+                            theme: theme,
+                            textTheme: textTheme,
+                            onTap: () => _then(setPin),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// A row that is an action, not an address: "Use my current location".
+class _ActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final VoidCallback onTap;
+
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.theme,
+    required this.textTheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 34,
+                child: Icon(icon, size: 20, color: theme.primaryColor),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: theme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A grey stand-in for a suggestion while the search runs.
+class _SkeletonRow extends StatelessWidget {
+  final RealEstateTheme theme;
+
+  const _SkeletonRow({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double width, double height) => Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: theme.borderLight,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: theme.borderLight,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [bar(150, 12), const SizedBox(height: 6), bar(100, 10)],
+          ),
+        ],
+      ),
     );
   }
 }

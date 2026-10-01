@@ -110,7 +110,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final id = int.parse(state.pathParameters['id']!);
-          return PropertyOverviewScreen(propertyId: id);
+          return PropertyOverviewScreen(
+            propertyId: id,
+            isNew: state.uri.queryParameters['new'] == '1',
+          );
         },
       ),
       // Property type is now a dropdown on the property overview screen; the
@@ -126,7 +129,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.addressPath,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const AddressScreen(),
+        // A new listing opens here first, sliding up like a dialog.
+        pageBuilder: (context, state) {
+          final isNew = state.uri.queryParameters['new'] == '1';
+          return MaterialPage(
+            key: state.pageKey,
+            fullscreenDialog: isNew,
+            child: AddressScreen(isNew: isNew),
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.buildingInfoPath,

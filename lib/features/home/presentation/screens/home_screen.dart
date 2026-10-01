@@ -141,16 +141,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     // left with go() rather than pop() never completes it,
                     // which is what left Add Property dead after a save.
                     unawaited(
-                      context.push(AppRoutes.property(listingId)).then((
-                        _,
-                      ) async {
-                        // Defer past the pop transition: invalidating the
-                        // autoDispose listingsProvider synchronously swaps
-                        // the ListView slivers while the outgoing route is
-                        // still hit-testable (viewport.dart:1034).
-                        await Future.delayed(const Duration(milliseconds: 400));
-                        if (mounted) ref.invalidate(listingsProvider);
-                      }),
+                      context
+                          // Opens straight onto the address (newProperty).
+                          .push(AppRoutes.newProperty(listingId))
+                          .then((_) async {
+                            // Defer past the pop transition: invalidating the
+                            // autoDispose listingsProvider synchronously swaps
+                            // the ListView slivers while the outgoing route is
+                            // still hit-testable (viewport.dart:1034).
+                            await Future.delayed(
+                              const Duration(milliseconds: 400),
+                            );
+                            if (mounted) ref.invalidate(listingsProvider);
+                          }),
                     );
                   }
                 } catch (e, st) {

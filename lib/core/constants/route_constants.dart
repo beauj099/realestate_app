@@ -29,8 +29,14 @@ abstract final class AppRoutes {
   static const String valuationCostsPath = '/property/:id/valuation-costs';
 
   static String property(int id) => '/property/$id';
+
+  /// A listing just created: it opens its address step at once.
+  static String newProperty(int id) => '/property/$id?new=1';
   static String propertyType(int id) => '/property/$id/property-type';
   static String address(int id) => '/property/$id/address';
+
+  /// The address step a new listing opens with.
+  static String newAddress(int id) => '/property/$id/address?new=1';
   static String buildingInfo(int id) => '/property/$id/building-info';
   static String propertyFeatures(int id) => '/property/$id/property-features';
   static String roomDetails(int id, String roomId) =>

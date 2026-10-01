@@ -12,7 +12,6 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
-import '../../../../core/widgets/searchable_picker.dart';
 import '../../../home/presentation/screens/home_screen.dart'
     show listingsProvider;
 import '../../data/models/enums/property_type.dart';
@@ -27,7 +26,15 @@ import '../../../../core/widgets/app_snack.dart';
 class PropertyOverviewScreen extends ConsumerStatefulWidget {
   final int propertyId;
 
-  const PropertyOverviewScreen({super.key, required this.propertyId});
+  /// Just created: the address step opens at once, since the address is what
+  /// everything else is found from.
+  final bool isNew;
+
+  const PropertyOverviewScreen({
+    super.key,
+    required this.propertyId,
+    this.isNew = false,
+  });
 
   @override
   ConsumerState<PropertyOverviewScreen> createState() =>
@@ -51,6 +58,7 @@ class _PropertyOverviewScreenState
             .read(propertyViewModelProvider.notifier)
             .loadListing(widget.propertyId);
       }
+      if (widget.isNew) context.push(AppRoutes.newAddress(widget.propertyId));
     });
   }
 
@@ -526,7 +534,7 @@ class _PropertyOverviewScreenState
 /// Inline property-type dropdown.
 ///
 /// Property type used to own a whole screen holding five tiles. It is a single
-/// value, so it lives on this screen as a field and opens a searchable sheet.
+/// value, so it lives on this screen as a field and opens a short sheet.
 class _PropertyTypeField extends StatelessWidget {
   final PropertyType? selected;
   final RealEstateTheme theme;
@@ -540,25 +548,69 @@ class _PropertyTypeField extends StatelessWidget {
     required this.onSelected,
   });
 
+  /// A short sheet with the five types: tapping one picks it and closes the
+  /// sheet. No search and no Save: there is only one choice to make.
   Future<void> _open(BuildContext context) async {
-    final result = await showSearchablePicker<PropertyType>(
+    final picked = await showRealEstateBottomSheet<PropertyType>(
       context: context,
       theme: theme,
-      title: 'Property Type',
-      searchHint: 'Search property types…',
-      selectedValue: selected,
-      options: PropertyType.values
-          .map(
-            (t) => PickerOption<PropertyType>(
-              value: t,
-              label: t.displayString,
-              icon: t.icon,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.borderLight,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-          )
-          .toList(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              child: Text(
+                'Property type',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.textPrimary,
+                ),
+              ),
+            ),
+            for (final t in PropertyType.values)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                minTileHeight: 56,
+                leading: Icon(
+                  t.icon,
+                  color: t == selected
+                      ? theme.primaryColor
+                      : theme.textSecondary,
+                ),
+                title: Text(
+                  t.displayString,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: t == selected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+                trailing: t == selected
+                    ? Icon(Icons.check, color: theme.primaryColor)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, t),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
-    final picked = result?.option?.value;
-    if (picked != null) onSelected(picked);
+    if (picked != null && picked != selected) onSelected(picked);
   }
 
   @override
