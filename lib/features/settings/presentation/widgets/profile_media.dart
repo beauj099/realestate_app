@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/themes.dart';
+import 'signature_pad.dart';
 
 /// Picks one image from the gallery, scaled for upload, or null when the agent
 /// cancels.
@@ -92,6 +93,10 @@ class ProfilePhotoPicker extends StatelessWidget {
 /// The signature printed under the valuation letter.
 class SignatureTile extends StatelessWidget {
   final String? signatureUrl;
+
+  /// The agent's name: until they add their own signature, the default one
+  /// is their name in a handwriting face, as the letter prints it.
+  final String name;
   final bool busy;
   final RealEstateTheme theme;
   final VoidCallback onTap;
@@ -99,6 +104,7 @@ class SignatureTile extends StatelessWidget {
   const SignatureTile({
     super.key,
     required this.signatureUrl,
+    required this.name,
     required this.busy,
     required this.theme,
     required this.onTap,
@@ -112,9 +118,9 @@ class SignatureTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       onTap: busy ? null : onTap,
       child: Container(
-        height: 88,
+        height: 104,
         width: double.infinity,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -122,16 +128,34 @@ class SignatureTile extends StatelessWidget {
         ),
         child: busy
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5))
-            : url == null
-            ? Center(
-                child: Text(
-                  'Upload a photo or scan of your signature',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: theme.textSecondary,
+            : Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: url != null
+                          ? Image.network(url, fit: BoxFit.contain)
+                          : FittedBox(
+                              child: Text(
+                                name.trim().isEmpty ? 'Your name' : name.trim(),
+                                style: const TextStyle(
+                                  fontFamily: 'GreatVibes',
+                                  fontSize: 40,
+                                  color: defaultSignatureInk,
+                                ),
+                              ),
+                            ),
+                    ),
                   ),
-                ),
-              )
-            : Image.network(url, fit: BoxFit.contain),
+                  Text(
+                    url == null
+                        ? 'Default signature · tap to draw or upload your own'
+                        : 'Tap to draw or upload a new one',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: theme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

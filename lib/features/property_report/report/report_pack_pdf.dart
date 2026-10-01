@@ -353,6 +353,9 @@ class ReportPackPdf {
       at(section, context);
       return _analysis.header(context);
     };
+    if (_img(pictures.signature) == null && agent.name.trim().isNotEmpty) {
+      _signatureFont = await reportSignatureFont();
+    }
     if (agent.office.headingFont == 'serif') {
       final (regular, bold) = await reportSerif();
       _headingFont = regular;
@@ -1061,6 +1064,10 @@ class ReportPackPdf {
   /// The agency's heading font, when it has one (see
   /// [OfficeDetails.headingFont]); null keeps the body font.
   pw.Font? _headingFont, _headingBold;
+
+  /// The default signature's handwriting face, loaded when the agent has no
+  /// signature image.
+  pw.Font? _signatureFont;
 
   /// [style] in the agency's heading font, when it has one.
   pw.TextStyle _h(pw.TextStyle style) => _headingFont == null
@@ -2880,6 +2887,17 @@ class ReportPackPdf {
               signature,
               fit: pw.BoxFit.contain,
               alignment: pw.Alignment.centerLeft,
+            ),
+          )
+        else if (_signatureFont case final font?)
+          // No signature of their own yet: their name in a handwriting face,
+          // as My Profile shows it.
+          pw.Text(
+            pdfText(agent.name),
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 26,
+              color: const PdfColor.fromInt(0xFF16265C),
             ),
           )
         else

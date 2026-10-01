@@ -13,6 +13,7 @@ import '../../../../core/locale/region_provider.dart';
 import '../../../../core/validation/phone_format.dart';
 import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
+import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../../auth/data/models/agent_profile.dart';
@@ -20,6 +21,7 @@ import '../../../auth/providers/agent_profile_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../widgets/agency_picker.dart';
 import '../widgets/profile_media.dart';
+import '../widgets/signature_pad.dart';
 
 /// Lets an agent review and change everything they entered at registration.
 ///
@@ -164,16 +166,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _websiteController.text = profile.website;
     _bioController.text = profile.bio;
     _qualificationsController.text = profile.qualifications.join('\n');
-    _officeNameController.text = profile.office.name;
-    _officeAddressController.text = profile.office.address;
-    _officePhoneController.text = profile.office.phone;
-    _officeEmailController.text = profile.office.email;
-    _officeWebsiteController.text = profile.office.website;
-    _officeSloganController.text = profile.office.slogan;
-    _officeHeadlineController.text = profile.office.headline;
-    _officeFooterController.text = profile.office.footer;
-    _populating = false;
     _agency = ref.read(agencyProvider);
+    // The office as the reports print it: the agent's own value, else the
+    // agency's, so the defaults are visible and can simply be changed.
+    final office = profile.office.orDefaults(_agencyOffice(_agency));
+    _officeNameController.text = office.name;
+    _officeAddressController.text = office.address;
+    _officePhoneController.text = office.phone;
+    _officeEmailController.text = office.email;
+    _officeWebsiteController.text = office.website;
+    _officeSloganController.text = office.slogan;
+    _officeHeadlineController.text = office.headline;
+    _officeFooterController.text = office.footer;
+    _populating = false;
     _baseline = _formContent;
   }
 
@@ -224,8 +229,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (agency == null || !mounted) return;
     setState(() {
       _isDirty = _isDirty || agency != _agency;
+      // Office fields still on the old agency's defaults take the new one's;
+      // anything the agent typed stays.
+      final before = _agencyOffice(_agency), after = _agencyOffice(agency);
+      for (final (controller, was, now) in _officeFields(before, after)) {
+        if (controller.text.trim().isEmpty || controller.text.trim() == was) {
+          controller.text = now;
+        }
+      }
       _agency = agency;
     });
+  }
+
+  /// The agency's office defaults, with the house heading when it has none.
+  static OfficeDetails _agencyOffice(Agency agency) => agency.office.copyWith(
+    headline: agency.office.headline.isNotEmpty
+        ? agency.office.headline
+        : OfficeDetails.defaultHeadline,
+  );
+
+  /// Each office field's controller with its value in [a] and in [b].
+  List<(TextEditingController, String, String)> _officeFields(
+    OfficeDetails a,
+    OfficeDetails b,
+  ) => [
+    (_officeNameController, a.name, b.name),
+    (_officeAddressController, a.address, b.address),
+    (_officePhoneController, a.phone, b.phone),
+    (_officeEmailController, a.email, b.email),
+    (_officeWebsiteController, a.website, b.website),
+    (_officeFooterController, a.footer, b.footer),
+    (_officeSloganController, a.slogan, b.slogan),
+    (_officeHeadlineController, a.headline, b.headline),
+  ];
+
+  /// What the agent typed, or empty when it is the agency's own value, so
+  /// the field keeps following the agency.
+  String _own(TextEditingController controller, String agencyValue) {
+    final text = controller.text.trim();
+    return text == agencyValue.trim() ? '' : text;
   }
 
   Future<void> _save() async {
@@ -255,17 +297,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               .map((l) => l.trim())
               .where((l) => l.isNotEmpty)
               .toList(),
-          office: OfficeDetails(
-            name: _officeNameController.text.trim(),
-            address: _officeAddressController.text.trim(),
-            phone: _officePhoneController.text.trim(),
-            email: _officeEmailController.text.trim(),
-            website: _officeWebsiteController.text.trim(),
-            footer: _officeFooterController.text.trim(),
-            slogan: _officeSloganController.text.trim(),
-            headline: _officeHeadlineController.text.trim(),
-            logos: ref.read(agentProfileProvider).office.logos,
-          ),
+          office: () {
+            final agency = _agencyOffice(_agency);
+            return OfficeDetails(
+              name: _own(_officeNameController, agency.name),
+              address: _own(_officeAddressController, agency.address),
+              phone: _own(_officePhoneController, agency.phone),
+              email: _own(_officeEmailController, agency.email),
+              website: _own(_officeWebsiteController, agency.website),
+              footer: _own(_officeFooterController, agency.footer),
+              slogan: _own(_officeSloganController, agency.slogan),
+              headline: _own(_officeHeadlineController, agency.headline),
+              logos: ref.read(agentProfileProvider).office.logos,
+            );
+          }(),
         );
 
     try {
@@ -336,8 +381,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Future<void> _changeSignature() async {
-    final path = await pickProfileImage();
+  /// Draw a signature on the screen, or upload a photo of one.
+  Future<void> _changeSignature(RealEstateTheme theme) async {
+    final how = await showRealEstateBottomSheet<String>(
+      context: context,
+      theme: theme,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.draw_outlined),
+              title: const Text('Draw it on the screen'),
+              subtitle: const Text('Sign with your finger'),
+              onTap: () => Navigator.of(sheet).pop('draw'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_outlined),
+              title: const Text('Upload a photo'),
+              subtitle: const Text('Your signature on white paper'),
+              onTap: () => Navigator.of(sheet).pop('photo'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (how == null || !mounted) return;
+    final path = how == 'draw'
+        ? await showSignaturePad(context, theme)
+        : await pickProfileImage();
     if (path == null) return;
     await _upload(
       'signature',
@@ -600,15 +672,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 8),
                     SignatureTile(
                       signatureUrl: profile.signatureUrl,
+                      name:
+                          '${_firstNameController.text} ${_lastNameController.text}',
                       busy: _uploading == 'signature',
                       theme: theme,
-                      onTap: _changeSignature,
+                      onTap: () => _changeSignature(theme),
                     ),
                     const SizedBox(height: 28),
                     _sectionLabel('Your office', theme, textTheme),
                     Text(
-                      'Printed on your reports and letters. Leave a field empty '
-                      "to use ${_agency.name}'s.",
+                      "Printed on your reports and letters. Filled in with "
+                      "${_agency.name}'s details: change any of them for your "
+                      'own office, or tap the reset button to go back to the '
+                      "agency's.",
                       style: textTheme.bodySmall?.copyWith(
                         color: theme.textSecondary,
                       ),
@@ -678,11 +754,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       CustomTextInput(
                         theme: theme,
                         label: label,
-                        placeholder: fallback.isEmpty ? null : fallback,
                         controller: controller,
                         keyboardType: keyboard,
                         maxLines: lines,
                         autocorrect: false,
+                        onChanged: (_) => setState(() {}),
+                        subtext: fallback.isEmpty
+                            ? null
+                            : controller.text.trim() == fallback.trim()
+                            ? "${_agency.name}'s"
+                            : 'Your own',
+                        suffixIcon:
+                            fallback.isEmpty ||
+                                controller.text.trim() == fallback.trim()
+                            ? null
+                            : IconButton(
+                                tooltip: "Use ${_agency.name}'s",
+                                icon: const Icon(Icons.restart_alt),
+                                onPressed: () =>
+                                    setState(() => controller.text = fallback),
+                              ),
                       ),
                       const SizedBox(height: 16),
                     ],

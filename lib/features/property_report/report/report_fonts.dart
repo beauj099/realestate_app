@@ -18,6 +18,15 @@ Future<(pw.Font, pw.Font)> reportSerif() => _serif ??= () async {
 
 Future<(pw.Font, pw.Font)>? _serif;
 
+/// The default signature's handwriting face: Great Vibes (SIL Open Font
+/// Licence, `assets/fonts/GreatVibes-OFL.txt`), also registered with Flutter
+/// as `GreatVibes` for My Profile.
+Future<pw.Font> reportSignatureFont() => _signature ??= rootBundle
+    .load('assets/fonts/GreatVibes-Regular.ttf')
+    .then(pw.Font.ttf);
+
+Future<pw.Font>? _signature;
+
 Future<pw.ThemeData> _load() async {
   Future<pw.Font> font(String name) async =>
       pw.Font.ttf(await rootBundle.load('assets/fonts/$name.ttf'));

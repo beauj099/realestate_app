@@ -79,6 +79,14 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # The default signature: the agent's name in a handwriting face (Great Vibes,
+  # SIL OFL), shown in My Profile and printed on the letter until the agent
+  # draws or uploads their own.
+  fonts:
+    - family: GreatVibes
+      fonts:
+        - asset: assets/fonts/GreatVibes-Regular.ttf
+
   assets:
     - .env
     - assets/images/logo.jpg
