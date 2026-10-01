@@ -65,7 +65,8 @@ class Contact {
       fullName: fullName ?? this.fullName,
       idNumber: idNumber ?? this.idNumber,
       companyName: companyName ?? this.companyName,
-      companyRegistrationNumber: companyRegistrationNumber ?? this.companyRegistrationNumber,
+      companyRegistrationNumber:
+          companyRegistrationNumber ?? this.companyRegistrationNumber,
       mobilePhone: mobilePhone ?? this.mobilePhone,
       emailAddress: emailAddress ?? this.emailAddress,
       role: role ?? this.role,
@@ -89,7 +90,8 @@ class Contact {
   Contact asOwnerType(OwnerType type) {
     return Contact(
       id: id,
-      title: type == OwnerType.naturalPerson ? title : '',
+      // A company's contact person has a title too.
+      title: title,
       fullName: fullName,
       idNumber: type == OwnerType.naturalPerson ? idNumber : '',
       companyName: type == OwnerType.business ? companyName : '',

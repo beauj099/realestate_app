@@ -79,15 +79,32 @@ class ContactFields extends StatelessWidget {
                 onChanged(contact.copyWith(companyRegistrationNumber: val)),
           ),
           const SizedBox(height: 16),
-          CustomTextInput(
-            theme: theme,
-            label: 'CONTACT PERSON',
-            textCapitalization: TextCapitalization.words,
-            placeholder: 'Who signs for the company',
-            initialValue: contact.fullName,
-            autofillHints: const [AutofillHints.name],
-            errorText: errors['name'],
-            onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: _TitlePicker(
+                  theme: theme,
+                  selected: contact.title,
+                  onChanged: (t) => onChanged(contact.copyWith(title: t)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomTextInput(
+                  theme: theme,
+                  label: 'CONTACT PERSON',
+                  textCapitalization: TextCapitalization.words,
+                  placeholder: 'Who signs for the company',
+                  initialValue: contact.fullName,
+                  autofillHints: const [AutofillHints.name],
+                  errorText: errors['name'],
+                  onChanged: (val) =>
+                      onChanged(contact.copyWith(fullName: val)),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           CustomTextInput(
