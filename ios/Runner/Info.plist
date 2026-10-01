@@ -46,16 +46,15 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
-		<string>This app uses the camera to take photos of rooms in a property.</string>
+		<string>RealWorth uses the camera to photograph the property and its rooms for the listing and report.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>This app accesses your photo library to attach photos of rooms to a property.</string>
+		<string>RealWorth lets you pick photos of the property, your profile photo, logo and signature from your library.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>RealWorth can save a report you share to your photo library when you choose to.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>Needed to capture the property's GPS coordinates so the correct house can be viewed.</string>
-		<key>NSAppTransportSecurity</key>
-		<dict>
-			<key>NSAllowsArbitraryLoads</key>
-			<true/>
-		</dict>
+		<string>RealWorth uses your location while you capture a property, to place its pin and find its address and erf.</string>
+		<key>ITSAppUsesNonExemptEncryption</key>
+		<false/>
 		<key>UIStatusBarHidden</key>
 		<false/>
 	</dict>

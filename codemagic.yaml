@@ -1,0 +1,61 @@
+# Codemagic builds the iPhone app on its Macs (Windows cannot) and uploads it to
+# TestFlight. Setup, once, is in docs/RELEASE_IOS.md. Start a build from the Codemagic
+# dashboard (Start new build -> ios-testflight); nothing builds on push.
+
+workflows:
+  ios-testflight:
+    name: iOS to TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      # The App Store Connect API key added in Codemagic (Team settings ->
+      # Integrations -> Developer Portal). Must match the name given there.
+      app_store_connect: RealWorth
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        # Codemagic creates and keeps the certificate and provisioning profile.
+        distribution_type: app_store
+        bundle_identifier: com.realworth.app
+      vars:
+        # The app's Apple ID: App Store Connect -> the app -> App Information.
+        APP_STORE_APPLE_ID: "0000000000"
+
+    scripts:
+      - name: Settings file
+        # pubspec lists .env as an asset, but it is never committed. Release builds
+        # use the live API whatever it says (lib/core/constants/api_constants.dart).
+        script: echo "API_BASE_URL=https://api.realworth.co.za" > .env
+
+      - name: Packages
+        script: flutter pub get
+
+      - name: Tests
+        script: flutter test
+
+      - name: Signing
+        script: xcode-project use-profiles
+
+      - name: Build the iPhone app
+        script: |
+          # Each upload needs a higher build number than the last on TestFlight; the
+          # version name (1.0.0) comes from pubspec.yaml.
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          flutter build ipa --release \
+            --build-number=$((LATEST + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Testers in your own App Store Connect team get each build without review.
+        submit_to_testflight: true
+        submit_to_app_store: false
