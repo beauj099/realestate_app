@@ -14,6 +14,7 @@ import '../../../property_report/data/models/address_suggestion.dart';
 import '../../../property_report/presentation/widgets/address_search_field.dart';
 import '../../../property_report/providers/property_report_provider.dart';
 import '../../../property_report/providers/city_records_autofill.dart';
+import '../../../property_report/providers/report_preparer.dart';
 import '../../data/models/nominatim_result.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/property_pin_map.dart';
@@ -342,6 +343,11 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     final slow = await ref
         .read(cityRecordsAutofillProvider.notifier)
         .fillMissing();
+    // The full valuation report (with the area's sales) is made in the
+    // background and kept on the phone, ready when the agent opens it.
+    ref
+        .read(reportPreparerProvider)
+        .prepare(ref.read(propertyViewModelProvider));
     if (slow != null) {
       messenger.showSnack(
         SnackBar(content: Text(slow), backgroundColor: theme.textSecondary),

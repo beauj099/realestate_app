@@ -6,10 +6,10 @@ import 'package:realworth/core/widgets/keyboard_bar.dart';
 void main() {
   test('messages stay long enough to read, within limits', () {
     expect(readingTime('Saved'), const Duration(seconds: 3));
-    expect(readingTime(List.filled(20, 'word').join(' ')).inMilliseconds, 6500);
+    expect(readingTime(List.filled(8, 'word').join(' ')).inMilliseconds, 3500);
     expect(
       readingTime(List.filled(200, 'word').join(' ')),
-      const Duration(seconds: 10),
+      const Duration(seconds: 5),
     );
   });
 

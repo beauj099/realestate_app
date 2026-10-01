@@ -42,13 +42,13 @@ extension ShowSnack on ScaffoldMessengerState {
 const _flutterDefault = Duration(milliseconds: 4000);
 
 /// Long enough to read [text] (about four words a second, plus a moment to
-/// notice it), never under 3 s nor over 10 s; a little longer with a button.
+/// notice it), never under 3 s nor over 5 s (the × closes it sooner).
 Duration readingTime(String text, {bool hasAction = false}) {
   final words = text.trim().isEmpty
       ? 0
       : text.trim().split(RegExp(r'\s+')).length;
   final ms = 1500 + words * 250 + (hasAction ? 1500 : 0);
-  return Duration(milliseconds: ms.clamp(3000, 10000));
+  return Duration(milliseconds: ms.clamp(3000, 5000));
 }
 
 String _textOf(Widget content) {

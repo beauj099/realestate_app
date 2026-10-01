@@ -11,6 +11,7 @@ import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import '../data/report_cache.dart';
+import 'report_preparer.dart';
 
 final propertyReportRepositoryProvider = Provider<PropertyReportRepository>(
   (ref) => PropertyReportRepository(ref.watch(apiClientProvider)),
@@ -126,6 +127,10 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
     _cacheKey = cacheKey ?? ReportSnapshot.keyFor(query);
     state = const PropertyReportState(loading: true);
     if (listingId != null && !refresh) {
+      // Made in the background after the address was saved: wait for it
+      // rather than make it twice.
+      await ref.read(reportPreparerProvider).running(listingId);
+      if (!ref.mounted) return;
       final saved = await _cache.load(listingId);
       if (!ref.mounted) return;
       if (saved != null && saved.key == _cacheKey && _restore(saved)) return;
@@ -191,6 +196,7 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
       );
       _snapshot = ReportSnapshot(
         key: _cacheKey ?? '',
+        hintsKey: _hints.key,
         generatedAt: now,
         candidate: candidate.toJson(),
         report: json,
@@ -239,7 +245,7 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
       );
       if (ref.mounted && state.report == report) {
         state = state.copyWith(forSale: ForSale.fromJson(json));
-        _snapshot = _snapshot?.copyWith(forSale: json);
+        _snapshot = _snapshot?.copyWith(forSale: json, hintsKey: _hints.key);
         await _save();
       }
     } catch (e) {
@@ -321,6 +327,11 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
     }
     // Imagery is never kept (Google's terms), so it is fetched again.
     _loadImagery();
+    // Only what the listing changed since is looked up again: homes for sale
+    // follow its bedrooms and sizes. Rooms, conditions, photos, owners and
+    // the agent's figures are never kept here; the PDF reads them from the
+    // listing each time.
+    if (saved.hintsKey != _hints.key) loadForSale();
     return true;
   }
 
@@ -379,4 +390,7 @@ class ListingHints {
   final double? floorM2;
   final double? erfM2;
   const ListingHints({this.bedrooms, this.floorM2, this.erfM2});
+
+  /// Changes when any of them does.
+  String get key => '${bedrooms ?? ''}|${floorM2 ?? ''}|${erfM2 ?? ''}';
 }

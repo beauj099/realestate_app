@@ -19,9 +19,9 @@ import '../../data/models/agent_sales.dart';
 import '../../data/models/area_details.dart';
 import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
-import '../../data/report_cache.dart';
 import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
+import '../../providers/report_preparer.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../../../report_settings/providers/report_settings_provider.dart';
 import '../../report/logo_trim.dart';
@@ -32,7 +32,6 @@ import '../../report/pack_listing.dart';
 import '../../report/report_pack_pdf.dart';
 import '../widgets/report_pack_sheet.dart';
 import '../../report/valuation_report_pdf.dart';
-import '../../../property_overview/data/models/enums/room_category.dart';
 import '../widgets/agent_sale_sheet.dart';
 import '../widgets/area_and_market_cards.dart';
 import '../widgets/report_widgets.dart';
@@ -106,33 +105,9 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           // Filed under the listing's own address, erf and pin, so a report
           // made from a retyped address is still found next time, and a
           // changed listing gets a new one.
-          cacheKey: ReportSnapshot.keyFor(
-            ReportQuery(
-              address: [
-                '${listing.streetNumber} ${listing.street}'.trim(),
-                listing.suburb.trim(),
-                listing.city.trim(),
-              ].where((p) => p.isNotEmpty).join(', '),
-              erf: listing.erfNumber,
-              lat: listing.latitude,
-              lng: listing.longitude,
-            ),
-          ),
+          cacheKey: reportKeyForListing(listing),
           refresh: refresh,
-          hints: ListingHints(
-            bedrooms: listing.rooms
-                .where(
-                  (r) =>
-                      RoomCategoryExtension.categoryForRoomTypeId(
-                        r.roomTypeId,
-                      ) ==
-                      RoomCategory.bedroom,
-                )
-                .length
-                .nonZeroOrNull,
-            floorM2: double.tryParse(listing.floorArea.replaceAll(',', '.')),
-            erfM2: double.tryParse(listing.erfSize.replaceAll(',', '.')),
-          ),
+          hints: reportHintsForListing(listing),
         );
   }
 
@@ -1036,8 +1011,4 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ),
     ];
   }
-}
-
-extension on int {
-  int? get nonZeroOrNull => this == 0 ? null : this;
 }

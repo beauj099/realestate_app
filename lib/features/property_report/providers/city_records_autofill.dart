@@ -126,8 +126,8 @@ class CityRecordsAutofillState {
 /// [timeout]): filling in sizes while the City's answer is still on its way
 /// meant the two crossed, and the details arrived minutes later. Only the
 /// property's own record is fetched, which is quick; the full report (with
-/// the area's sales) is then asked for in the background, so the valuation
-/// report opens sooner later.
+/// the area's sales) is made afterwards in the background by
+/// `ReportPreparer`, ready when the agent opens it.
 class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
   @override
   CityRecordsAutofillState build() => const CityRecordsAutofillState();
@@ -175,22 +175,7 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
       final report = await () async {
         final found = await repo.resolve(query);
         if (found.length != 1) return null;
-        final record = await repo.fetchReport(
-          found.single,
-          includeComparables: false,
-        );
-        // Warm the full report (the area's sales take the City longest) for
-        // the valuation report later.
-        unawaited(
-          repo
-              .fetchReportJson(found.single)
-              .then(
-                (_) {},
-                onError: (Object e) =>
-                    developer.log('Report warm-up skipped: $e'),
-              ),
-        );
-        return record;
+        return repo.fetchReport(found.single, includeComparables: false);
       }().timeout(timeout);
       if (report == null) {
         state = const CityRecordsAutofillState();

@@ -24,8 +24,13 @@ class ReportSnapshot {
   final Map<String, dynamic>? area;
   final Map<String, dynamic>? forSale;
 
+  /// The bedrooms and sizes homes for sale were matched to; when the
+  /// listing's differ now, only those homes are looked up again.
+  final String? hintsKey;
+
   const ReportSnapshot({
     required this.key,
+    this.hintsKey,
     required this.generatedAt,
     required this.candidate,
     required this.report,
@@ -41,8 +46,10 @@ class ReportSnapshot {
     Map<String, dynamic>? report,
     Map<String, dynamic>? area,
     Map<String, dynamic>? forSale,
+    String? hintsKey,
   }) => ReportSnapshot(
     key: key,
+    hintsKey: hintsKey ?? this.hintsKey,
     generatedAt: generatedAt,
     candidate: candidate,
     report: report ?? this.report,
@@ -65,6 +72,7 @@ class ReportSnapshot {
   Map<String, dynamic> toJson() => {
     'version': 1,
     'key': key,
+    'hintsKey': hintsKey,
     'generatedAt': generatedAt.toIso8601String(),
     'candidate': candidate,
     'report': report,
@@ -80,6 +88,7 @@ class ReportSnapshot {
     if (j['version'] != 1) return null;
     return ReportSnapshot(
       key: j['key'] as String,
+      hintsKey: j['hintsKey'] as String?,
       generatedAt: DateTime.parse(j['generatedAt'] as String),
       candidate: j['candidate'] as Map<String, dynamic>,
       report: j['report'] as Map<String, dynamic>,

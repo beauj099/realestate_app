@@ -16,6 +16,7 @@ void main() {
   test('a saved report reads back as it was', () {
     final saved = ReportSnapshot(
       key: 'k',
+      hintsKey: '3|180.0|',
       generatedAt: DateTime(2026, 9, 30, 14, 5),
       candidate: const PropertyCandidate(
         municipality: 'coct',
@@ -36,6 +37,7 @@ void main() {
 
     expect(back.generatedAt, saved.generatedAt);
     expect(back.blockMapSvg, '<svg id="block"/>');
+    expect(back.hintsKey, '3|180.0|');
     expect(PropertyCandidate.fromJson(back.candidate).erf, '53927');
     final report = PropertyReport.fromJson(back.report);
     expect(report.erf, '53927');
