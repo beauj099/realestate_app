@@ -103,7 +103,11 @@ class PropertyReportRepository {
     return const [];
   }
 
-  Future<PropertyReport> fetchReport(PropertyCandidate c) async {
+  Future<PropertyReport> fetchReport(PropertyCandidate c) async =>
+      PropertyReport.fromJson(await fetchReportJson(c));
+
+  /// The report as the API sends it, so it can be kept on the phone.
+  Future<Map<String, dynamic>> fetchReportJson(PropertyCandidate c) async {
     final response = await _client.get(
       ApiEndpoints.propertyReport(c.municipality, c.erf),
       queryParameters: {
@@ -113,7 +117,7 @@ class PropertyReportRepository {
       },
       receiveTimeout: _reportTimeout,
     );
-    return PropertyReport.fromJson(response.data as Map<String, dynamic>);
+    return response.data as Map<String, dynamic>;
   }
 
   /// Logs a sale the agent knows about. Returns true when another agent had
@@ -136,6 +140,21 @@ class PropertyReportRepository {
     int? excludeListingId,
     double? lat,
     double? lng,
+  }) async => [
+    for (final e in await fetchMarketJson(
+      suburb,
+      excludeListingId: excludeListingId,
+      lat: lat,
+      lng: lng,
+    ))
+      MarketListing.fromJson(e as Map<String, dynamic>),
+  ];
+
+  Future<List<dynamic>> fetchMarketJson(
+    String suburb, {
+    int? excludeListingId,
+    double? lat,
+    double? lng,
   }) async {
     if (suburb.trim().isEmpty) return const [];
     final response = await _client.get(
@@ -147,25 +166,45 @@ class PropertyReportRepository {
         'lng': ?lng,
       },
     );
-    return [
-      for (final e in response.data as List)
-        MarketListing.fromJson(e as Map<String, dynamic>),
-    ];
+    return response.data as List;
   }
 
   /// Climate, population, household income and crime around a point.
-  Future<AreaDetails> fetchArea(double lat, double lng) async {
+  Future<AreaDetails> fetchArea(double lat, double lng) async =>
+      AreaDetails.fromJson(await fetchAreaJson(lat, lng));
+
+  Future<Map<String, dynamic>> fetchAreaJson(double lat, double lng) async {
     final response = await _client.get(
       ApiEndpoints.propertyArea,
       queryParameters: {'lat': lat, 'lng': lng},
       receiveTimeout: _reportTimeout,
     );
-    return AreaDetails.fromJson(response.data as Map<String, dynamic>);
+    return response.data as Map<String, dynamic>;
   }
 
   /// Homes for sale like this one on Property24. [p24Suburb] picks a
   /// Property24 suburb other than the ones matched to the report's.
   Future<ForSale> fetchForSale(
+    PropertyReport report, {
+    int? bedrooms,
+    double? floorM2,
+    double? erfM2,
+    int? p24Suburb,
+    double? priceZar,
+    int max = 4,
+  }) async => ForSale.fromJson(
+    await fetchForSaleJson(
+      report,
+      bedrooms: bedrooms,
+      floorM2: floorM2,
+      erfM2: erfM2,
+      p24Suburb: p24Suburb,
+      priceZar: priceZar,
+      max: max,
+    ),
+  );
+
+  Future<Map<String, dynamic>> fetchForSaleJson(
     PropertyReport report, {
     int? bedrooms,
     double? floorM2,
@@ -193,7 +232,7 @@ class PropertyReportRepository {
       },
       receiveTimeout: _reportTimeout,
     );
-    return ForSale.fromJson(response.data as Map<String, dynamic>);
+    return response.data as Map<String, dynamic>;
   }
 
   /// The site plan SVG, or null when it cannot be drawn.

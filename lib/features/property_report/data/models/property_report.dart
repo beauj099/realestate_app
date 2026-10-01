@@ -39,6 +39,14 @@ class PropertyCandidate {
       );
 
   String get label => 'Erf $erf, ${_title(suburb)}';
+
+  Map<String, dynamic> toJson() => {
+    'municipality': municipality,
+    'erf': erf,
+    'sg26': sg26,
+    'suburb': suburb,
+    'township': township,
+  };
 }
 
 class ImageryRef {

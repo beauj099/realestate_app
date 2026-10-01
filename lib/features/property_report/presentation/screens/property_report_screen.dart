@@ -19,6 +19,7 @@ import '../../data/models/agent_sales.dart';
 import '../../data/models/area_details.dart';
 import '../../data/models/property_report.dart';
 import '../../data/property_report_repository.dart';
+import '../../data/report_cache.dart';
 import '../../providers/city_records_autofill.dart';
 import '../../providers/property_report_provider.dart';
 import '../../../../core/network/providers/api_providers.dart';
@@ -86,7 +87,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     super.dispose();
   }
 
-  void _lookUp({bool useListing = false}) {
+  void _lookUp({bool useListing = false, bool refresh = false}) {
     final listing = ref.read(propertyViewModelProvider);
     ref
         .read(propertyReportProvider.notifier)
@@ -101,6 +102,22 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
             lng: useListing ? listing.longitude : null,
           ),
           listingId: listing.listingId,
+          // Filed under the listing's own address, erf and pin, so a report
+          // made from a retyped address is still found next time, and a
+          // changed listing gets a new one.
+          cacheKey: ReportSnapshot.keyFor(
+            ReportQuery(
+              address: [
+                '${listing.streetNumber} ${listing.street}'.trim(),
+                listing.suburb.trim(),
+                listing.city.trim(),
+              ].where((p) => p.isNotEmpty).join(', '),
+              erf: listing.erfNumber,
+              lat: listing.latitude,
+              lng: listing.longitude,
+            ),
+          ),
+          refresh: refresh,
           hints: ListingHints(
             bedrooms: listing.rooms
                 .where(
@@ -117,6 +134,49 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           ),
         );
   }
+
+  /// Makes a new report from the City's current records, replacing the one
+  /// kept on the phone.
+  Future<void> _regenerate(RealEstateTheme theme) async {
+    final textTheme = theme.toThemeData().textTheme;
+    final go = await showRealEstateDialog<bool>(
+      context: context,
+      title: 'Make a new report?',
+      theme: theme,
+      content: Text(
+        "This asks the City again for this property's records and recent "
+        'sales, and takes up to half a minute. The report you have is '
+        'replaced.',
+        style: textTheme.bodyLarge,
+      ),
+      actions: [
+        dialogCancelButton(context: context, theme: theme),
+        dialogActionButton(
+          theme: theme,
+          text: 'Make a new one',
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    );
+    if (go == true && mounted) _lookUp(useListing: true, refresh: true);
+  }
+
+  /// "Generated 3 days ago", in words an agent reads at a glance.
+  static String _age(DateTime at) {
+    final d = DateTime.now().difference(at);
+    if (d.inMinutes < 2) return 'just now';
+    if (d.inHours < 1) return '${d.inMinutes} minutes ago';
+    if (d.inDays < 1) {
+      return d.inHours == 1 ? 'an hour ago' : '${d.inHours} hours ago';
+    }
+    if (d.inDays == 1) return 'yesterday';
+    if (d.inDays < 30) return '${d.inDays} days ago';
+    return 'on ${DateFormat('d MMMM yyyy').format(at)}';
+  }
+
+  /// Older than this, the report offers a refresh up front; until then it
+  /// sits in the menu. Municipal sales arrive a few times a month.
+  static const _staleAfter = Duration(days: 7);
 
   void _snack(String message, RealEstateTheme theme, {bool error = false}) {
     if (!mounted) return;
@@ -444,12 +504,27 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           theme: theme,
           onBack: () => context.pop(),
           actions: [
-            if (report != null)
+            if (report != null) ...[
               IconButton(
                 tooltip: 'Print',
                 icon: Icon(Icons.print_outlined, color: theme.textPrimary),
                 onPressed: () => _exportPdf(print: true),
               ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: theme.textPrimary),
+                onSelected: (_) => _regenerate(theme),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'regenerate',
+                    child: ListTile(
+                      leading: Icon(Icons.refresh),
+                      title: Text('Make a new report'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
         body: SafeArea(
@@ -668,6 +743,31 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         ].join('  ·  '),
         style: textTheme.bodyMedium?.copyWith(color: theme.textSecondary),
       ),
+      if (state.generatedAt case final at?)
+        Row(
+          children: [
+            Icon(Icons.history, size: 14, color: theme.textSecondary),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Report generated ${_age(at)}',
+                style: textTheme.bodySmall?.copyWith(
+                  color: theme.textSecondary,
+                ),
+              ),
+            ),
+            if (DateTime.now().difference(at) > _staleAfter)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () => _regenerate(theme),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Refresh'),
+              ),
+          ],
+        ),
       gap,
       ValueRangeCard(report: r, theme: theme, textTheme: textTheme),
       if (r.coverageNote != null) ...[
@@ -714,19 +814,22 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         ),
         gap,
       ],
-      ReportCard(
-        title: 'Site plan',
-        subtitle: captured == null ? null : 'Buildings as surveyed $captured',
-        theme: theme,
-        textTheme: textTheme,
-        children: [
-          SitePlanView(
-            svg: state.sitePlanSvg,
-            theme: theme,
-            textTheme: textTheme,
-          ),
-        ],
-      ),
+      // An outline with no buildings says less than the block view above, so
+      // it is left out then, as in the PDF.
+      if (r.buildings.isNotEmpty || state.blockMapSvg == null)
+        ReportCard(
+          title: 'Site plan',
+          subtitle: captured == null ? null : 'Buildings as surveyed $captured',
+          theme: theme,
+          textTheme: textTheme,
+          children: [
+            SitePlanView(
+              svg: state.sitePlanSvg,
+              theme: theme,
+              textTheme: textTheme,
+            ),
+          ],
+        ),
       for (final i in r.imagery) ...[
         gap,
         ReportCard(

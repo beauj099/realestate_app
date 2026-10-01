@@ -109,6 +109,33 @@ class _FakeRepo implements PropertyReportRepository {
   Future<bool> addAgentSale(NewAgentSale sale) => throw UnimplementedError();
 
   @override
+  Future<Map<String, dynamic>> fetchReportJson(PropertyCandidate c) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<dynamic>> fetchMarketJson(
+    String suburb, {
+    int? excludeListingId,
+    double? lat,
+    double? lng,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> fetchAreaJson(double lat, double lng) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> fetchForSaleJson(
+    PropertyReport report, {
+    int? bedrooms,
+    double? floorM2,
+    double? erfM2,
+    int? p24Suburb,
+    double? priceZar,
+    int max = 4,
+  }) => throw UnimplementedError();
+
+  @override
   Future<void> deleteAgentSale(String id) => throw UnimplementedError();
 
   @override
