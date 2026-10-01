@@ -7,6 +7,7 @@ import 'package:realworth/features/property_overview/data/models/property_state.
 import 'package:realworth/features/property_overview/data/models/room.dart';
 import 'package:realworth/features/property_overview/data/models/unit_details.dart';
 import 'package:realworth/features/property_report/data/models/property_report.dart';
+import 'package:realworth/features/property_report/data/pack_record.dart';
 import 'package:realworth/features/property_report/presentation/widgets/report_pack_sheet.dart';
 import 'package:realworth/features/property_report/providers/city_records_autofill.dart';
 import 'package:realworth/features/property_report/report/pack_listing.dart';
@@ -165,6 +166,45 @@ void main() {
         PropertyReport.fromJson(withSale()),
       );
       expect(plan.lastPurchase, isNull);
+    });
+  });
+
+  group('Report pack', () {
+    test('counts the rent of let flatlets only', () {
+      final s = PropertyState(
+        rooms: [
+          Room(
+            id: '1',
+            name: 'Flatlet',
+            unit: const UnitDetails(letOut: true, monthlyRent: '6500'),
+          ),
+          Room(
+            id: '2',
+            name: 'Cottage',
+            unit: const UnitDetails(monthlyRent: '4000'),
+          ),
+          Room(id: '3', name: 'Lounge'),
+        ],
+      );
+      expect(packFlatletRents(s), [6500]);
+    });
+
+    test('is out of date when a figure changes, not when a photo uploads', () {
+      final made = PropertyState(
+        street: 'Bosman Street',
+        exteriorPhotos: const ['/data/user/0/photo-1.jpg'],
+        listingValuation: const ListingValuation(listingPrice: '2950000'),
+      );
+      final uploaded = made.copyWith(
+        exteriorPhotos: const ['https://cdn.example/photo-1.jpg'],
+      );
+      expect(packFingerprint(uploaded), packFingerprint(made));
+      final repriced = made.copyWith(
+        listingValuation: made.listingValuation.copyWith(
+          listingPrice: '2850000',
+        ),
+      );
+      expect(packFingerprint(repriced), isNot(packFingerprint(made)));
     });
   });
 }

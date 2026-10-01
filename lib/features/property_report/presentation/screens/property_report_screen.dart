@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
+import '../../../../core/formatting/time_ago.dart';
+import '../../data/pack_record.dart';
+
 import '../../../../core/theme/office_details.dart';
 
 import '../../../../core/theme/theme_provider.dart';
@@ -138,19 +141,6 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       ],
     );
     if (go == true && mounted) _lookUp(useListing: true, refresh: true);
-  }
-
-  /// "Generated 3 days ago", in words an agent reads at a glance.
-  static String _age(DateTime at) {
-    final d = DateTime.now().difference(at);
-    if (d.inMinutes < 2) return 'just now';
-    if (d.inHours < 1) return '${d.inMinutes} minutes ago';
-    if (d.inDays < 1) {
-      return d.inHours == 1 ? 'an hour ago' : '${d.inHours} hours ago';
-    }
-    if (d.inDays == 1) return 'yesterday';
-    if (d.inDays < 30) return '${d.inDays} days ago';
-    return 'on ${DateFormat('d MMMM yyyy').format(at)}';
   }
 
   /// Older than this, the report offers a refresh up front; until then it
@@ -352,6 +342,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
           facts: packFacts(listing, parkingTypes),
           ownersPurchase: packOwnersPurchase(listing),
           inspection: packInspection(listing),
+          flatletRents: packFlatletRents(listing),
         ),
         valuation: PackValuation(
           low: options.low,
@@ -402,6 +393,13 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         logoBackground: agency.bannerColor,
       );
       final bytes = await pdf.build();
+      // What the pack was made from, so the overview can say when it is
+      // out of date.
+      final made = ref.read(propertyViewModelProvider);
+      if (made.listingId case final id?) {
+        await PackRecord.save(id, made);
+        ref.invalidate(packRecordProvider(id));
+      }
       await Printing.sharePdf(bytes: bytes, filename: pdf.fileName);
     } catch (e) {
       if (mounted) {
@@ -735,7 +733,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                'Report generated ${_age(at)}',
+                'Report generated ${timeAgo(at)}',
                 style: textTheme.bodySmall?.copyWith(
                   color: theme.textSecondary,
                 ),

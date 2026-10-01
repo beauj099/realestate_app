@@ -70,6 +70,10 @@ class PackListing {
   /// The agent's walk-through: the rooms as captured in the listing.
   final PackInspection? inspection;
 
+  /// Monthly rent of each let flatlet, for the letter: income a buyer can
+  /// count on.
+  final List<double> flatletRents;
+
   const PackListing({
     this.preparedFor = '',
     this.greeting = '',
@@ -79,6 +83,7 @@ class PackListing {
     this.facts = const PackFacts(),
     this.ownersPurchase,
     this.inspection,
+    this.flatletRents = const [],
   });
 }
 
@@ -2834,6 +2839,10 @@ class ReportPackPdf {
           pw.SizedBox(height: 8),
           _moneyText(pdfText(evidence), body),
         ],
+        if (_letterRent() case final rent?) ...[
+          pw.SizedBox(height: 8),
+          _moneyText(pdfText(rent), body),
+        ],
         pw.SizedBox(height: 8),
         pw.Text('The valuation takes into account:', style: body),
         for (final (title, text) in const [
@@ -2935,6 +2944,27 @@ class ReportPackPdf {
                 '${valuation.adjustmentReason.trim().isEmpty ? 'because it also reflects our inspection of the home' : 'to allow for ${valuation.adjustmentReason.trim().replaceAll(RegExp(r'[.\s]+$'), '')}'}.',
     ];
     return parts.isEmpty ? null : parts.join(' ');
+  }
+
+  /// The let flatlet(s) as income: what it brings in a month and a year, and
+  /// that share of the asking price, which supports the price and widens
+  /// the buyers it suits (a buyer may count rent towards a bond).
+  String? _letterRent() {
+    final rents = listing.flatletRents.where((r) => r > 0).toList();
+    if (rents.isEmpty) return null;
+    final month = rents.fold<double>(0, (a, b) => a + b);
+    final year = month * 12;
+    final share = valuation.listingPrice > 0
+        ? year / valuation.listingPrice * 100
+        : null;
+    final what = rents.length == 1
+        ? 'The flatlet is let at ${rand(month)} a month'
+        : 'The ${rents.length} flatlets are let for ${rand(month)} a month together';
+    return '$what, ${rand(year)} a year'
+        '${share == null ? '' : ' (${share.toStringAsFixed(1)}% of the asking price)'}. '
+        'That income supports the price and widens the market: it suits buyers '
+        'looking for help with the bond as well as investors, and lenders may '
+        'take part of it into account.';
   }
 
   /// [text] with every amount ("R 5 000 000") kept on one line, in

@@ -86,6 +86,14 @@ PackInspection packInspection(PropertyState s) {
   );
 }
 
+/// The monthly rent of each flatlet that is let out (rent captured).
+List<double> packFlatletRents(PropertyState s) => [
+  for (final r in s.rooms)
+    if (r.unit case final u? when u.letOut)
+      if (double.tryParse(u.monthlyRent.trim()) case final rent? when rent > 0)
+        rent,
+];
+
 /// When the owners bought, from the listing's valuation; null unless both
 /// the month and the price were captured.
 ({DateTime date, double priceZar})? packOwnersPurchase(PropertyState s) {

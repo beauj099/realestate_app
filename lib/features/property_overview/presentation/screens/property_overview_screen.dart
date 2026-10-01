@@ -18,6 +18,10 @@ import '../../../home/presentation/screens/home_screen.dart'
 import '../../data/models/enums/property_type.dart';
 import '../../data/models/property_state.dart';
 import '../../data/models/room_score.dart';
+import '../../../../core/formatting/time_ago.dart';
+import '../../../property_report/data/models/property_report.dart'
+    show groupDigits;
+import '../../../property_report/data/pack_record.dart';
 import '../../../property_report/providers/city_records_autofill.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/exterior_photos_section.dart';
@@ -168,6 +172,8 @@ class _PropertyOverviewScreenState
 
     final completeCount = required.where((s) => s.isComplete).length;
     final baseUrl = ref.watch(apiClientProvider).baseUrl;
+    // When the report pack was last made, to say if it is out of date.
+    final pack = ref.watch(packRecordProvider(propertyId)).value;
 
     Widget card(_SectionData section) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -258,6 +264,7 @@ class _PropertyOverviewScreenState
                           theme: theme,
                           textTheme: textTheme,
                           baseUrl: baseUrl,
+                          currency: currency,
                           onTap: () =>
                               context.push(AppRoutes.address(propertyId)),
                         ),
@@ -339,6 +346,10 @@ class _PropertyOverviewScreenState
                         _ValuationReportTile(
                           theme: theme,
                           textTheme: textTheme,
+                          pack: pack,
+                          packOutOfDate:
+                              pack != null &&
+                              pack.fingerprint != packFingerprint(state),
                           hasAddress:
                               state.street.trim().isNotEmpty ||
                               state.erfNumber.trim().isNotEmpty ||
@@ -733,11 +744,17 @@ class _ValuationReportTile extends StatelessWidget {
   final bool hasAddress;
   final VoidCallback onTap;
 
+  /// The last report pack, and whether anything it shows changed since.
+  final PackRecord? pack;
+  final bool packOutOfDate;
+
   const _ValuationReportTile({
     required this.theme,
     required this.textTheme,
     required this.hasAddress,
     required this.onTap,
+    this.pack,
+    this.packOutOfDate = false,
   });
 
   @override
@@ -789,6 +806,39 @@ class _ValuationReportTile extends StatelessWidget {
                       fontSize: 13,
                     ),
                   ),
+                  if (pack case final made?) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          packOutOfDate
+                              ? Icons.update_rounded
+                              : Icons.check_circle_rounded,
+                          size: 15,
+                          color: packOutOfDate
+                              ? theme.pendingColor
+                              : theme.completeColor,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            packOutOfDate
+                                ? 'Pack made ${timeAgo(made.madeAt)}; details '
+                                      'changed since. Make it again.'
+                                : 'Pack made ${timeAgo(made.madeAt)}, up to date',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: packOutOfDate
+                                  ? theme.pendingColor
+                                  : theme.textSecondary,
+                              fontWeight: packOutOfDate
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -859,6 +909,7 @@ class _AddressHero extends StatelessWidget {
   final RealEstateTheme theme;
   final TextTheme textTheme;
   final String baseUrl;
+  final String currency;
   final VoidCallback onTap;
 
   const _AddressHero({
@@ -866,6 +917,7 @@ class _AddressHero extends StatelessWidget {
     required this.theme,
     required this.textTheme,
     required this.baseUrl,
+    required this.currency,
     required this.onTap,
   });
 
@@ -886,6 +938,7 @@ class _AddressHero extends StatelessWidget {
     final facts = [
       if (state.erfNumber.trim().isNotEmpty) 'Erf ${state.erfNumber.trim()}',
       if (state.erfSize.trim().isNotEmpty) '${state.erfSize.trim()} m\u00B2',
+      ?_lastSale(state, currency),
     ];
 
     return Material(
@@ -1108,6 +1161,19 @@ String _expensesSummary(PropertyState state, String currency) {
     return 'Rates $currency ${c.monthlyRates}/month';
   }
   return '$filled cost${filled == 1 ? '' : 's'} captured';
+}
+
+/// "Sold 2014 · R 1 900 000": the owners' purchase, as filled from the last
+/// registered sale or told by the owners; null when not known.
+String? _lastSale(PropertyState state, String currency) {
+  final v = state.listingValuation;
+  final year = v.lastPurchaseDate?.year;
+  final price = double.tryParse(v.lastPurchasePrice.trim());
+  if (year == null && price == null) return null;
+  return [
+    'Sold${year == null ? '' : ' $year'}',
+    if (price != null) '$currency ${groupDigits(price)}',
+  ].join(' · ');
 }
 
 /// "Bought 2014 for R 1 900 000" / "Optional".
