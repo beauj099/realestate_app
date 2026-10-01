@@ -330,8 +330,9 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
     // Only what the listing changed since is looked up again: homes for sale
     // follow its bedrooms and sizes. Rooms, conditions, photos, owners and
     // the agent's figures are never kept here; the PDF reads them from the
-    // listing each time.
-    if (saved.hintsKey != _hints.key) loadForSale();
+    // listing each time. Homes for sale are also looked up again when there
+    // were none to keep (Property24 was down, e.g. for maintenance).
+    if (saved.hintsKey != _hints.key || saved.forSale == null) loadForSale();
     return true;
   }
 
