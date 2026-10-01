@@ -109,8 +109,10 @@ class _FakeRepo implements PropertyReportRepository {
   Future<bool> addAgentSale(NewAgentSale sale) => throw UnimplementedError();
 
   @override
-  Future<Map<String, dynamic>> fetchReportJson(PropertyCandidate c) =>
-      throw UnimplementedError();
+  Future<Map<String, dynamic>> fetchReportJson(
+    PropertyCandidate c, {
+    bool includeComparables = true,
+  }) => throw UnimplementedError();
 
   @override
   Future<List<dynamic>> fetchMarketJson(
@@ -146,8 +148,10 @@ class _FakeRepo implements PropertyReportRepository {
     double? lng,
   }) => throw UnimplementedError();
   @override
-  Future<PropertyReport> fetchReport(PropertyCandidate c) =>
-      throw UnimplementedError();
+  Future<PropertyReport> fetchReport(
+    PropertyCandidate c, {
+    bool includeComparables = true,
+  }) => throw UnimplementedError();
   @override
   Future<String?> fetchSitePlan(String sitePlanUrl) =>
       throw UnimplementedError();

@@ -11,6 +11,7 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// Password reset by emailed code.
 ///
@@ -78,7 +79,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   String get _email => _emailController.text.trim().toLowerCase();
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(message),
         backgroundColor: ref.read(houseThemeProvider).error,
@@ -133,7 +134,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .read(authApiServiceProvider)
           .resetPassword(email: _email, code: code, newPassword: password);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         SnackBar(
           content: const Text(
             'Password updated — sign in with your new password.',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,10 +122,12 @@ class CityRecordsAutofillState {
 /// location) from municipal records (Cape Town, Johannesburg, or the national cadastre),
 /// and saves them.
 ///
-/// Runs after the address is saved, in the background: the City can take
-/// 10–30 seconds, and the agent should not wait for it. Kept alive so it
-/// finishes after the address screen closes; it also warms the API's cache,
-/// so the valuation report opens instantly afterwards.
+/// Runs as part of saving the address, and the agent waits for it (at most
+/// [timeout]): filling in sizes while the City's answer is still on its way
+/// meant the two crossed, and the details arrived minutes later. Only the
+/// property's own record is fetched, which is quick; the full report (with
+/// the area's sales) is then asked for in the background, so the valuation
+/// report opens sooner later.
 class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
   @override
   CityRecordsAutofillState build() => const CityRecordsAutofillState();
@@ -136,48 +139,80 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
       s.zoningId == null ||
       s.latitude == null;
 
-  /// Looks the listing up and fills what is missing. Silent when the
-  /// property is not covered, the address is ambiguous, or the source is
-  /// unreachable: this is a convenience, never a blocker.
-  Future<void> fillMissing() async {
+  /// Longest the agent waits for the City before going on without it.
+  static const timeout = Duration(seconds: 40);
+
+  /// Looks the listing up and fills what is missing. Returns a note for the
+  /// agent when the records were too slow; otherwise null (what was filled is
+  /// in [CityRecordsAutofillState.message]). Silent when the property is not
+  /// covered or the address is ambiguous: this never blocks saving.
+  Future<String?> fillMissing() async {
     final listing = ref.read(propertyViewModelProvider);
     final listingId = listing.listingId;
-    if (listingId == null || !needsFilling(listing) || state.running) return;
+    if (listingId == null || !needsFilling(listing) || state.running) {
+      return null;
+    }
     if (listing.street.trim().isEmpty &&
         listing.erfNumber.trim().isEmpty &&
         listing.latitude == null) {
-      return;
+      return null;
     }
 
     state = const CityRecordsAutofillState(running: true);
     try {
       final repo = ref.read(propertyReportRepositoryProvider);
-      final found = await repo.resolve(
-        ReportQuery(
-          address: [
-            '${listing.streetNumber} ${listing.street}'.trim(),
-            listing.suburb.trim(),
-          ].where((p) => p.isNotEmpty).join(', '),
-          erf: listing.erfNumber,
-          suburb: listing.suburb,
-          lat: listing.latitude,
-          lng: listing.longitude,
-        ),
+      final query = ReportQuery(
+        address: [
+          '${listing.streetNumber} ${listing.street}'.trim(),
+          listing.suburb.trim(),
+        ].where((p) => p.isNotEmpty).join(', '),
+        erf: listing.erfNumber,
+        suburb: listing.suburb,
+        lat: listing.latitude,
+        lng: listing.longitude,
       );
-      if (found.length != 1) {
+      // One limit for the whole lookup, finding the erf included.
+      final report = await () async {
+        final found = await repo.resolve(query);
+        if (found.length != 1) return null;
+        final record = await repo.fetchReport(
+          found.single,
+          includeComparables: false,
+        );
+        // Warm the full report (the area's sales take the City longest) for
+        // the valuation report later.
+        unawaited(
+          repo
+              .fetchReportJson(found.single)
+              .then(
+                (_) {},
+                onError: (Object e) =>
+                    developer.log('Report warm-up skipped: $e'),
+              ),
+        );
+        return record;
+      }().timeout(timeout);
+      if (report == null) {
         state = const CityRecordsAutofillState();
-        return;
+        return null;
       }
-      final report = await repo.fetchReport(found.single);
       // The agent may have moved to another listing meanwhile.
       if (ref.read(propertyViewModelProvider).listingId != listingId) {
         state = const CityRecordsAutofillState();
-        return;
+        return null;
       }
       await apply(report);
+      return null;
+    } on TimeoutException {
+      state = const CityRecordsAutofillState();
+      return "The City's records are slow to answer just now, so the erf "
+          'size, floor area and zoning were not filled in. Enter them in '
+          'Building Info, or open the valuation report later and tap '
+          '"Fill in the listing".';
     } catch (e) {
       developer.log('City records autofill skipped: $e');
       state = const CityRecordsAutofillState();
+      return null;
     }
   }
 

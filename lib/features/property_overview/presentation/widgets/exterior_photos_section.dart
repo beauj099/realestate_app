@@ -4,6 +4,7 @@ import '../../../../core/network/run_limited.dart';
 import '../../../../core/theme/themes.dart';
 import '../../providers/property_provider.dart';
 import 'photo_strip.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// Exterior shots of the property, with one nominated as the main image.
 ///
@@ -59,7 +60,7 @@ class ExteriorPhotosSection extends StatelessWidget {
       await viewModel.saveExteriorOrder();
     }
     if (failed > 0 && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         SnackBar(
           content: Text(
             failed == 1

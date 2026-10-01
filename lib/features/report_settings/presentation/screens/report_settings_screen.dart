@@ -13,6 +13,7 @@ import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../../auth/providers/agent_profile_provider.dart';
 import '../../data/models/report_settings.dart';
 import '../../providers/report_settings_provider.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// The agent's own defaults for the report pack: the costs calculator and how
 /// much each kind of room counts towards the suggested house score. Each
@@ -79,7 +80,7 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         SnackBar(
           content: Text(mapFailure(e).message),
           backgroundColor: ref.read(themeConfigProvider).error,

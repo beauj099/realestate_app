@@ -22,6 +22,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../widgets/agency_picker.dart';
 import '../widgets/profile_media.dart';
 import '../widgets/signature_pad.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// Lets an agent review and change everything they entered at registration.
 ///
@@ -326,7 +327,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (nameError != null) _errors['firstName'] = nameError;
       });
       if (fields.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(
             content: Text(mapFailure(e).message),
             backgroundColor: ref.read(themeConfigProvider).error,
@@ -344,7 +345,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _isSaving = false;
       _isDirty = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: const Text('Profile updated'),
         backgroundColor: ref.read(themeConfigProvider).primaryColor,
@@ -360,7 +361,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await action();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(
             content: Text(mapFailure(e).message),
             backgroundColor: ref.read(themeConfigProvider).error,

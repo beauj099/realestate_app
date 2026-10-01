@@ -22,6 +22,7 @@ import '../../../property_report/providers/city_records_autofill.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/exterior_photos_section.dart';
 import '../widgets/section_card.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 class PropertyOverviewScreen extends ConsumerStatefulWidget {
   final int propertyId;
@@ -67,7 +68,7 @@ class _PropertyOverviewScreenState
     ref.listen(cityRecordsAutofillProvider.select((a) => a.message), (_, msg) {
       if (msg == null) return;
       ref.read(cityRecordsAutofillProvider.notifier).clearMessage();
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         SnackBar(
           content: Text('$msg Check them in Building Info.'),
           backgroundColor: theme.primaryColor,
@@ -215,7 +216,7 @@ class _PropertyOverviewScreenState
                                 .read(propertyViewModelProvider)
                                 .errorMessage;
                             if (error != null && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showSnack(
                                 SnackBar(
                                   content: Text(
                                     friendlySaveMessage(error, 'property type'),
@@ -314,7 +315,7 @@ class _PropertyOverviewScreenState
                     setState(() => _isSaving = false);
                     if (success) {
                       viewModel.reset();
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnack(
                         SnackBar(
                           content: const Text(
                             'Evaluation submitted successfully!',
@@ -324,7 +325,7 @@ class _PropertyOverviewScreenState
                       );
                       _exitToHome(context);
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnack(
                         SnackBar(
                           content: Text(
                             ref.read(propertyViewModelProvider).errorMessage ??
@@ -363,9 +364,9 @@ class _PropertyOverviewScreenState
         .read(propertyViewModelProvider.notifier)
         .setHouseScore(result.useSuggested ? null : result.value);
     if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: theme.error),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnack(SnackBar(content: Text(error), backgroundColor: theme.error));
     }
   }
 
@@ -399,7 +400,7 @@ class _PropertyOverviewScreenState
     if (!mounted) return;
     if (discarded) {
       ref.invalidate(listingsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         const SnackBar(
           content: Text('Nothing was captured, so it was not kept.'),
         ),
@@ -444,7 +445,7 @@ class _PropertyOverviewScreenState
     if (await viewModel.discardIfEmpty()) {
       if (!mounted) return;
       ref.invalidate(listingsProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         const SnackBar(
           content: Text('Nothing to save yet, so it was not kept.'),
         ),
@@ -457,12 +458,12 @@ class _PropertyOverviewScreenState
     setState(() => _isSaving = false);
     final theme = ref.read(themeConfigProvider);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: theme.error),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnack(SnackBar(content: Text(error), backgroundColor: theme.error));
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: const Text('Property saved'),
         backgroundColor: theme.primaryColor,
@@ -509,14 +510,14 @@ class _PropertyOverviewScreenState
         ref.invalidate(listingsProvider);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Property deleted')));
+        ).showSnack(const SnackBar(content: Text('Property deleted')));
         _exitToHome(context);
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(mapFailure(e).message)));
+        ).showSnack(SnackBar(content: Text(mapFailure(e).message)));
       }
     }
   }

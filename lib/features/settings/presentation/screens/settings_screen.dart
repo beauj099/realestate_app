@@ -10,6 +10,7 @@ import '../../../../core/widgets/country_picker.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../widgets/agency_logo.dart';
 import '../widgets/delete_account_dialog.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -51,7 +52,7 @@ class SettingsScreen extends ConsumerWidget {
     if (!await showDeleteAccountDialog(context, theme)) return;
     await ref.read(authProvider.notifier).logout();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       const SnackBar(content: Text('Your account has been deleted.')),
     );
     context.go(AppRoutes.loginPath);
@@ -248,7 +249,7 @@ class _RegionCard extends ConsumerWidget {
       await notifier.setCountry(picked);
     }
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(
           isCurrency

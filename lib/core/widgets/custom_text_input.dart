@@ -104,6 +104,14 @@ class CustomTextInput extends StatelessWidget {
       autocorrect: autocorrect && !isPassword,
       enableSuggestions: enableSuggestions && !isPassword,
       textCapitalization: _capitalization,
+      // The keyboard's own key goes to the next field (one line) or adds a
+      // line (notes).
+      textInputAction: maxLines == 1
+          ? TextInputAction.next
+          : TextInputAction.newline,
+      // Keep room under the field being typed in, so the start of the next
+      // one shows above the keyboard and it is clear the form goes on.
+      scrollPadding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       style: textTheme.bodyLarge?.copyWith(
         fontWeight: FontWeight.w600,
         color: resolvedTheme.textPrimary,

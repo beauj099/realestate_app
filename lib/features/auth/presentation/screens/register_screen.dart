@@ -20,6 +20,8 @@ import '../../../settings/presentation/widgets/profile_media.dart';
 import '../../data/models/agent_profile.dart';
 import '../../providers/agent_profile_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../../../core/widgets/real_estate_dialog.dart';
+import '../../../../core/theme/themes.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -213,12 +215,64 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     if (!mounted) return;
     setState(() => _isLoading = false);
-    if (authState.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authState.errorMessage!),
-          backgroundColor: theme.error,
-        ),
+    // Success needs nothing here: signing in takes the router to Home. A
+    // failure stays on this screen, with everything typed kept, and is said
+    // in a dialog so it cannot be missed.
+    final error = authState.errorMessage;
+    if (authState.status != AuthStatus.authenticated && error != null) {
+      await _showRegisterError(error, theme);
+    }
+  }
+
+  Future<void> _showRegisterError(String error, RealEstateTheme theme) async {
+    final textTheme = theme.toThemeData().textTheme;
+    final email = _emailController.text.trim();
+    final taken = error == AuthNotifier.emailTakenMessage;
+    if (taken) {
+      setState(() => _errors['email'] = 'This email already has an account');
+    }
+    final choice = await showRealEstateDialog<String>(
+      context: context,
+      theme: theme,
+      title: taken ? 'Already registered' : "Couldn't create the account",
+      content: Text(
+        taken
+            ? '$email already has a RealWorth account. Sign in with it, or '
+                  'set a new password if it has been forgotten (a code is '
+                  'emailed to that address).'
+            : error,
+        style: textTheme.bodyLarge,
+      ),
+      actions: [
+        if (taken) ...[
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'reset'),
+            child: Text(
+              'Set a new password',
+              style: TextStyle(color: theme.primaryColor),
+            ),
+          ),
+          dialogActionButton(
+            theme: theme,
+            text: 'Sign in',
+            onPressed: () => Navigator.pop(context, 'login'),
+          ),
+        ] else
+          dialogActionButton(
+            theme: theme,
+            text: 'OK',
+            onPressed: () => Navigator.pop(context),
+          ),
+      ],
+    );
+    if (!mounted) return;
+    if (choice == 'login') context.go(AppRoutes.loginPath);
+    if (choice == 'reset') {
+      context.go(
+        Uri(
+          path: AppRoutes.forgotPasswordPath,
+          queryParameters: {'email': email},
+        ).toString(),
       );
     }
   }

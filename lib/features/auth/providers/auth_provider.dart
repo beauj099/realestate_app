@@ -70,8 +70,18 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// What registering an email that already has an account says; the
+  /// register screen recognises it and offers sign-in or a password reset.
+  static const emailTakenMessage =
+      'An account already uses this email address.';
+
   String _mapAuthFailure(Object error, String action) {
     final failure = mapFailure(error);
+    if (error is DioException &&
+        error.response?.statusCode == 409 &&
+        action == 'register') {
+      return emailTakenMessage;
+    }
     if (error is DioException &&
         error.response?.statusCode == 401 &&
         (action == 'login' || action == 'register')) {

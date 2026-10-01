@@ -8,6 +8,7 @@ import '../../../../core/widgets/busy_overlay.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../providers/property_provider.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// Shared chrome for every property-wizard section screen.
 ///
@@ -43,6 +44,10 @@ class WizardSectionScaffold extends ConsumerStatefulWidget {
   /// list is visible without scrolling.
   final double topPadding;
 
+  /// What the busy screen says while saving, when the save does more than
+  /// save (e.g. looking the property up).
+  final List<String>? busyMessages;
+
   const WizardSectionScaffold({
     super.key,
     required this.title,
@@ -52,6 +57,7 @@ class WizardSectionScaffold extends ConsumerStatefulWidget {
     this.saveLabel = 'Save',
     this.validate,
     this.topPadding = 24,
+    this.busyMessages,
   });
 
   @override
@@ -166,7 +172,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
 
   void _showMessage(String message, {required bool isError}) {
     final theme = ref.read(themeConfigProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? theme.error : theme.primaryColor,
@@ -189,6 +195,7 @@ class _WizardSectionScaffoldState extends ConsumerState<WizardSectionScaffold> {
         busy: _isSaving,
         theme: theme,
         title: 'Saving ${widget.title}…',
+        messages: widget.busyMessages,
         child: Scaffold(
           backgroundColor: theme.backgroundColor,
           appBar: WizardAppBar(

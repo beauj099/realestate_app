@@ -8,6 +8,7 @@ import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../data/models/enums/document_category.dart';
 import '../../data/models/listing_document.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// The API's upload limit; checked here so the agent hears about it at once
 /// rather than when they tap Save.
@@ -116,7 +117,7 @@ class ExpenseDocumentsSection extends StatelessWidget {
 
     if ((document.sizeBytes ?? 0) > _maxDocumentBytes) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(
             content: const Text('That file is larger than 10 MB.'),
             backgroundColor: theme.error,
@@ -136,7 +137,7 @@ class ExpenseDocumentsSection extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     );
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         const SnackBar(content: Text('Could not open this document.')),
       );
     }

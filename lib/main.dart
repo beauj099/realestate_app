@@ -11,6 +11,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/auth/providers/agent_profile_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'core/widgets/keyboard_bar.dart';
 
 void main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,7 @@ class _MyAppState extends ConsumerState<MyApp> {
       darkTheme: themeConfig.toDarkThemeData(),
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) => KeyboardBar(child: child!),
     );
   }
 }

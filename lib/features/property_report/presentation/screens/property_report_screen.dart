@@ -36,6 +36,7 @@ import '../../../property_overview/data/models/enums/room_category.dart';
 import '../widgets/agent_sale_sheet.dart';
 import '../widgets/area_and_market_cards.dart';
 import '../widgets/report_widgets.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// Valuation report for the listing being captured, from public municipal
 /// data: site, buildings, municipal value, suburb trend, comparable sales and
@@ -180,7 +181,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
 
   void _snack(String message, RealEstateTheme theme, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(message),
         backgroundColor: error ? theme.error : theme.primaryColor,
@@ -420,7 +421,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       await Printing.sharePdf(bytes: bytes, filename: pdf.fileName);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(content: Text("Couldn't create the report pack: $e")),
         );
       }
@@ -465,7 +466,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Couldn't create the PDF: $e")));
+        ).showSnack(SnackBar(content: Text("Couldn't create the PDF: $e")));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -657,7 +658,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
               .apply(r);
           ref.read(cityRecordsAutofillProvider.notifier).clearMessage();
           if (!mounted || message == null) return;
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnack(
             SnackBar(
               content: Text(message),
               backgroundColor: theme.primaryColor,

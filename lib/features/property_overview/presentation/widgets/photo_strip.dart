@@ -7,6 +7,7 @@ import '../../../../core/network/photo_urls.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/listing_photo.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 /// A picked photo, with its bytes cached for the web (where the path is only
 /// a blob URL).
@@ -81,7 +82,7 @@ Future<List<PickedShot>> pickPhotos({
   }
 
   if (picked.length > remaining && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(
           'Only $remaining more ${remaining == 1 ? 'photo fits' : 'photos fit'}'

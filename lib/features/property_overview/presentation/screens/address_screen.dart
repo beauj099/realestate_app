@@ -18,6 +18,7 @@ import '../../data/models/nominatim_result.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/property_pin_map.dart';
 import '../widgets/wizard_section_scaffold.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 class AddressScreen extends ConsumerStatefulWidget {
   const AddressScreen({super.key});
@@ -107,7 +108,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnack(
             SnackBar(
               content: const Text(
                 'Location permission denied. Tap detect again to retry.',
@@ -121,7 +122,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
       if (permission == LocationPermission.deniedForever) {
         _retryAfterResume = true;
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(
             content: const Text(
               'Location permission permanently denied. Enable it in app settings.',
@@ -146,7 +147,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
       await _placeAt(position.latitude, position.longitude, fromGps: true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showSnack(
         SnackBar(
           content: Text('Failed to detect address: $e'),
           backgroundColor: theme.error,
@@ -242,7 +243,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   void _snack(String message, Color colour) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: colour));
+    ).showSnack(SnackBar(content: Text(message), backgroundColor: colour));
   }
 
   /// An address picked from the search. What it fills depends on what it is:
@@ -254,7 +255,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   void _pickAddress(AddressSuggestion s) {
     final theme = ref.read(themeConfigProvider);
     final (message, complete) = _fillFrom(s, keepPin: false);
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showSnack(
       SnackBar(
         content: Text(message),
         backgroundColor: complete ? theme.primaryColor : theme.pendingColor,
@@ -328,13 +329,24 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   }
 
   Future<String?> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
     final viewModel = ref.read(propertyViewModelProvider.notifier);
     await viewModel.saveAddress();
     final error = ref.read(propertyViewModelProvider).errorMessage;
     if (error != null) return friendlySaveMessage(error, 'address');
-    // Fill what is still empty (erf size, floor area, zoning…) from City of
-    // Cape Town records, in the background: the agent does not wait for it.
-    unawaited(ref.read(cityRecordsAutofillProvider.notifier).fillMissing());
+    // Fill what is still empty (erf size, floor area, zoning…) from the
+    // municipality's records before going on, so the agent never types over
+    // details that are still on their way. Bounded; a slow City is said, not
+    // waited for.
+    final theme = ref.read(themeConfigProvider);
+    final slow = await ref
+        .read(cityRecordsAutofillProvider.notifier)
+        .fillMissing();
+    if (slow != null) {
+      messenger.showSnack(
+        SnackBar(content: Text(slow), backgroundColor: theme.textSecondary),
+      );
+    }
     return null;
   }
 
@@ -355,6 +367,12 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
     return WizardSectionScaffold(
       title: 'Address',
       sectionName: 'address',
+      busyMessages: const [
+        "Looking the property up in the City's records…",
+        'Finding the erf size and floor area…',
+        'Checking the zoning…',
+        'Almost there…',
+      ],
       validate: _validate,
       onSave: _save,
       child: Column(

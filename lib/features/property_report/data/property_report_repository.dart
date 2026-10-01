@@ -103,17 +103,27 @@ class PropertyReportRepository {
     return const [];
   }
 
-  Future<PropertyReport> fetchReport(PropertyCandidate c) async =>
-      PropertyReport.fromJson(await fetchReportJson(c));
+  /// The report. Without [includeComparables] it is only the property's own
+  /// record (sizes, zoning, value): a few seconds instead of up to half a
+  /// minute, which is all filling in a listing needs.
+  Future<PropertyReport> fetchReport(
+    PropertyCandidate c, {
+    bool includeComparables = true,
+  }) async => PropertyReport.fromJson(
+    await fetchReportJson(c, includeComparables: includeComparables),
+  );
 
   /// The report as the API sends it, so it can be kept on the phone.
-  Future<Map<String, dynamic>> fetchReportJson(PropertyCandidate c) async {
+  Future<Map<String, dynamic>> fetchReportJson(
+    PropertyCandidate c, {
+    bool includeComparables = true,
+  }) async {
     final response = await _client.get(
       ApiEndpoints.propertyReport(c.municipality, c.erf),
       queryParameters: {
         'suburb': c.suburb,
         'sg26': ?c.sg26,
-        'includeComparables': true,
+        'includeComparables': includeComparables,
       },
       receiveTimeout: _reportTimeout,
     );

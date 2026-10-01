@@ -21,6 +21,7 @@ import '../../../property_overview/data/models/enums/property_type.dart';
 import '../../../property_overview/data/models/room_score.dart';
 import '../../../property_overview/providers/property_provider.dart';
 import '../../../settings/presentation/widgets/agency_logo.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 final listingsProvider = FutureProvider.autoDispose<List<ListingSummaryDto>>((
   ref,
@@ -69,7 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       await repo.setArchived(listing.id, archived: archived);
     } catch (e) {
-      messenger.showSnackBar(
+      messenger.showSnack(
         SnackBar(
           content: Text(mapFailure(e).message),
           backgroundColor: theme.error,
@@ -78,7 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return false;
     }
     ref.invalidate(listingsProvider);
-    messenger.showSnackBar(
+    messenger.showSnack(
       SnackBar(
         content: Text(archived ? 'Moved to Archived' : 'Moved back to Active'),
         action: SnackBarAction(
@@ -164,9 +165,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     );
                   }
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(mapFailure(e).message)),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnack(SnackBar(content: Text(mapFailure(e).message)));
                   }
                 } finally {
                   if (mounted) setState(() => _isCreating = false);
@@ -254,11 +255,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       await ref.read(propertyRepositoryProvider).deleteListing(listing.id);
       ref.invalidate(listingsProvider);
-      messenger.showSnackBar(
+      messenger.showSnack(
         SnackBar(content: Text('${listing.referenceNumber} deleted')),
       );
     } catch (e) {
-      messenger.showSnackBar(
+      messenger.showSnack(
         SnackBar(
           content: Text(mapFailure(e).message),
           backgroundColor: theme.error,

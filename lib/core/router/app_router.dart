@@ -24,12 +24,20 @@ import '../constants/route_constants.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  // One router for the app's life. Rebuilding it whenever sign-in state
+  // changed (an error message included) restarted navigation at the login
+  // screen, throwing a failed registration away; instead the redirect is
+  // re-run when the sign-in status itself changes.
+  final signIn = ValueNotifier(ref.read(authProvider).status);
+  ref.listen(authProvider.select((a) => a.status), (_, s) => signIn.value = s);
+  ref.onDispose(signIn.dispose);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.loginPath,
+    refreshListenable: signIn,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
       final isAuthenticated = authState.status == AuthStatus.authenticated;
       final isInitialized = authState.status != AuthStatus.uninitialized;
       final isLoginRoute = state.matchedLocation == AppRoutes.loginPath;

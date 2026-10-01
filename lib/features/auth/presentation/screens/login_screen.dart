@@ -8,6 +8,7 @@ import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/scoped_brand_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../../../core/widgets/app_snack.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -47,7 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _isLoading = false);
       final authState = ref.read(authProvider);
       if (authState.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showSnack(
           SnackBar(
             content: Text(authState.errorMessage!),
             backgroundColor: theme.error,
