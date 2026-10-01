@@ -35,6 +35,7 @@ class ApiEndpoints {
   static const String propertySuggestNational =
       '/api/property/suggest/national';
   static const String propertySuggestAt = '/api/property/suggest/at';
+  static const String propertyParcelAt = '/api/property/parcel-at';
   static const String propertyArea = '/api/property/area';
   static String propertyForSale(String municipality, String erf) =>
       '/api/property/$municipality/${Uri.encodeComponent(erf)}/for-sale';

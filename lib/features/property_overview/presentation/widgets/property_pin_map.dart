@@ -15,6 +15,10 @@ class PropertyPinMap extends StatefulWidget {
   final ValueChanged<LatLng> onPlacePin;
   final bool busy;
 
+  /// The erf's boundary under the pin, when the records have one: it shows
+  /// at a glance that the pin is on the right property.
+  final List<LatLng>? outline;
+
   const PropertyPinMap({
     super.key,
     required this.theme,
@@ -22,6 +26,7 @@ class PropertyPinMap extends StatefulWidget {
     required this.lng,
     required this.onPlacePin,
     this.busy = false,
+    this.outline,
   });
 
   @override
@@ -82,6 +87,17 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
                   userAgentPackageName: 'com.realworth.app',
                   maxZoom: 19,
                 ),
+                if (widget.outline case final ring? when ring.length >= 3)
+                  PolygonLayer(
+                    polygons: [
+                      Polygon(
+                        points: ring,
+                        color: theme.primaryColor.withValues(alpha: 0.12),
+                        borderColor: theme.primaryColor,
+                        borderStrokeWidth: 2.5,
+                      ),
+                    ],
+                  ),
                 if (pin != null)
                   MarkerLayer(
                     markers: [

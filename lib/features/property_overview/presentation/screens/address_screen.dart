@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../../core/errors/failures.dart';
 import '../../../../core/network/services/nominatim_service.dart';
@@ -11,6 +12,7 @@ import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../property_report/data/models/address_suggestion.dart';
+import '../../../property_report/data/property_report_repository.dart';
 import '../../../property_report/presentation/widgets/address_search_field.dart';
 import '../../../property_report/providers/property_report_provider.dart';
 import '../../../property_report/providers/city_records_autofill.dart';
@@ -62,6 +64,39 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
   /// Rebuilds the fields after the address is filled in for them (they keep
   /// their own text otherwise).
   int _formVersion = 0;
+
+  /// The erf boundary under the pin, and the pin it was looked up for.
+  List<LatLng>? _outline;
+  String? _outlineFor;
+
+  /// Looks up the boundary of the erf under the pin whenever the pin moves
+  /// (a search pick, GPS, a tap on the map, or opening the screen).
+  void _syncOutline(double? lat, double? lng) {
+    final key = lat == null || lng == null ? null : '$lat,$lng';
+    if (key == _outlineFor) return;
+    _outlineFor = key;
+    if (key == null) {
+      // Called from build: never set state during it.
+      _outline = null;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      ParcelOutline? parcel;
+      try {
+        parcel = await ref
+            .read(propertyReportRepositoryProvider)
+            .parcelAt(lat!, lng!);
+      } catch (_) {
+        parcel = null; // No outline: the pin alone, as before.
+      }
+      if (!mounted || _outlineFor != key) return;
+      setState(
+        () => _outline = parcel == null
+            ? null
+            : [for (final p in parcel.points) LatLng(p.lat, p.lng)],
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -452,6 +487,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
       return true;
     });
 
+    _syncOutline(state.latitude, state.longitude);
     final hasAddress =
         state.street.trim().isNotEmpty ||
         state.suburb.trim().isNotEmpty ||
@@ -505,6 +541,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
             lat: state.latitude,
             lng: state.longitude,
             busy: _placingPin || _isFetchingLocation,
+            outline: _outline,
             onPlacePin: (p) =>
                 _placeAt(p.latitude, p.longitude, fromGps: false),
           ),

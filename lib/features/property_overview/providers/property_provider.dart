@@ -13,8 +13,10 @@ import '../../../../core/network/providers/api_providers.dart';
 import '../data/models/contact.dart';
 import '../data/models/listing_document.dart';
 import '../data/models/listing_parking.dart';
+import '../data/models/listing_valuation.dart';
 import '../data/models/property_state.dart';
 import '../data/models/room.dart';
+import '../data/models/unit_details.dart';
 import '../data/repositories/property_repository.dart';
 
 final propertyRepositoryProvider = Provider.autoDispose<PropertyRepository>((
@@ -450,9 +452,21 @@ class PropertyViewModel extends Notifier<PropertyState> {
       id: 'custom-${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       roomTypeId: roomTypeId,
+      // A flatlet starts as one bedroom, one bathroom, one kitchen.
+      unit: UnitDetails.isFlatletName(name) ? const UnitDetails() : null,
     );
     state = state.copyWith(rooms: [...state.rooms, newRoom]);
     return newRoom.id;
+  }
+
+  /// A flatlet's layout (bedrooms, bathrooms, kitchen, let out…).
+  void setRoomUnit(String roomId, UnitDetails unit) {
+    state = state.copyWith(
+      rooms: [
+        for (final r in state.rooms)
+          r.id == roomId ? r.copyWith(unit: unit) : r,
+      ],
+    );
   }
 
   void removeRoom(String roomId) {
@@ -894,6 +908,11 @@ class PropertyViewModel extends Notifier<PropertyState> {
         clearLastPurchaseDate: clearLastPurchaseDate,
       ),
     );
+  }
+
+  /// Any change to the valuation, e.g. `(v) => v.copyWith(valueLow: '…')`.
+  void editValuation(ListingValuation Function(ListingValuation v) change) {
+    state = state.copyWith(listingValuation: change(state.listingValuation));
   }
 
   void updateRunningCosts({

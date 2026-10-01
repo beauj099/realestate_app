@@ -80,6 +80,19 @@ class PropertyReportRepository {
     ];
   }
 
+  /// The erf under a point and its outline (lat/lng, closed), for the pin
+  /// map; null where there is no parcel with a boundary, or the API is
+  /// older than the endpoint.
+  Future<ParcelOutline?> parcelAt(double lat, double lng) async {
+    final response = await _client.get(
+      ApiEndpoints.propertyParcelAt,
+      queryParameters: {'lat': lat, 'lng': lng},
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) return null;
+    return ParcelOutline.fromJson(data);
+  }
+
   Future<List<PropertyCandidate>> resolve(ReportQuery q) async {
     // Most precise first; a miss (e.g. GPS a little off the erf, or a listing
     // without coordinates) falls through to the next.
@@ -277,4 +290,23 @@ class PropertyReportRepository {
       return null;
     }
   }
+}
+
+/// An erf and its boundary, as `GET /api/property/parcel-at` sends it.
+class ParcelOutline {
+  final String erf;
+  final List<({double lat, double lng})> points;
+
+  const ParcelOutline({required this.erf, required this.points});
+
+  factory ParcelOutline.fromJson(Map<String, dynamic> j) => ParcelOutline(
+    erf: j['erf']?.toString() ?? '',
+    points: [
+      for (final p in (j['points'] as List? ?? const []))
+        (
+          lat: ((p as Map<String, dynamic>)['lat'] as num).toDouble(),
+          lng: (p['lng'] as num).toDouble(),
+        ),
+    ],
+  );
 }

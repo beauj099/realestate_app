@@ -1,6 +1,7 @@
 import '../../property_overview/data/models/enums/condition_rating.dart';
 import '../../property_overview/data/models/enums/room_category.dart';
 import '../../property_overview/data/models/property_state.dart';
+import '../data/models/property_report.dart' show rand;
 import 'report_pack_pdf.dart';
 
 /// The cover's "Property portfolio": what the agent captured about the home.
@@ -41,7 +42,12 @@ List<String> packPortfolio(PropertyState s) {
     if (named('kitchen'))
       'Kitchen${named('pantry') ? ' + pantry' : ''}${named('scullery') ? ' + scullery' : ''}',
     if (named('study') || named('office')) 'Study / office',
-    if (named('flatlet') || named('granny') || named('cottage')) 'Flatlet',
+    // A flatlet with its layout captured is described; else just named.
+    for (final r in s.rooms)
+      if (r.unit case final unit?) 'Flatlet: ${unit.summary(money: rand)}',
+    if (!s.rooms.any((r) => r.unit != null) &&
+        (named('flatlet') || named('granny') || named('cottage')))
+      'Flatlet',
     if (parking > 0) plural(parking, 'parking bay', 'parking bays'),
     if (s.outdoorFeatures.isNotEmpty) s.outdoorFeatures.take(8).join(', '),
   ];
@@ -64,7 +70,11 @@ PackInspection packInspection(PropertyState s) {
             for (final f in r.features)
               if (!r.hiddenFeatures.contains(f.description)) f.description,
           ],
-          notes: r.notes,
+          // A flatlet's layout leads its notes.
+          notes: [
+            if (r.unit case final unit?) '${unit.summary(money: rand)}.',
+            if (r.notes.trim().isNotEmpty) r.notes.trim(),
+          ].join(' '),
         ),
     ],
     houseScore: s.houseScore,
@@ -305,12 +315,14 @@ PackFacts packFacts(PropertyState s, Map<int, String> parkingTypes) {
           t.contains('backup') ||
           t.contains('generator'),
     ),
-    flatlet: any(
-      (t) =>
-          t.contains('flatlet') ||
-          t.contains('granny') ||
-          t.contains('cottage'),
-    ),
+    flatlet:
+        s.rooms.any((r) => r.unit != null) ||
+        any(
+          (t) =>
+              t.contains('flatlet') ||
+              t.contains('granny') ||
+              t.contains('cottage'),
+        ),
     petFriendly: any((t) => t.contains('pet friendly')),
   );
 }

@@ -19,6 +19,7 @@ abstract final class AppRoutes {
   static const String roomDetailsPath = '/property/:id/room-details/:roomId';
   static const String expensesPath = '/property/:id/expenses';
   static const String valuationPath = '/property/:id/valuation';
+  static const String purchaseHistoryPath = '/property/:id/purchase-history';
   static const String ownerDetailsPath = '/property/:id/owner-details';
   static const String propertyReportPath = '/property/:id/report';
 
@@ -45,6 +46,8 @@ abstract final class AppRoutes {
   static String expenses(int id) => '/property/$id/expenses';
 
   static String valuation(int id) => '/property/$id/valuation';
+
+  static String purchaseHistory(int id) => '/property/$id/purchase-history';
 
   static String valuationCosts(int id) => expenses(id);
 

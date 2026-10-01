@@ -37,6 +37,9 @@ class AutofillPlan {
   final String? floorArea;
   final int? zoningId;
 
+  /// The owners' purchase, from the last registered sale of the property.
+  final SaleRecord? lastPurchase;
+
   /// Human-readable list of what was filled, for the confirmation.
   final List<String> filled;
 
@@ -47,6 +50,7 @@ class AutofillPlan {
     this.erfSize,
     this.floorArea,
     this.zoningId,
+    this.lastPurchase,
     this.filled = const [],
   });
 
@@ -54,6 +58,7 @@ class AutofillPlan {
   bool get touchesAddress => erfNumber != null || latitude != null;
   bool get touchesBuildingInfo =>
       erfSize != null || floorArea != null || zoningId != null;
+  bool get touchesValuation => lastPurchase != null;
 }
 
 const _zoningNames = {
@@ -98,7 +103,15 @@ AutofillPlan planAutofill(PropertyState s, PropertyReport r) {
       : null;
   if (zoning != null) filled.add('zoning (${_zoningNames[zoning]})');
 
+  // The last registered sale is the owners' purchase; only when nothing of
+  // it is captured yet.
+  final sale = !s.listingValuation.hasPurchase ? r.lastSale : null;
+  if (sale != null) {
+    filled.add('last sale (${sale.date.year}, ${rand(sale.priceZar)})');
+  }
+
   return AutofillPlan(
+    lastPurchase: sale,
     erfNumber: erf,
     latitude: lat,
     longitude: lng,
@@ -230,6 +243,15 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
 
     if (plan.touchesAddress) await viewModel.saveAddress();
     if (plan.touchesBuildingInfo) await viewModel.saveBuildingInfo();
+    if (plan.lastPurchase case final sale?) {
+      viewModel.editValuation(
+        (v) => v.copyWith(
+          lastPurchaseDate: DateTime(sale.date.year, sale.date.month),
+          lastPurchasePrice: sale.priceZar.round().toString(),
+        ),
+      );
+      await viewModel.saveValuation();
+    }
 
     final message = plan.filled.isEmpty
         ? null

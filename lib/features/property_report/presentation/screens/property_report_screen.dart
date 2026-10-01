@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -245,8 +248,6 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
     final brand = ref.read(themeConfigProvider);
     final listing = ref.read(propertyViewModelProvider);
     final (preparedFor, greeting) = packOwners(listing);
-    double? number(String v) =>
-        double.tryParse(v.replaceAll(RegExp(r'[\s,R]'), ''));
     final photos = [
       ...listing.exteriorPhotos,
       for (final r in listing.rooms)
@@ -262,16 +263,24 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         report: report,
         preparedFor: preparedFor,
         greeting: greeting,
-        agentValuation: number(listing.listingValuation.agentValuation),
-        listingCommissionPercent: number(
-          listing.listingValuation.commissionPercent,
-        ),
+        valuation: listing.listingValuation,
         calculator: ref.read(reportSettingsProvider).calculator,
         coverPhoto: listing.exteriorPhotos.firstOrNull,
         gallery: packGallery(listing),
       ),
     );
     if (options == null || !mounted) return;
+
+    // The figures chosen are the listing's Price & Commission from now on.
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    final before = listing.listingValuation.content;
+    viewModel.editValuation((v) => valuationWithPack(v, options));
+    if (!listEquals(
+      before,
+      ref.read(propertyViewModelProvider).listingValuation.content,
+    )) {
+      unawaited(viewModel.saveValuation());
+    }
 
     setState(() => _exporting = true);
     try {

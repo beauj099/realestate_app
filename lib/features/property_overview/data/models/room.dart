@@ -1,3 +1,5 @@
+import 'unit_details.dart';
+
 /// Sentinel for [Room.copyWith], so an explicit `null` can clear [Room.score].
 const Object _unset = Object();
 
@@ -47,6 +49,10 @@ class Room {
   final List<RoomFeature> features;
   final List<String> hiddenFeatures;
   final String notes;
+
+  /// A flatlet / garden cottage's own layout; null for other rooms.
+  final UnitDetails? unit;
+
   /// Up to [maxPhotos] photos, the first being the room's cover.
   final List<RoomPhoto> photos;
 
@@ -67,6 +73,7 @@ class Room {
     this.features = const [],
     this.hiddenFeatures = const [],
     this.notes = '',
+    this.unit,
     this.photos = const [],
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -83,6 +90,7 @@ class Room {
     List<RoomFeature>? features,
     List<String>? hiddenFeatures,
     String? notes,
+    UnitDetails? unit,
     List<RoomPhoto>? photos,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -97,6 +105,7 @@ class Room {
       features: features ?? this.features,
       hiddenFeatures: hiddenFeatures ?? this.hiddenFeatures,
       notes: notes ?? this.notes,
+      unit: unit ?? this.unit,
       photos: photos ?? this.photos,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

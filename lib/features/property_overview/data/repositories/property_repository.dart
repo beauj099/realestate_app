@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
@@ -13,6 +14,7 @@ import '../../../../core/network/photo_urls.dart';
 import '../models/contact.dart';
 import '../models/enums/outdoor_extra.dart';
 import '../models/listing_document.dart';
+import '../models/unit_details.dart';
 import '../models/listing_parking.dart';
 import '../models/listing_valuation.dart';
 import '../models/property_running_costs.dart';
@@ -248,6 +250,7 @@ class PropertyRepository {
           score: (condition?['score'] as num?)?.toDouble(),
           features: [...features, ...customFeatures],
           notes: condition?['notes'] as String? ?? '',
+          unit: _parseUnit(r['unitDetails']),
           photos: _parseRoomPhotos(r),
           createdAt: r['createdAt'] != null
               ? DateTime.parse(r['createdAt'] as String)
@@ -271,15 +274,7 @@ class PropertyRepository {
           .map((f) => (f as Map<String, dynamic>)['description'] as String)
           .where((f) => !_parkingOutdoorNames.contains(f.trim().toLowerCase()))
           .toList(),
-      listingValuation: ListingValuation(
-        ownersNetPrice: valuation?['ownersNetPrice']?.toString() ?? '',
-        agentValuation: valuation?['agentValuation']?.toString() ?? '',
-        commissionPercent: valuation?['commissionPercent']?.toString() ?? '',
-        lastPurchasePrice: valuation?['lastPurchasePriceZar']?.toString() ?? '',
-        lastPurchaseDate: DateTime.tryParse(
-          valuation?['lastPurchaseDate']?.toString() ?? '',
-        ),
-      ),
+      listingValuation: _valuationFrom(valuation),
       propertyRunningCosts: PropertyRunningCosts(
         monthlyLevy: runningCosts?['monthlyLevy']?.toString() ?? '',
         monthlyRates: runningCosts?['monthlyRates']?.toString() ?? '',
@@ -338,8 +333,70 @@ class PropertyRepository {
     await _client.put(ApiEndpoints.listingBuildingInfo(listingId), data: data);
   }
 
+  /// The listing's valuation as the API sends it. Fields an older API does
+  /// not send stay empty.
+  static ListingValuation _valuationFrom(Map<String, dynamic>? v) {
+    String text(String key) {
+      final value = v?[key];
+      if (value is num) {
+        // 2950000.00 → "2950000", 5.50 → "5.5".
+        return value == value.roundToDouble()
+            ? value.round().toString()
+            : value.toString();
+      }
+      return value?.toString() ?? '';
+    }
+
+    return ListingValuation(
+      ownersNetPrice: text('ownersNetPrice'),
+      agentValuation: text('agentValuation'),
+      commissionPercent: text('commissionPercent'),
+      valueLow: text('valueLowZar'),
+      valueHigh: text('valueHighZar'),
+      listingPrice: text('listingPriceZar'),
+      adjustmentReason: text('adjustmentReason'),
+      commissionLatePercent: text('commissionLatePercent'),
+      commissionEarlyMonths: text('commissionEarlyMonths'),
+      commissionIncludesVat: v?['commissionIncludesVat'] as bool?,
+      interestRatePercent: text('interestRatePercent'),
+      bondTermYears: text('bondTermYears'),
+      depositPercent: text('depositPercent'),
+      lastPurchasePrice: text('lastPurchasePriceZar'),
+      lastPurchaseDate: DateTime.tryParse(text('lastPurchaseDate')),
+      bondInstitution: text('bondInstitution'),
+      bondAmount: text('bondAmountZar'),
+    );
+  }
+
   Future<void> upsertValuation(int listingId, PropertyState state) async {
     final data = <String, dynamic>{};
+    final v = state.listingValuation;
+    void money(String key, String value) {
+      if (value.trim().isNotEmpty) data[key] = _parseDecimal(value);
+    }
+
+    money('valueLowZar', v.valueLow);
+    money('valueHighZar', v.valueHigh);
+    money('listingPriceZar', v.listingPrice);
+    money('commissionLatePercent', v.commissionLatePercent);
+    money('interestRatePercent', v.interestRatePercent);
+    money('depositPercent', v.depositPercent);
+    money('bondAmountZar', v.bondAmount);
+    if (int.tryParse(v.commissionEarlyMonths.trim()) case final months?) {
+      data['commissionEarlyMonths'] = months;
+    }
+    if (int.tryParse(v.bondTermYears.trim()) case final years?) {
+      data['bondTermYears'] = years;
+    }
+    if (v.commissionIncludesVat case final vat?) {
+      data['commissionIncludesVat'] = vat;
+    }
+    if (v.adjustmentReason.trim().isNotEmpty) {
+      data['adjustmentReason'] = v.adjustmentReason.trim();
+    }
+    if (v.bondInstitution.trim().isNotEmpty) {
+      data['bondInstitution'] = v.bondInstitution.trim();
+    }
     if (state.listingValuation.ownersNetPrice.isNotEmpty) {
       data['ownersNetPrice'] = _parseDecimal(
         state.listingValuation.ownersNetPrice,
@@ -775,11 +832,24 @@ class PropertyRepository {
     return (response.data as List).cast<Map<String, dynamic>>();
   }
 
+  /// A flatlet's layout, stored by the API as JSON text.
+  static UnitDetails? _parseUnit(Object? raw) {
+    if (raw is! String || raw.trim().isEmpty) return null;
+    try {
+      return UnitDetails.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> _createRoom(int listingId, Room room) async {
     final data = <String, dynamic>{
       'name': room.name,
       'roomTypeId': room.roomTypeId,
     };
+    if (room.unit case final unit?) {
+      data['unitDetails'] = jsonEncode(unit.toJson());
+    }
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
     final response = await _client.post(
       ApiEndpoints.listingRooms(listingId),
@@ -795,6 +865,9 @@ class PropertyRepository {
     // The cover photo is kept in step by the API as photos are added and
     // removed, so it is not sent here.
     if (room.roomTypeOther != null) data['roomTypeOther'] = room.roomTypeOther;
+    if (room.unit case final unit?) {
+      data['unitDetails'] = jsonEncode(unit.toJson());
+    }
     await _client.put(ApiEndpoints.listingRoom(listingId, roomId), data: data);
   }
 

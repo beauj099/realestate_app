@@ -19,6 +19,7 @@ import '../../providers/property_provider.dart';
 import '../widgets/add_room_sheet.dart';
 import '../widgets/section_list.dart';
 import '../widgets/wizard_section_scaffold.dart';
+import '../../../../core/widgets/count_stepper.dart';
 
 /// Rooms, parking and outdoor features.
 ///
@@ -391,7 +392,7 @@ class _ParkingRow extends StatelessWidget {
               ),
             ),
           ),
-          _Stepper(
+          CountStepper(
             value: quantity,
             onChanged: onChanged,
             theme: theme,
@@ -400,78 +401,6 @@ class _ParkingRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// − n + counter, like the guest/bed counters in booking apps.
-class _Stepper extends StatelessWidget {
-  final int value;
-  final ValueChanged<int> onChanged;
-  final RealEstateTheme theme;
-  final TextTheme textTheme;
-  final String semanticsLabel;
-
-  static const int max = 20;
-
-  const _Stepper({
-    required this.value,
-    required this.onChanged,
-    required this.theme,
-    required this.textTheme,
-    required this.semanticsLabel,
-  });
-
-  Widget _button(IconData icon, VoidCallback? onPressed, String tooltip) {
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: IconButton.outlined(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        padding: EdgeInsets.zero,
-        iconSize: 18,
-        icon: Icon(icon),
-        style: IconButton.styleFrom(
-          foregroundColor: theme.primaryColor,
-          disabledForegroundColor: theme.borderLight,
-          side: BorderSide(
-            color: onPressed == null
-                ? theme.borderLight
-                : theme.primaryColor.withValues(alpha: 0.4),
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _button(
-          Icons.remove,
-          value > 0 ? () => onChanged(value - 1) : null,
-          'Fewer $semanticsLabel',
-        ),
-        SizedBox(
-          width: 36,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.textPrimary,
-            ),
-          ),
-        ),
-        _button(
-          Icons.add,
-          value < max ? () => onChanged(value + 1) : null,
-          'More $semanticsLabel',
-        ),
-      ],
     );
   }
 }
@@ -623,5 +552,7 @@ String _roomSummary(Room room) {
     ?condition,
     if (score != null) 'Score ${RoomScore.format(score)}',
   ];
-  return parts.isEmpty ? 'Not rated yet' : parts.join(' · ');
+  final rating = parts.isEmpty ? 'Not rated yet' : parts.join(' · ');
+  final unit = room.unit;
+  return unit == null ? rating : '${unit.shortSummary} · $rating';
 }

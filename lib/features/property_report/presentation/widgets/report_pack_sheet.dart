@@ -6,6 +6,7 @@ import '../../../../core/widgets/listing_photo.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
+import '../../../property_overview/data/models/listing_valuation.dart';
 import '../../../report_settings/data/models/report_settings.dart';
 import '../../data/models/property_report.dart';
 
@@ -476,33 +477,77 @@ extension on _ReportPackSheetState {
       );
 }
 
-/// The range to start from: the agent's own valuation when captured, else the
-/// report's range, rounded to R10 000.
+/// This listing's calculator figures: the ones set on its Price &
+/// Commission, else Report settings.
+CalculatorDefaults calculatorForListing(
+  CalculatorDefaults defaults,
+  ListingValuation v,
+) {
+  double? n(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
+  int? i(String s) => int.tryParse(s.trim());
+  return defaults.copyWith(
+    commissionEarlyPercent: n(v.commissionPercent),
+    commissionLatePercent: n(v.commissionLatePercent),
+    earlyMonths: i(v.commissionEarlyMonths),
+    commissionIncludesVat: v.commissionIncludesVat,
+    interestRatePercent: n(v.interestRatePercent),
+    bondTermYears: i(v.bondTermYears),
+    depositPercent: n(v.depositPercent),
+  );
+}
+
+/// The listing's valuation with the figures chosen for a pack written back,
+/// so Price & Commission always holds what the last pack used.
+ListingValuation valuationWithPack(ListingValuation v, PackOptions o) {
+  String n(num x) =>
+      x == x.roundToDouble() ? x.round().toString() : x.toString();
+  final c = o.calculator;
+  return v.copyWith(
+    valueLow: n(o.low),
+    valueHigh: n(o.high),
+    agentValuation: n(((o.low + o.high) / 2 / 10000).round() * 10000),
+    listingPrice: n(o.listingPrice),
+    adjustmentReason: o.adjustmentReason,
+    commissionPercent: n(c.commissionEarlyPercent),
+    commissionLatePercent: n(c.commissionLatePercent),
+    commissionEarlyMonths: '${c.earlyMonths}',
+    commissionIncludesVat: c.commissionIncludesVat,
+    interestRatePercent: n(c.interestRatePercent),
+    bondTermYears: '${c.bondTermYears}',
+    depositPercent: n(c.depositPercent),
+  );
+}
+
+/// The range to start from: the agent's own range and price from Price &
+/// Commission when set, else their single valuation, else the report's
+/// range, rounded to R10 000.
 PackOptions initialPackOptions({
   required PropertyReport report,
   required String preparedFor,
   required String greeting,
-  required double? agentValuation,
-  required double? listingCommissionPercent,
+  required ListingValuation valuation,
   required CalculatorDefaults calculator,
   String? coverPhoto,
   List<String> gallery = const [],
 }) {
   double r(double v) => (v / 10000).round() * 10000;
+  double? n(String s) => double.tryParse(s.trim().replaceAll(',', '.'));
+  final agentValuation = n(valuation.agentValuation);
   final range = report.bestRange;
   final mid = agentValuation ?? range?.mid ?? report.municipalValueZar ?? 0;
-  final low = r(range?.low ?? mid * 0.95);
-  final high = r(agentValuation ?? range?.high ?? mid * 1.05);
+  final low = n(valuation.valueLow) ?? r(range?.low ?? mid * 0.95);
+  final high0 =
+      n(valuation.valueHigh) ?? r(agentValuation ?? range?.high ?? mid * 1.05);
+  final high = high0 < low ? low : high0;
   return PackOptions(
     preparedFor: preparedFor,
     greeting: greeting,
     low: low,
-    high: high < low ? low : high,
-    listingPrice: r(high * 1.05),
+    high: high,
+    listingPrice: n(valuation.listingPrice) ?? r(high * 1.05),
+    adjustmentReason: valuation.adjustmentReason,
     coverPhoto: coverPhoto,
     gallery: gallery,
-    calculator: listingCommissionPercent == null
-        ? calculator
-        : calculator.copyWith(commissionEarlyPercent: listingCommissionPercent),
+    calculator: calculatorForListing(calculator, valuation),
   );
 }

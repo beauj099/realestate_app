@@ -17,6 +17,9 @@ import 'package:realworth/features/property_report/providers/property_report_pro
 /// street and with a suburb.
 class _FakeRepo implements PropertyReportRepository {
   int calls = 0;
+
+  @override
+  Future<ParcelOutline?> parcelAt(double lat, double lng) async => null;
   final queries = <String>[];
 
   @override

@@ -11,6 +11,7 @@ import '../../../../core/locale/region_provider.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
 import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/widgets/listing_photo.dart';
 import '../../../../core/widgets/real_estate_dialog.dart';
 import '../../../home/presentation/screens/home_screen.dart'
     show listingsProvider;
@@ -94,18 +95,21 @@ class _PropertyOverviewScreenState
         icon: Icons.location_on_outlined,
         route: AppRoutes.address(propertyId),
         isComplete: state.isAddressComplete,
+        group: '',
       ),
       _SectionData(
         title: 'Building Info',
         subtitle: state.erfSize.isNotEmpty
-            ? '${state.erfSize} m\u00B2'
+            ? '${state.erfSize} m\u00B2 erf'
+                  '${state.floorArea.isNotEmpty ? ' · ${state.floorArea} m\u00B2 floor' : ''}'
             : 'Not provided',
         icon: Icons.architecture_outlined,
         route: AppRoutes.buildingInfo(propertyId),
         isComplete: state.isBuildingInfoComplete,
+        group: 'The property',
       ),
       _SectionData(
-        title: 'Property Features',
+        title: 'Rooms & Features',
         subtitle: state.rooms.isEmpty
             ? 'Not provided'
             : state.isFeaturesComplete
@@ -114,40 +118,75 @@ class _PropertyOverviewScreenState
         icon: Icons.meeting_room_outlined,
         route: AppRoutes.propertyFeatures(propertyId),
         isComplete: state.isFeaturesComplete,
-      ),
-      _SectionData(
-        title: 'Expenses',
-        subtitle: _expensesSummary(state, currency),
-        icon: Icons.account_balance_wallet_outlined,
-        route: AppRoutes.expenses(propertyId),
-        isComplete: state.isExpensesComplete,
+        group: 'The property',
       ),
       _SectionData(
         title: 'Owner Details',
         subtitle: state.primaryContact.fullName.isNotEmpty
             ? state.primaryContact.fullName
+            : state.primaryContact.companyName.isNotEmpty
+            ? state.primaryContact.companyName
             : 'Not provided',
         icon: Icons.contacts_outlined,
         route: AppRoutes.ownerDetails(propertyId),
         isComplete: state.isOwnerComplete,
+        group: 'Owners',
       ),
-      // Last on purpose: pricing is settled once the property has been walked.
       _SectionData(
-        title: 'Valuation',
-        subtitle: state.listingValuation.ownersNetPrice.isNotEmpty
-            ? '$currency ${state.listingValuation.ownersNetPrice}'
-            : 'Not provided',
+        title: 'Purchase History',
+        subtitle: _purchaseSummary(state, currency),
+        icon: Icons.history_edu_outlined,
+        route: AppRoutes.purchaseHistory(propertyId),
+        isComplete: state.isPurchaseCaptured,
+        optional: true,
+        group: 'Owners',
+      ),
+      _SectionData(
+        title: 'Running Costs',
+        subtitle: _expensesSummary(state, currency),
+        icon: Icons.account_balance_wallet_outlined,
+        route: AppRoutes.expenses(propertyId),
+        isComplete: state.isExpensesComplete,
+        group: 'Costs',
+      ),
+      // Last on purpose: pricing is settled once the property has been
+      // walked and the report made.
+      _SectionData(
+        title: 'Price & Commission',
+        subtitle: _priceSummary(state, currency),
         icon: Icons.sell_outlined,
         route: AppRoutes.valuation(propertyId),
         isComplete: state.isValuationComplete,
+        group: 'Valuation',
       ),
     ];
 
     final selectedType = PropertyTypeExtension.fromId(state.propertyTypeId);
+    final required = sections.where((s) => !s.optional);
     final allComplete =
-        selectedType != null && sections.every((s) => s.isComplete);
+        selectedType != null && required.every((s) => s.isComplete);
 
-    final completeCount = sections.where((s) => s.isComplete).length;
+    final completeCount = required.where((s) => s.isComplete).length;
+    final baseUrl = ref.watch(apiClientProvider).baseUrl;
+
+    Widget card(_SectionData section) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SectionCard(
+        title: section.title,
+        subtitle: section.subtitle,
+        icon: section.icon,
+        isComplete: section.isComplete,
+        optional: section.optional,
+        theme: theme,
+        textTheme: textTheme,
+        onTap: () => context.push(section.route),
+      ),
+    );
+    List<Widget> group(String name) => [
+      _GroupLabel(text: name, theme: theme, textTheme: textTheme),
+      for (final s in sections.where((s) => s.group == name)) card(s),
+      const SizedBox(height: 10),
+    ];
 
     return PopScope(
       canPop: false,
@@ -212,7 +251,17 @@ class _PropertyOverviewScreenState
                             color: theme.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 12),
+                        // The address finds everything else: it leads.
+                        _AddressHero(
+                          state: state,
+                          theme: theme,
+                          textTheme: textTheme,
+                          baseUrl: baseUrl,
+                          onTap: () =>
+                              context.push(AppRoutes.address(propertyId)),
+                        ),
+                        const SizedBox(height: 12),
                         _PropertyTypeField(
                           selected: selectedType,
                           theme: theme,
@@ -241,7 +290,7 @@ class _PropertyOverviewScreenState
                           theme: theme,
                           textTheme: textTheme,
                           viewModel: viewModel,
-                          baseUrl: ref.watch(apiClientProvider).baseUrl,
+                          baseUrl: baseUrl,
                         ),
                         const SizedBox(height: 24),
                         if (autofill.running)
@@ -271,29 +320,22 @@ class _PropertyOverviewScreenState
                           ),
                         _ProgressSummary(
                           completeCount: completeCount,
-                          totalCount: sections.length,
+                          totalCount: required.length,
                           houseScore: state.houseScore,
                           isManual: state.houseScoreIsManual,
                           theme: theme,
                           textTheme: textTheme,
                           onAdjustScore: () => _adjustHouseScore(state),
                         ),
-                        const SizedBox(height: 16),
-                        ...sections.map(
-                          (section) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SectionCard(
-                              title: section.title,
-                              subtitle: section.subtitle,
-                              icon: section.icon,
-                              isComplete: section.isComplete,
-                              theme: theme,
-                              textTheme: textTheme,
-                              onTap: () => context.push(section.route),
-                            ),
-                          ),
+                        const SizedBox(height: 24),
+                        ...group('The property'),
+                        ...group('Owners'),
+                        ...group('Costs'),
+                        _GroupLabel(
+                          text: 'Valuation',
+                          theme: theme,
+                          textTheme: textTheme,
                         ),
-                        const SizedBox(height: 8),
                         _ValuationReportTile(
                           theme: theme,
                           textTheme: textTheme,
@@ -307,6 +349,11 @@ class _PropertyOverviewScreenState
                             ),
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        for (final s in sections.where(
+                          (s) => s.group == 'Valuation',
+                        ))
+                          card(s),
                       ],
                     ),
                   ),
@@ -745,7 +792,6 @@ class _ValuationReportTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: theme.textSecondary),
           ],
         ),
       ),
@@ -760,13 +806,216 @@ class _SectionData {
   final String route;
   final bool isComplete;
 
+  /// Not needed to submit (e.g. purchase history the owners may not know).
+  final bool optional;
+
+  /// The heading it is listed under; '' for the address card.
+  final String group;
+
   const _SectionData({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.route,
     required this.isComplete,
+    required this.group,
+    this.optional = false,
   });
+}
+
+/// A small heading over a group of sections, as in the report.
+class _GroupLabel extends StatelessWidget {
+  final String text;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+
+  const _GroupLabel({
+    required this.text,
+    required this.theme,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 8),
+      child: Text(
+        text.toUpperCase(),
+        style: textTheme.labelSmall?.copyWith(
+          color: theme.textSecondary,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// The address at the top of the listing, large, with the main photo: it is
+/// what everything else is found from, and what the agent recognises the
+/// listing by. Tapping it edits the address.
+class _AddressHero extends StatelessWidget {
+  final PropertyState state;
+  final RealEstateTheme theme;
+  final TextTheme textTheme;
+  final String baseUrl;
+  final VoidCallback onTap;
+
+  const _AddressHero({
+    required this.state,
+    required this.theme,
+    required this.textTheme,
+    required this.baseUrl,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final street = '${state.streetNumber} ${state.street}'.trim();
+    final unit = state.unitNumber.trim();
+    final line1 = unit.isEmpty || street.isEmpty
+        ? street
+        : 'Unit $unit, $street';
+    final line2 = [
+      state.estateName,
+      state.suburb,
+      state.city,
+    ].map((s) => s.trim()).where((s) => s.isNotEmpty).join(', ');
+    final hasAddress = line1.isNotEmpty || line2.isNotEmpty;
+    final photo = state.exteriorPhotos.firstOrNull;
+    final facts = [
+      if (state.erfNumber.trim().isNotEmpty) 'Erf ${state.erfNumber.trim()}',
+      if (state.erfSize.trim().isNotEmpty) '${state.erfSize.trim()} m\u00B2',
+    ];
+
+    return Material(
+      color: theme.cardBackgroundColor,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasAddress
+                  ? theme.borderLight
+                  : theme.primaryColor.withValues(alpha: 0.5),
+              width: hasAddress ? 1 : 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (photo != null)
+                SizedBox(
+                  height: 150,
+                  child: listingPhoto(
+                    photo,
+                    theme: theme,
+                    textTheme: textTheme,
+                    baseUrl: baseUrl,
+                    cacheWidth: 900,
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.location_on_outlined,
+                        color: theme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hasAddress
+                                ? (line1.isEmpty ? line2 : line1)
+                                : 'Add the address',
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.textPrimary,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            !hasAddress
+                                ? 'Everything else (erf, sizes, zoning, nearby '
+                                      'sales) is found from it.'
+                                : line1.isEmpty
+                                ? 'Add the street address'
+                                : line2,
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: theme.textSecondary,
+                            ),
+                          ),
+                          if (facts.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                for (final f in facts)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.backgroundColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: theme.borderLight,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      f,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: theme.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      state.isAddressComplete
+                          ? Icons.check_circle_rounded
+                          : Icons.error_outline_rounded,
+                      size: 24,
+                      color: state.isAddressComplete
+                          ? theme.completeColor
+                          : theme.pendingColor,
+                      semanticLabel: state.isAddressComplete
+                          ? 'Complete'
+                          : 'Incomplete',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Pinned footer: Save Property always, plus Submit Evaluation once every
@@ -859,6 +1108,33 @@ String _expensesSummary(PropertyState state, String currency) {
     return 'Rates $currency ${c.monthlyRates}/month';
   }
   return '$filled cost${filled == 1 ? '' : 's'} captured';
+}
+
+/// "Bought 2014 for R 1 900 000" / "Optional".
+String _purchaseSummary(PropertyState state, String currency) {
+  final v = state.listingValuation;
+  final year = v.lastPurchaseDate?.year;
+  final price = v.lastPurchasePrice.trim();
+  if (year == null && price.isEmpty) return 'Optional · when and for how much';
+  return [
+    'Bought',
+    if (year != null) '$year',
+    if (price.isNotEmpty) 'for $currency $price',
+  ].join(' ');
+}
+
+/// "List at R 2 950 000 · 5%" / the owner's net price / "Not provided".
+String _priceSummary(PropertyState state, String currency) {
+  final v = state.listingValuation;
+  final listing = v.listingPrice.trim();
+  final pct = v.commissionPercent.trim();
+  if (listing.isNotEmpty) {
+    return 'List at $currency $listing${pct.isEmpty ? '' : ' · $pct%'}';
+  }
+  if (v.ownersNetPrice.trim().isNotEmpty) {
+    return "Owner's net $currency ${v.ownersNetPrice.trim()}";
+  }
+  return 'After the report: your range, price and commission';
 }
 
 /// Section progress and the house score.

@@ -7,6 +7,8 @@ import '../../property_overview/data/models/property_state.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import '../data/report_cache.dart';
+import '../../property_overview/providers/property_provider.dart';
+import 'city_records_autofill.dart';
 import 'property_report_provider.dart';
 
 /// The listing's own details a saved report is filed under: its address,
@@ -141,6 +143,12 @@ class ReportPreparer {
           forSale: results[5] as Map<String, dynamic>?,
         ),
       );
+      // The full report has what the quick lookup may not (Cape Town's last
+      // registered sale): fill the listing's empty fields from it, while it
+      // is still the listing open.
+      if (_ref.read(propertyViewModelProvider).listingId == id) {
+        await _ref.read(cityRecordsAutofillProvider.notifier).apply(report);
+      }
     } catch (e) {
       // The report screen makes it then, as before.
       developer.log('Report not prepared in the background: $e');
@@ -160,3 +168,24 @@ class ReportPreparer {
 }
 
 final reportPreparerProvider = Provider<ReportPreparer>(ReportPreparer.new);
+
+/// The report kept on the phone for [listing], if it was made for the
+/// listing's current address; null when there is none yet. For screens that
+/// start from the report's figures (Price & Commission, Purchase History).
+Future<PropertyReport?> savedReportFor(
+  ReportCache cache,
+  PropertyState listing,
+) async {
+  final id = listing.listingId;
+  if (id == null) return null;
+  final saved = await cache.load(id);
+  if (saved == null || saved.key != reportKeyForListing(listing)) return null;
+  try {
+    return PropertyReport.fromJson(
+      saved.report,
+    ).forListingFloorArea(reportHintsForListing(listing).floorM2);
+  } catch (e) {
+    developer.log('Saved report unreadable: $e');
+    return null;
+  }
+}

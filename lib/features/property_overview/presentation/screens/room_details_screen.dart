@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/locale/region_provider.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/theme/themes.dart';
@@ -13,6 +14,8 @@ import '../../../../core/widgets/wizard_app_bar.dart';
 import '../../data/models/enums/condition_rating.dart';
 import '../../data/models/enums/standard_amenity.dart';
 import '../../data/models/room.dart';
+import '../../data/models/unit_details.dart';
+import '../widgets/flatlet_layout.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/condition_scale.dart';
 import '../widgets/room_photo_gallery.dart';
@@ -104,6 +107,23 @@ class RoomDetailsScreen extends ConsumerWidget {
                     onReorder: (order) =>
                         viewModel.reorderRoomPhotos(room.id, order),
                   ),
+                  // A flatlet is a small home of its own: its layout first.
+                  if (room.unit != null ||
+                      UnitDetails.isFlatletName(room.name)) ...[
+                    const SizedBox(height: 24),
+                    SectionHeader(
+                      title: 'Flatlet layout',
+                      theme: theme,
+                      textTheme: textTheme,
+                    ),
+                    FlatletLayout(
+                      unit: room.unit ?? const UnitDetails(),
+                      theme: theme,
+                      textTheme: textTheme,
+                      currency: ref.watch(regionProvider).currencySymbol,
+                      onChanged: (u) => viewModel.setRoomUnit(room.id, u),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   SectionHeader(
                     title: 'Condition',

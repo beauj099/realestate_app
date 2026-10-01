@@ -7,6 +7,9 @@ class SectionCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final bool isComplete;
+
+  /// Not needed to finish the listing: no warning mark while empty.
+  final bool optional;
   final VoidCallback? onTap;
   final RealEstateTheme theme;
   final TextTheme textTheme;
@@ -17,6 +20,7 @@ class SectionCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.isComplete,
+    this.optional = false,
     this.onTap,
     required this.theme,
     required this.textTheme,
@@ -86,22 +90,26 @@ class SectionCard extends StatelessWidget {
                   ),
                 ),
                 // A coloured mark rather than a text pill, so the title keeps
-                // the width. Still announced to screen readers.
-                Tooltip(
-                  message: isComplete ? 'Complete' : 'Required details missing',
-                  child: Icon(
-                    isComplete
-                        ? Icons.check_circle_rounded
-                        : Icons.error_outline_rounded,
-                    size: 24,
-                    color: isComplete
-                        ? theme.completeColor
-                        : theme.pendingColor,
-                    semanticLabel: isComplete ? 'Complete' : 'Incomplete',
+                // the width. Still announced to screen readers. The whole card
+                // is the tap target, so there is no arrow.
+                if (!isComplete && optional)
+                  const SizedBox.shrink()
+                else
+                  Tooltip(
+                    message: isComplete
+                        ? 'Complete'
+                        : 'Required details missing',
+                    child: Icon(
+                      isComplete
+                          ? Icons.check_circle_rounded
+                          : Icons.error_outline_rounded,
+                      size: 24,
+                      color: isComplete
+                          ? theme.completeColor
+                          : theme.pendingColor,
+                      semanticLabel: isComplete ? 'Complete' : 'Incomplete',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right, color: theme.textSecondary, size: 22),
               ],
             ),
           ),

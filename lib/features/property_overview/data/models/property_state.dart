@@ -256,6 +256,7 @@ class PropertyState {
           r.conditionRating,
           r.score,
           r.notes.trim(),
+          r.unit?.toJson().toString(),
           [for (final p in r.photos) p.path],
           [for (final f in r.features) f.description],
         ],
@@ -265,13 +266,7 @@ class PropertyState {
     ],
     outdoorFeatures,
     exteriorPhotos,
-    [
-      listingValuation.ownersNetPrice.trim(),
-      listingValuation.agentValuation.trim(),
-      listingValuation.commissionPercent.trim(),
-      listingValuation.lastPurchasePrice.trim(),
-      listingValuation.lastPurchaseDate?.toIso8601String() ?? '',
-    ],
+    listingValuation.content,
     [
       propertyRunningCosts.monthlyLevy.trim(),
       propertyRunningCosts.monthlyRates.trim(),
@@ -384,7 +379,11 @@ class PropertyState {
   }
 
   bool get isValuationComplete =>
-      listingValuation.ownersNetPrice.trim().isNotEmpty;
+      listingValuation.ownersNetPrice.trim().isNotEmpty ||
+      listingValuation.listingPrice.trim().isNotEmpty;
+
+  /// Optional: when and for how much the owners bought, and their bond.
+  bool get isPurchaseCaptured => listingValuation.hasPurchase;
 
   /// The app's suggested house score as a percentage: the room scores,
   /// weighted by how much each kind of room matters (see
