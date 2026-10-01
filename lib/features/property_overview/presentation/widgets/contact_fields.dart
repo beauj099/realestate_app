@@ -99,21 +99,33 @@ class ContactFields extends StatelessWidget {
             onChanged: (val) => onChanged(contact.copyWith(role: val)),
           ),
         ] else ...[
-          _TitlePicker(
-            theme: theme,
-            selected: contact.title,
-            onChanged: (t) => onChanged(contact.copyWith(title: t)),
-          ),
-          const SizedBox(height: 16),
-          CustomTextInput(
-            theme: theme,
-            label: 'FULL NAME',
-            textCapitalization: TextCapitalization.words,
-            placeholder: 'John Doe',
-            initialValue: contact.fullName,
-            autofillHints: const [AutofillHints.name],
-            errorText: errors['name'],
-            onChanged: (val) => onChanged(contact.copyWith(fullName: val)),
+          // Title and name on one line, as they are written.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: _TitlePicker(
+                  theme: theme,
+                  selected: contact.title,
+                  onChanged: (t) => onChanged(contact.copyWith(title: t)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomTextInput(
+                  theme: theme,
+                  label: 'FULL NAME',
+                  textCapitalization: TextCapitalization.words,
+                  placeholder: 'John Doe',
+                  initialValue: contact.fullName,
+                  autofillHints: const [AutofillHints.name],
+                  errorText: errors['name'],
+                  onChanged: (val) =>
+                      onChanged(contact.copyWith(fullName: val)),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           // South African ID: typed as digits only, shown as YYMMDD GGGG CCC
@@ -327,7 +339,7 @@ Map<String, String> validateContact(
   return errors;
 }
 
-/// Mr, Mrs, Ms… as chips; tapping the chosen one again clears it.
+/// Mr, Mrs, Ms… as a plain dropdown; "None" leaves it out.
 class _TitlePicker extends StatelessWidget {
   final RealEstateTheme theme;
   final String selected;
@@ -342,36 +354,57 @@ class _TitlePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = theme.toThemeData().textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'TITLE (OPTIONAL)',
-          style: textTheme.labelSmall?.copyWith(
-            color: theme.textSecondary,
-            letterSpacing: 1,
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: color, width: width),
+    );
+    // A title saved before that is not in the list still shows.
+    final titles = [
+      ...ownerTitles,
+      if (selected.isNotEmpty && !ownerTitles.contains(selected)) selected,
+    ];
+    return DropdownButtonFormField<String>(
+      initialValue: selected,
+      isExpanded: true,
+      dropdownColor: theme.cardBackgroundColor,
+      borderRadius: BorderRadius.circular(12),
+      icon: Icon(Icons.keyboard_arrow_down, color: theme.textSecondary),
+      style: textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: theme.textPrimary,
+      ),
+      decoration: InputDecoration(
+        labelText: 'TITLE',
+        filled: true,
+        fillColor: theme.cardBackgroundColor,
+        labelStyle: textTheme.bodyLarge?.copyWith(
+          color: theme.textSecondary,
+          fontWeight: FontWeight.normal,
+        ),
+        floatingLabelStyle: textTheme.bodyMedium?.copyWith(
+          color: theme.primaryColor,
+          fontWeight: FontWeight.w600,
+        ),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        border: border(theme.borderLight, 1),
+        enabledBorder: border(theme.borderLight, 1),
+        focusedBorder: border(theme.primaryColor, 2),
+        contentPadding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+      ),
+      items: [
+        DropdownMenuItem(
+          value: '',
+          child: Text(
+            'None',
+            style: TextStyle(
+              color: theme.textSecondary,
+              fontWeight: FontWeight.normal,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final t in ownerTitles)
-              ChoiceChip(
-                label: Text(t),
-                selected: selected == t,
-                showCheckmark: false,
-                selectedColor: theme.primaryColor,
-                labelStyle: TextStyle(
-                  color: selected == t ? theme.onPrimary : theme.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-                onSelected: (_) => onChanged(selected == t ? '' : t),
-              ),
-          ],
-        ),
+        for (final t in titles) DropdownMenuItem(value: t, child: Text(t)),
       ],
+      onChanged: (t) => onChanged(t ?? ''),
     );
   }
 }
