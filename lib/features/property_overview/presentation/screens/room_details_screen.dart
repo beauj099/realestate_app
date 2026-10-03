@@ -349,6 +349,8 @@ class _FeatureGroup {
         return Icons.layers_outlined;
       case AmenityCategory.climateFinishes:
         return Icons.ac_unit_outlined;
+      case AmenityCategory.connections:
+        return Icons.settings_input_antenna_outlined;
       case AmenityCategory.legacyWholeHouse:
         return Icons.home_outlined;
     }

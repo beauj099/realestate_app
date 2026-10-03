@@ -10,6 +10,9 @@ enum AmenityCategory {
   floors,
   climateFinishes,
 
+  /// TV, data and telephone points (myEdge: TV Port, Internet Port).
+  connections,
+
   /// Whole-house items once offered per room (alarm, CCTV, fibre, …). They
   /// belong on the property — see the outdoor Security section — so they are
   /// never offered for a room, only shown on older rooms that already have one.
@@ -33,6 +36,8 @@ extension AmenityCategoryExtension on AmenityCategory {
         return 'Floors';
       case AmenityCategory.climateFinishes:
         return 'Climate & Finishes';
+      case AmenityCategory.connections:
+        return 'Connections';
       case AmenityCategory.legacyWholeHouse:
         return 'Whole House';
     }
@@ -58,21 +63,35 @@ enum StandardAmenity {
     AmenityCategory.kitchen,
   ),
   breakfastNook('Breakfast Nook', AmenityCategory.kitchen),
+  // From the myEdge listing form (2026-10).
+  stove('Stove', AmenityCategory.kitchen),
+  fridgeSpace('Fridge Space', AmenityCategory.kitchen),
+  tumbleDryerConnection('Tumble Dryer Connection', AmenityCategory.kitchen),
+  wasteDisposal('Waste Disposal', AmenityCategory.kitchen),
   bath('Bath', AmenityCategory.bathroom),
   shower('Shower', AmenityCategory.bathroom),
   doubleVanity('Double Vanity', AmenityCategory.bathroom),
   heatedTowelRail('Heated Towel Rail', AmenityCategory.bathroom),
   separateToilet('Separate Toilet', AmenityCategory.bathroom),
+  jacuzziBath('Jacuzzi Bath', AmenityCategory.bathroom),
+  basin('Basin', AmenityCategory.bathroom),
+  toilet('Toilet', AmenityCategory.bathroom),
   walkInCloset('Walk-in Closet', AmenityCategory.storage),
   builtInWardrobes('Built-in Wardrobes', AmenityCategory.storage),
   ensuiteBathroom('En-suite Bathroom', AmenityCategory.layout),
   balconyAccess('Balcony Access', AmenityCategory.layout),
+  openPlan('Open Plan', AmenityCategory.layout),
+  slidingDoors('Sliding Doors', AmenityCategory.layout),
+  staircase('Staircase', AmenityCategory.layout),
+  patioAccess('Patio Access', AmenityCategory.layout),
   fireplace('Fireplace', AmenityCategory.living),
   builtInBraai('Built-in Braai', AmenityCategory.living),
   builtInBar('Built-in Bar', AmenityCategory.living),
+  projector('Projector', AmenityCategory.living),
   tiledFloors('Tiled Floors', AmenityCategory.floors),
   woodenLaminateFloors('Wooden / Laminate Floors', AmenityCategory.floors),
   carpets('Carpets', AmenityCategory.floors),
+  parquetFloors('Parquet Floors', AmenityCategory.floors),
   airConditioning('Air Conditioning', AmenityCategory.climateFinishes),
   ceilingFan('Ceiling Fan', AmenityCategory.climateFinishes),
   underfloorHeating('Underfloor Heating', AmenityCategory.climateFinishes),
@@ -80,6 +99,14 @@ enum StandardAmenity {
     'High Ceilings / Exposed Beams / Exposed Trusses',
     AmenityCategory.climateFinishes,
   ),
+  blinds('Blinds', AmenityCategory.climateFinishes),
+  curtainRails('Curtain Rails', AmenityCategory.climateFinishes),
+  pressedCeilings('Pressed Ceilings', AmenityCategory.climateFinishes),
+  woodenCeilings('Wooden Ceilings', AmenityCategory.climateFinishes),
+  skylight('Skylight', AmenityCategory.climateFinishes),
+  tvPort('TV Port', AmenityCategory.connections),
+  dataPort('Data / Internet Port', AmenityCategory.connections),
+  telephonePort('Telephone Port', AmenityCategory.connections),
   fibreReady('Fibre Ready / Fibre Installed', AmenityCategory.legacyWholeHouse),
   alarmSystem('Alarm System', AmenityCategory.legacyWholeHouse),
   intercom('Intercom', AmenityCategory.legacyWholeHouse),
@@ -115,6 +142,7 @@ enum StandardAmenity {
           AmenityCategory.layout,
           AmenityCategory.floors,
           AmenityCategory.climateFinishes,
+          AmenityCategory.connections,
         });
       case RoomCategory.bathroom:
         return [
@@ -129,12 +157,17 @@ enum StandardAmenity {
             AmenityCategory.living,
             AmenityCategory.floors,
             AmenityCategory.climateFinishes,
+            AmenityCategory.connections,
           }),
           StandardAmenity.balconyAccess,
+          StandardAmenity.openPlan,
+          StandardAmenity.slidingDoors,
+          StandardAmenity.patioAccess,
         ];
       case RoomCategory.kitchenAndUtility:
         return [
           ..._inCategories({AmenityCategory.kitchen}),
+          StandardAmenity.openPlan,
           StandardAmenity.tiledFloors,
           StandardAmenity.woodenLaminateFloors,
           StandardAmenity.underfloorHeating,
@@ -145,6 +178,7 @@ enum StandardAmenity {
           ..._inCategories({
             AmenityCategory.floors,
             AmenityCategory.climateFinishes,
+            AmenityCategory.connections,
           }),
         ];
       case RoomCategory.additional:
