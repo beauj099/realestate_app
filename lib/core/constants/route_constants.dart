@@ -20,6 +20,7 @@ abstract final class AppRoutes {
   static const String expensesPath = '/property/:id/expenses';
   static const String valuationPath = '/property/:id/valuation';
   static const String purchaseHistoryPath = '/property/:id/purchase-history';
+  static const String mandatePath = '/property/:id/mandate';
   static const String ownerDetailsPath = '/property/:id/owner-details';
   static const String propertyReportPath = '/property/:id/report';
 
@@ -48,6 +49,8 @@ abstract final class AppRoutes {
   static String valuation(int id) => '/property/$id/valuation';
 
   static String purchaseHistory(int id) => '/property/$id/purchase-history';
+
+  static String mandate(int id) => '/property/$id/mandate';
 
   static String valuationCosts(int id) => expenses(id);
 

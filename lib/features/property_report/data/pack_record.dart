@@ -83,6 +83,7 @@ String packFingerprint(PropertyState s) => jsonEncode([
   s.outdoorFeatures,
   s.exteriorPhotos.length,
   s.listingValuation.content,
+  s.details.encode(),
   [
     for (final c in [s.primaryContact, ...s.coContacts])
       [c.title, c.fullName.trim(), c.companyName.trim()],

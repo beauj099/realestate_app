@@ -29,7 +29,24 @@ List<String> packPortfolio(PropertyState s) {
   final floor = double.tryParse(s.floorArea.replaceAll(',', '.'));
   final year = int.tryParse(s.constructionYear.trim());
 
+  final d = s.details;
   return [
+    // The kind of home and title, as the myEdge form records them.
+    if ([d.subtype, d.ownershipType].where((v) => v.isNotEmpty).toList()
+        case final kind when kind.isNotEmpty)
+      kind.join(', '),
+    if (d.style.isNotEmpty) '${d.style} style',
+    if (d.overallCondition.isNotEmpty)
+      'Overall condition: ${d.overallCondition}',
+    if (d.views.isNotEmpty) d.views.join(', '),
+    for (final r in d.renovations)
+      [
+        'Renovated',
+        if (r.year != null) 'in ${r.year}',
+        if (double.tryParse(r.amount) case final a? when a > 0) '(${rand(a)})',
+        if (r.description.isNotEmpty) ': ${r.description}',
+      ].join(' ').replaceAll(' :', ':'),
+    if (d.subdivisionRights) 'Subdivision rights',
     if (floor != null && floor > 0) 'Floor area: ${floor.round()} m²',
     if (year != null && year > 1800) 'Built in $year',
     if (bedrooms > 0 || bathrooms > 0)

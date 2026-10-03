@@ -13,6 +13,7 @@ import '../../../../core/network/dto/listing_dtos.dart';
 import '../../../../core/network/photo_urls.dart';
 import '../models/contact.dart';
 import '../models/enums/outdoor_extra.dart';
+import '../models/listing_details.dart';
 import '../models/listing_document.dart';
 import '../models/unit_details.dart';
 import '../models/listing_parking.dart';
@@ -200,6 +201,7 @@ class PropertyRepository {
       p24Ref: j['p24Ref'] as String?,
       savedHouseScore: (j['houseScore'] as num?)?.toDouble(),
       houseScoreIsManual: j['houseScoreIsManual'] as bool? ?? false,
+      details: ListingDetails.parse(j['details']),
       streetNumber: address?['streetNumber'] as String? ?? '',
       street: address?['street'] as String? ?? '',
       unitNumber: address?['unitNumber'] as String? ?? '',
@@ -734,6 +736,15 @@ class PropertyRepository {
     await _client.put(
       ApiEndpoints.listingArchive(listingId),
       data: {'archived': archived},
+    );
+  }
+
+  /// Saves the listing's further details (myEdge form, mandate) as JSON.
+  Future<void> updateDetails(int listingId, ListingDetails details) async {
+    final json = details.toJson();
+    await _client.put(
+      ApiEndpoints.listingDetails(listingId),
+      data: {'details': json.isEmpty ? null : details.encode()},
     );
   }
 

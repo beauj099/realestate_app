@@ -15,6 +15,10 @@ enum PropertyType {
   apartment,
   commercial,
   plot,
+
+  /// Id 6 (patch 2026-10-03_listing_details_json.sql). Appended: the
+  /// position is the backend id.
+  vacantLand,
 }
 
 extension PropertyTypeExtension on PropertyType {
@@ -30,6 +34,8 @@ extension PropertyTypeExtension on PropertyType {
         return 'Commercial Property';
       case PropertyType.plot:
         return 'Plot';
+      case PropertyType.vacantLand:
+        return 'Vacant Land';
     }
   }
 
@@ -45,6 +51,8 @@ extension PropertyTypeExtension on PropertyType {
         return Icons.storefront_outlined;
       case PropertyType.plot:
         return Icons.grid_view_outlined;
+      case PropertyType.vacantLand:
+        return Icons.landscape_outlined;
     }
   }
 
@@ -59,10 +67,12 @@ extension PropertyTypeExtension on PropertyType {
         return PropertyType.apartment;
       case 'commercial':
       case 'commercial property':
-      // Legacy rows still described as vacant land map to the same slot.
+        return PropertyType.commercial;
+      // Slot 4 was once seeded as "Vacant Land"; the database now calls it
+      // Commercial Property, and vacant land has its own row (6).
       case 'vacant land':
       case 'vacantland':
-        return PropertyType.commercial;
+        return PropertyType.vacantLand;
       case 'plot':
         return PropertyType.plot;
       case 'house':

@@ -11,25 +11,22 @@ void main() {
       expect(PropertyType.apartment.id, 3);
       expect(PropertyType.commercial.id, 4);
       expect(PropertyType.plot.id, 5);
+      expect(PropertyType.vacantLand.id, 6);
     });
 
-    test('vacant land was replaced by commercial property', () {
-      expect(
-        PropertyType.values.map((t) => t.displayString),
-        isNot(contains('Vacant Land')),
-      );
+    test('slot 4 is commercial property; vacant land is its own type', () {
       expect(PropertyType.commercial.displayString, 'Commercial Property');
+      expect(PropertyType.vacantLand.displayString, 'Vacant Land');
     });
 
-    test('fromString maps legacy vacant-land rows onto commercial', () {
-      // Slot 4 is still seeded as "Vacant Land" server-side.
+    test('fromString knows vacant land and commercial property apart', () {
       expect(
         PropertyTypeExtension.fromString('Vacant Land'),
-        PropertyType.commercial,
+        PropertyType.vacantLand,
       );
       expect(
         PropertyTypeExtension.fromString('vacantland'),
-        PropertyType.commercial,
+        PropertyType.vacantLand,
       );
       expect(
         PropertyTypeExtension.fromString('Commercial Property'),

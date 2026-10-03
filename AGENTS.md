@@ -5,7 +5,7 @@ RealWorth ("Property Evaluation") — Flutter app for real-estate listing creati
 ## Commands
 
 - `flutter analyze` — lint/analyze (clean; run before finishing changes)
-- `flutter test` — full suite (268 tests, all pass); no single-test runner needed, tests are fast
+- `flutter test` — full suite (270 tests, all pass); no single-test runner needed, tests are fast
 - `flutter run` — dev app; requires the backend to be running (below)
 
 There is no CI, no custom scripts, no codegen. `analysis_options.yaml` is stock `flutter_lints`; keep it that way unless asked.
@@ -46,7 +46,14 @@ Feature-first: each feature under `lib/features/<feature>/` has `data/`, `presen
 - Any screen with a primary action pins it to the bottom (`bottomNavigationBar` + `SafeArea(top: false)`) rather than placing it inline at the end of a scroll view.
 - Pickers with more than a handful of options use `showSearchablePicker` (`core/widgets/searchable_picker.dart`) — a type-to-filter bottom sheet — not a dedicated screen or a wall of chips. All bottom sheets go through `showRealEstateBottomSheet`, which applies safe-area, keyboard-inset and max-height handling.
 - Models are plain Dart classes with `fromJson`/`toJson`; enums live under `data/models/enums/`.
-- `PropertyType` ordinal position is the backend id (index + 1) — do not reorder or insert entries. Slot 4 reads "Commercial Property" while the database still seeds it as "Vacant Land"; see `docs/BACKEND_CHANGES.md`.
+- `PropertyType` ordinal position is the backend id (index + 1) — do not reorder or insert entries; append. Slot 4 is "Commercial Property" (the database row was renamed from "Vacant Land"); "Vacant Land" is its own type, id 6 (patch `2026-10-03_listing_details_json.sql`).
+- **myEdge listing form** (KW's original listing checklist, the app's starting point; a copy is in the user's OneDrive Screenshots\RealWorth): its fields are in the app with its wording. Fields with no column of their own live in `ListingDetails` (`data/models/listing_details.dart`, API `Listings.DetailsJson`, `PUT /api/listings/{id}/details`, saved by `PropertyViewModel.saveDetails` from the screens that edit it), with the form's option lists:
+  - **Building Info:** ownership type, type of home (subtype), overall condition on the CMA tools' seven-step scale (To Remodel → Exceptional; the rooms keep their six bands), style, roof, walls, windows (`PickRow`), views, height restriction, special features, subdivision rights.
+  - **Purchase History:** renovations (year, cost, what was done).
+  - **Running Costs:** electricity (prepaid or billed) and water (in the levy or billed separately).
+  - **Mandate & Listing** (`mandate_screen.dart`, optional section under Owners): for sale or to let, mandate type, signed and expiry dates, occupation date, source (with the referral agent and their %), reason for selling, included and excluded items, defects, tenant (rental, lease expiry, viewing arrangements), property title, KWL/P24/Entegral references, portal display.
+  - The extra room ticks (ports, blinds, parquet, jacuzzi…) are `StandardAmenity` values (a "Connections" group) and the extra outside ones `OutdoorExtra` values; both save by name (custom features when there is no lookup row). Parking types come from the database (`Tandem Garage`, `Secure Parking`, `Visitors Parking`, `On-street Parking`, `Shade Net Parking` were added).
+  - The pack's portfolio states the type of home and ownership, style, overall condition, views, renovations and subdivision rights.
 - Reference/lookup data (property types, features, etc.) is fetched via `ReferenceDataProvider` / `LookupApiService`.
 - New rooms start with **nothing ticked**. Which amenities a room offers is `StandardAmenity.relevantForCategory`; whole-house items (alarm, CCTV, fibre) are never offered per room. Amenity `displayString`s are matched by name against the API's feature lookup — do not reword existing ones.
 - Section completeness (`isAddressComplete`, `isOwnerComplete`, …) and the house score live on `PropertyState`, so the overview and each screen's validation agree.

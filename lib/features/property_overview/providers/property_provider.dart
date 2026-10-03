@@ -11,6 +11,7 @@ import '../../../../core/network/photo_urls.dart';
 import '../../../../core/network/run_limited.dart';
 import '../../../../core/network/providers/api_providers.dart';
 import '../data/models/contact.dart';
+import '../data/models/listing_details.dart';
 import '../data/models/listing_document.dart';
 import '../data/models/listing_parking.dart';
 import '../data/models/listing_valuation.dart';
@@ -225,6 +226,25 @@ class PropertyViewModel extends Notifier<PropertyState> {
       if (!ref.mounted) return;
       state = state.copyWith(errorMessage: mapFailure(e).message);
     }
+  }
+
+  /// Saves the listing's further details (Building Info's construction,
+  /// Purchase History's renovations, Running Costs' billing, the mandate).
+  Future<void> saveDetails() async {
+    final id = state.listingId;
+    if (id == null) return;
+    state = state.copyWith(errorMessage: null);
+    try {
+      await _repository.updateDetails(id, state.details);
+    } catch (e) {
+      if (!ref.mounted) return;
+      state = state.copyWith(errorMessage: mapFailure(e).message);
+    }
+  }
+
+  /// Any change to the details, e.g. `(d) => d.copyWith(style: 'Modern')`.
+  void editDetails(ListingDetails Function(ListingDetails d) change) {
+    state = state.copyWith(details: change(state.details));
   }
 
   Future<void> savePropertyFeatures() async {

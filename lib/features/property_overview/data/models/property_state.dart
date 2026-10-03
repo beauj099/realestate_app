@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'contact.dart';
+import 'listing_details.dart';
 import 'listing_document.dart';
 import 'listing_parking.dart';
 import 'listing_valuation.dart';
@@ -54,6 +55,9 @@ class PropertyState {
 
   // Step 5: Expenses
   final ListingValuation listingValuation;
+
+  /// The myEdge form's further details and the mandate information.
+  final ListingDetails details;
   final PropertyRunningCosts propertyRunningCosts;
 
   /// Bills and statements (water, electricity, municipal, levies) attached
@@ -120,6 +124,7 @@ class PropertyState {
     this.outdoorHiddenFeatures = const [],
     this.exteriorPhotos = const [],
     this.listingValuation = const ListingValuation(),
+    this.details = const ListingDetails(),
     this.propertyRunningCosts = const PropertyRunningCosts(),
     this.documents = const [],
     this.removedDocumentIds = const [],
@@ -159,6 +164,7 @@ class PropertyState {
     List<String>? outdoorHiddenFeatures,
     List<String>? exteriorPhotos,
     ListingValuation? listingValuation,
+    ListingDetails? details,
     PropertyRunningCosts? propertyRunningCosts,
     List<ListingDocument>? documents,
     List<int>? removedDocumentIds,
@@ -208,6 +214,7 @@ class PropertyState {
           outdoorHiddenFeatures ?? this.outdoorHiddenFeatures,
       exteriorPhotos: exteriorPhotos ?? this.exteriorPhotos,
       listingValuation: listingValuation ?? this.listingValuation,
+      details: details ?? this.details,
       propertyRunningCosts: propertyRunningCosts ?? this.propertyRunningCosts,
       documents: documents ?? this.documents,
       removedDocumentIds: removedDocumentIds ?? this.removedDocumentIds,
@@ -277,6 +284,7 @@ class PropertyState {
     outdoorFeatures,
     exteriorPhotos,
     listingValuation.content,
+    details.encode(),
     [
       propertyRunningCosts.monthlyLevy.trim(),
       propertyRunningCosts.monthlyRates.trim(),

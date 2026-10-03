@@ -11,6 +11,7 @@ import '../../../../core/widgets/field_prefixes.dart';
 import '../../../property_report/data/models/property_report.dart';
 import '../../../property_report/providers/property_report_provider.dart';
 import '../../../property_report/providers/report_preparer.dart';
+import '../../data/models/listing_details.dart';
 import '../../data/models/listing_valuation.dart';
 import '../../providers/property_provider.dart';
 import '../widgets/month_year_field.dart';
@@ -88,6 +89,9 @@ class _PurchaseHistoryScreenState extends ConsumerState<PurchaseHistoryScreen> {
       sectionName: 'purchase history',
       onSave: () async {
         await viewModel.saveValuation();
+        if (ref.read(propertyViewModelProvider).errorMessage == null) {
+          await viewModel.saveDetails();
+        }
         final error = ref.read(propertyViewModelProvider).errorMessage;
         return error == null
             ? null
@@ -172,9 +176,147 @@ class _PurchaseHistoryScreenState extends ConsumerState<PurchaseHistoryScreen> {
             onChanged: (x) =>
                 viewModel.editValuation((v) => v.copyWith(bondAmount: x)),
           ),
+          const SizedBox(height: 24),
+          Text(
+            'Renovations since',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'When, what it cost and what was done. Valuers and buyers ask; '
+            'it explains a price above the area\'s sales.',
+            style: textTheme.bodySmall?.copyWith(color: theme.textSecondary),
+          ),
+          const SizedBox(height: 10),
+          for (final (i, r) in state.details.renovations.indexed)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              color: theme.cardBackgroundColor,
+              child: ListTile(
+                leading: Icon(
+                  Icons.construction_outlined,
+                  color: theme.primaryColor,
+                ),
+                title: Text(
+                  [
+                    if (r.year != null) '${r.year}',
+                    if (r.amount.isNotEmpty) '$currency ${r.amount}',
+                  ].join(' · '),
+                ),
+                subtitle: r.description.isEmpty ? null : Text(r.description),
+                onTap: () => _editRenovation(context, i),
+                trailing: IconButton(
+                  tooltip: 'Remove',
+                  icon: Icon(Icons.delete_outline, color: theme.error),
+                  onPressed: () => viewModel.editDetails(
+                    (d) => d.copyWith(
+                      renovations: [...d.renovations]..removeAt(i),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          TextButton.icon(
+            onPressed: () => _editRenovation(context, null),
+            icon: const Icon(Icons.add),
+            label: const Text('Add a renovation'),
+          ),
         ],
       ),
     );
+  }
+
+  /// Adds a renovation ([index] null) or changes one.
+  Future<void> _editRenovation(BuildContext context, int? index) async {
+    final theme = ref.read(themeConfigProvider);
+    final currency = ref.read(regionProvider).currencySymbol;
+    final existing = index == null
+        ? const Renovation()
+        : ref.read(propertyViewModelProvider).details.renovations[index];
+    final year = TextEditingController(text: existing.year?.toString() ?? '');
+    final amount = TextEditingController(text: existing.amount);
+    final what = TextEditingController(text: existing.description);
+    final saved = await showDialog<Renovation>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        title: Text(index == null ? 'Add a renovation' : 'Renovation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomTextInput(
+              theme: theme,
+              label: 'Year',
+              controller: year,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
+            ),
+            const SizedBox(height: 12),
+            CustomTextInput(
+              theme: theme,
+              label: 'Cost',
+              controller: amount,
+              prefixIcon: CurrencyPrefix(symbol: currency, theme: theme),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: 12),
+            CustomTextInput(
+              theme: theme,
+              label: 'What was done',
+              placeholder: 'e.g. kitchen, both bathrooms, floors',
+              controller: what,
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialog,
+              Renovation(
+                year: int.tryParse(year.text),
+                amount: amount.text.trim(),
+                description: what.text.trim(),
+              ),
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    year.dispose();
+    amount.dispose();
+    what.dispose();
+    if (saved == null ||
+        (saved.year == null &&
+            saved.amount.isEmpty &&
+            saved.description.isEmpty)) {
+      return;
+    }
+    ref
+        .read(propertyViewModelProvider.notifier)
+        .editDetails(
+          (d) => d.copyWith(
+            renovations: index == null
+                ? [...d.renovations, saved]
+                : [
+                    for (final (i, r) in d.renovations.indexed)
+                      i == index ? saved : r,
+                  ],
+          ),
+        );
   }
 }
 

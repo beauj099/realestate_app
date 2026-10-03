@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:realworth/features/property_overview/data/models/listing_details.dart';
 import 'package:realworth/features/property_overview/data/models/listing_valuation.dart';
 import 'package:realworth/features/property_overview/data/models/property_state.dart';
 import 'package:realworth/features/property_overview/data/models/room.dart';
@@ -252,5 +253,46 @@ void main() {
         expect(suggestMarketingArea(null), isNull);
       },
     );
+  });
+
+  group('Listing details (myEdge form)', () {
+    test('round-trips, keeping only what is set', () {
+      final d = ListingDetails(
+        ownershipType: 'Full Title',
+        subtype: 'Free Standing',
+        roof: const ['Tile'],
+        overallCondition: 'Good',
+        mandateType: 'Sole Mandate',
+        mandateExpiry: DateTime(2027, 1, 3),
+        renovations: const [
+          Renovation(year: 2019, amount: '360000', description: 'Kitchen'),
+        ],
+      );
+      final json = d.toJson();
+      expect(json.containsKey('walls'), isFalse);
+      expect(json['mandateExpiry'], '2027-01-03');
+      final back = ListingDetails.parse(d.encode());
+      expect(back.roof, ['Tile']);
+      expect(back.mandateExpiry, DateTime(2027, 1, 3));
+      expect(back.renovations.single.year, 2019);
+      expect(back.hasMandateInfo, isTrue);
+      expect(ListingDetails.parse('not json').hasMandateInfo, isFalse);
+    });
+
+    test('the pack names the kind of home and its renovations', () {
+      final lines = packPortfolio(
+        PropertyState(
+          details: const ListingDetails(
+            subtype: 'Free Standing',
+            ownershipType: 'Full Title',
+            renovations: [
+              Renovation(year: 2019, amount: '360000', description: 'kitchen'),
+            ],
+          ),
+        ),
+      );
+      expect(lines, contains('Free Standing, Full Title'));
+      expect(lines, contains('Renovated in 2019 (R 360 000): kitchen'));
+    });
   });
 }

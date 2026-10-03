@@ -52,6 +52,7 @@ class ApiEndpoints {
   static String listing(int id) => '/api/listings/$id';
   static String listingSubmit(int id) => '/api/listings/$id/submit';
   static String listingHouseScore(int id) => '/api/listings/$id/house-score';
+  static String listingDetails(int id) => '/api/listings/$id/details';
   static String listingArchive(int id) => '/api/listings/$id/archive';
   static String listingAddress(int id) => '/api/listings/$id/address';
 

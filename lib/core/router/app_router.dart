@@ -9,6 +9,7 @@ import '../../features/auth/providers/auth_provider.dart';
 import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/property_report/presentation/screens/property_report_screen.dart';
 import '../../features/property_overview/presentation/screens/address_screen.dart';
+import '../../features/property_overview/presentation/screens/mandate_screen.dart';
 import '../../features/property_overview/presentation/screens/purchase_history_screen.dart';
 import '../../features/property_overview/presentation/screens/building_info_screen.dart';
 import '../../features/property_overview/presentation/screens/expenses_screen.dart';
@@ -190,6 +191,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.purchaseHistoryPath,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const PurchaseHistoryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.mandatePath,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const MandateScreen(),
       ),
       GoRoute(
         path: AppRoutes.contactsPath,

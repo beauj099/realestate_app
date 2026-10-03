@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/busy_overlay.dart';
 import '../../../../core/constants/route_constants.dart';
@@ -142,6 +143,15 @@ class _PropertyOverviewScreenState
         icon: Icons.history_edu_outlined,
         route: AppRoutes.purchaseHistory(propertyId),
         isComplete: state.isPurchaseCaptured,
+        optional: true,
+        group: 'Owners',
+      ),
+      _SectionData(
+        title: 'Mandate & Listing',
+        subtitle: _mandateSummary(state),
+        icon: Icons.assignment_outlined,
+        route: AppRoutes.mandate(propertyId),
+        isComplete: state.details.hasMandateInfo,
         optional: true,
         group: 'Owners',
       ),
@@ -1182,6 +1192,19 @@ String? _lastSale(PropertyState state, String currency) {
   return [
     'Sold${year == null ? '' : ' $year'}',
     if (price != null) '$currency ${groupDigits(price)}',
+  ].join(' · ');
+}
+
+/// "Sole Mandate · expires 3 Jan 2027" / what to capture.
+String _mandateSummary(PropertyState state) {
+  final d = state.details;
+  if (!d.hasMandateInfo) return 'Type, dates, source, inclusions, tenant';
+  final expiry = d.mandateExpiry;
+  return [
+    if (d.mandateType.isNotEmpty) d.mandateType,
+    if (expiry != null) 'expires ${DateFormat('d MMM yyyy').format(expiry)}',
+    if (d.mandateType.isEmpty && expiry == null && d.mandateSource.isNotEmpty)
+      d.mandateSource,
   ].join(' · ');
 }
 

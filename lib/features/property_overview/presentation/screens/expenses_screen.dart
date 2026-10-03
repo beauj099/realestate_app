@@ -9,6 +9,8 @@ import '../../../../core/widgets/field_prefixes.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../../core/widgets/custom_text_input.dart';
 import '../../providers/property_provider.dart';
+import '../../data/models/listing_details.dart';
+import '../widgets/details_fields.dart';
 import '../widgets/expense_documents_section.dart';
 import '../widgets/wizard_section_scaffold.dart';
 
@@ -37,6 +39,9 @@ class ExpensesScreen extends ConsumerWidget {
       sectionName: 'expenses',
       onSave: () async {
         await viewModel.saveRunningCosts();
+        if (ref.read(propertyViewModelProvider).errorMessage == null) {
+          await viewModel.saveDetails();
+        }
         final error = ref.read(propertyViewModelProvider).errorMessage;
         return error == null ? null : friendlySaveMessage(error, 'expenses');
       },
@@ -115,6 +120,24 @@ class ExpensesScreen extends ConsumerWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: currencyOnly(),
             onChanged: (val) => viewModel.updateRunningCosts(refuse: val),
+          ),
+          const SizedBox(height: 24),
+          FieldHeading('Electricity', theme: theme),
+          SingleChoiceChips(
+            options: ListingDetails.electricityOptions,
+            selected: state.details.electricityBilling,
+            theme: theme,
+            onChanged: (v) =>
+                viewModel.editDetails((d) => d.copyWith(electricityBilling: v)),
+          ),
+          const SizedBox(height: 18),
+          FieldHeading('Water', theme: theme),
+          SingleChoiceChips(
+            options: ListingDetails.waterOptions,
+            selected: state.details.waterBilling,
+            theme: theme,
+            onChanged: (v) =>
+                viewModel.editDetails((d) => d.copyWith(waterBilling: v)),
           ),
           const SizedBox(height: 32),
           ExpenseDocumentsSection(
