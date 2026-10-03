@@ -304,6 +304,7 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
         country: result.country ?? current.country,
         postalCode: result.postcode ?? current.postalCode,
       );
+      viewModel.updateIdentifiers(marketingArea: '');
       setState(() {
         _erfMatched = false;
         _formVersion++;
@@ -400,6 +401,8 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
                 : 'Check the street number.',
         };
     }
+    // Another property: Property24's area is suggested afresh for it.
+    viewModel.updateIdentifiers(marketingArea: '');
     setState(() => _formVersion++);
     return (message, complete);
   }
@@ -596,6 +599,15 @@ class _AddressScreenState extends ConsumerState<AddressScreen>
                     .read(propertyViewModelProvider.notifier)
                     .updateAddress(unitNumber: v),
               ),
+              onMarketingArea: () => _askFor(
+                title: 'Property24 area',
+                label: 'The area buyers search for',
+                initial: state.marketingArea,
+                capitalization: TextCapitalization.words,
+                onSaved: (v) => ref
+                    .read(propertyViewModelProvider.notifier)
+                    .updateIdentifiers(marketingArea: v),
+              ),
               onComplex: () => _askFor(
                 title: 'Complex or estate',
                 label: 'Complex or estate name',
@@ -646,6 +658,7 @@ class _AddressSummary extends StatelessWidget {
   final VoidCallback onAddStreetNumber;
   final VoidCallback onUnit;
   final VoidCallback onComplex;
+  final VoidCallback onMarketingArea;
 
   const _AddressSummary({
     required this.state,
@@ -659,6 +672,7 @@ class _AddressSummary extends StatelessWidget {
     required this.onAddStreetNumber,
     required this.onUnit,
     required this.onComplex,
+    required this.onMarketingArea,
   });
 
   @override
@@ -766,6 +780,16 @@ class _AddressSummary extends StatelessWidget {
                   theme: theme,
                   filled: state.estateName.trim().isNotEmpty,
                   onTap: onComplex,
+                ),
+                // Property24's name for the area, which buyers search by;
+                // suggested once the report has found homes for sale nearby.
+                _ChipButton(
+                  text: state.marketingArea.trim().isEmpty
+                      ? 'Property24 area'
+                      : 'Property24: ${state.marketingArea.trim()}',
+                  theme: theme,
+                  filled: state.marketingArea.trim().isNotEmpty,
+                  onTap: onMarketingArea,
                 ),
               ],
             ),
@@ -987,6 +1011,18 @@ class _AddressFields extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        gap,
+        CustomTextInput(
+          theme: theme,
+          label: 'Property24 area (optional)',
+          placeholder: 'The area buyers search for, e.g. Steynsrust',
+          subtext:
+              'Used on flyers and the buyer\'s report. Filled in from the '
+              'homes for sale nearest the pin.',
+          textCapitalization: TextCapitalization.words,
+          initialValue: state.marketingArea,
+          onChanged: (val) => viewModel.updateIdentifiers(marketingArea: val),
         ),
         gap,
         CustomTextInput(

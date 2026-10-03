@@ -928,9 +928,18 @@ class _AddressHero extends StatelessWidget {
     final line1 = unit.isEmpty || street.isEmpty
         ? street
         : 'Unit $unit, $street';
+    // "Lynn's View (Steynsrust)": the official suburb, and Property24's
+    // name for it when that differs.
+    final area = state.marketingArea.trim();
+    final suburb =
+        area.isEmpty || area.toLowerCase() == state.suburb.trim().toLowerCase()
+        ? state.suburb
+        : state.suburb.trim().isEmpty
+        ? area
+        : '${state.suburb.trim()} ($area)';
     final line2 = [
       state.estateName,
-      state.suburb,
+      suburb,
       state.city,
     ].map((s) => s.trim()).where((s) => s.isNotEmpty).join(', ');
     final hasAddress = line1.isNotEmpty || line2.isNotEmpty;

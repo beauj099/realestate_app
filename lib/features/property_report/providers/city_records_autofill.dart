@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../property_overview/data/models/property_state.dart';
 import '../../property_overview/providers/property_provider.dart';
+import '../data/models/area_details.dart';
+import '../data/models/marketing_area.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import 'property_report_provider.dart';
@@ -258,6 +260,20 @@ class CityRecordsAutofill extends Notifier<CityRecordsAutofillState> {
         : 'Filled in from ${report.dataSource}: ${plan.filled.join(', ')}.';
     state = CityRecordsAutofillState(message: message);
     return message;
+  }
+
+  /// Sets the listing's marketing area (Property24's name for where it is)
+  /// from the homes for sale nearest it, when the agent has not set one.
+  Future<void> applyMarketingArea(ForSale? forSale) async {
+    final listing = ref.read(propertyViewModelProvider);
+    if (listing.listingId == null || listing.marketingArea.trim().isNotEmpty) {
+      return;
+    }
+    final area = suggestMarketingArea(forSale);
+    if (area == null) return;
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    viewModel.updateIdentifiers(marketingArea: area);
+    await viewModel.saveAddress();
   }
 
   void clearMessage() => state = const CityRecordsAutofillState();

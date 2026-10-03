@@ -11,6 +11,8 @@ import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import '../data/report_cache.dart';
+import '../../property_overview/providers/property_provider.dart';
+import 'city_records_autofill.dart';
 import 'report_preparer.dart';
 
 final propertyReportRepositoryProvider = Provider<PropertyReportRepository>(
@@ -247,6 +249,13 @@ class PropertyReportNotifier extends Notifier<PropertyReportState> {
         state = state.copyWith(forSale: ForSale.fromJson(json));
         _snapshot = _snapshot?.copyWith(forSale: json, hintsKey: _hints.key);
         await _save();
+        // Property24's name for the area, unless the agent set one.
+        if (_listingId != null &&
+            ref.read(propertyViewModelProvider).listingId == _listingId) {
+          await ref
+              .read(cityRecordsAutofillProvider.notifier)
+              .applyMarketingArea(state.forSale);
+        }
       }
     } catch (e) {
       developer.log('Homes for sale failed: $e');

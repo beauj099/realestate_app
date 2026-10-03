@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../property_overview/data/models/enums/room_category.dart';
 import '../../property_overview/data/models/property_state.dart';
+import '../data/models/area_details.dart';
 import '../data/models/property_report.dart';
 import '../data/property_report_repository.dart';
 import '../data/report_cache.dart';
@@ -147,7 +148,11 @@ class ReportPreparer {
       // registered sale): fill the listing's empty fields from it, while it
       // is still the listing open.
       if (_ref.read(propertyViewModelProvider).listingId == id) {
-        await _ref.read(cityRecordsAutofillProvider.notifier).apply(report);
+        final autofill = _ref.read(cityRecordsAutofillProvider.notifier);
+        await autofill.apply(report);
+        if (results[5] case final Map<String, dynamic> forSale) {
+          await autofill.applyMarketingArea(ForSale.fromJson(forSale));
+        }
       }
     } catch (e) {
       // The report screen makes it then, as before.

@@ -29,6 +29,12 @@ class PropertyState {
   final String country;
   final String postalCode;
   final String estateName;
+
+  /// The area buyers search for it by: Property24's name (Steynsrust) when
+  /// it differs from the official [suburb] (Lynn's View). Suggested from the
+  /// Property24 homes nearest the pin; the agent can change it. Flyers and
+  /// the buyer's report use it; the valuation and records use [suburb].
+  final String marketingArea;
   final String erfNumber;
   final double? latitude;
   final double? longitude;
@@ -98,6 +104,7 @@ class PropertyState {
     this.country = '',
     this.postalCode = '',
     this.estateName = '',
+    this.marketingArea = '',
     this.erfNumber = '',
     this.latitude,
     this.longitude,
@@ -137,6 +144,7 @@ class PropertyState {
     String? country,
     String? postalCode,
     String? estateName,
+    String? marketingArea,
     String? erfNumber,
     Object? latitude = _unset,
     Object? longitude = _unset,
@@ -177,6 +185,7 @@ class PropertyState {
       country: country ?? this.country,
       postalCode: postalCode ?? this.postalCode,
       estateName: estateName ?? this.estateName,
+      marketingArea: marketingArea ?? this.marketingArea,
       erfNumber: erfNumber ?? this.erfNumber,
       latitude: identical(latitude, _unset)
           ? this.latitude
@@ -238,6 +247,7 @@ class PropertyState {
     country.trim(),
     postalCode.trim(),
     estateName.trim(),
+    marketingArea.trim(),
     erfNumber.trim(),
     latitude,
     longitude,

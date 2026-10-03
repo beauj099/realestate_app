@@ -209,6 +209,7 @@ class PropertyRepository {
       country: address?['country'] as String? ?? '',
       postalCode: address?['postalCode'] as String? ?? '',
       estateName: address?['estateName'] as String? ?? '',
+      marketingArea: address?['marketingArea'] as String? ?? '',
       erfNumber: address?['erfNumber'] as String? ?? '',
       latitude: (address?['latitude'] as num?)?.toDouble(),
       longitude: (address?['longitude'] as num?)?.toDouble(),
@@ -311,6 +312,8 @@ class PropertyRepository {
     if (state.country.isNotEmpty) data['country'] = state.country;
     if (state.postalCode.isNotEmpty) data['postalCode'] = state.postalCode;
     if (state.estateName.isNotEmpty) data['estateName'] = state.estateName;
+    // Always sent: "" clears it (the API keeps it when a field is missing).
+    data['marketingArea'] = state.marketingArea.trim();
     if (state.erfNumber.isNotEmpty) data['erfNumber'] = state.erfNumber;
     if (state.latitude != null) data['latitude'] = state.latitude;
     if (state.longitude != null) data['longitude'] = state.longitude;

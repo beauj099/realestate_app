@@ -420,8 +420,16 @@ class PropertyViewModel extends Notifier<PropertyState> {
     state = state.copyWith(latitude: null, longitude: null);
   }
 
-  void updateIdentifiers({String? estateName, String? erfNumber}) {
-    state = state.copyWith(estateName: estateName, erfNumber: erfNumber);
+  void updateIdentifiers({
+    String? estateName,
+    String? erfNumber,
+    String? marketingArea,
+  }) {
+    state = state.copyWith(
+      estateName: estateName,
+      erfNumber: erfNumber,
+      marketingArea: marketingArea,
+    );
   }
 
   void updateTechnicalSpecs({

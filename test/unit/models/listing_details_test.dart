@@ -6,6 +6,8 @@ import 'package:realworth/features/property_overview/data/models/listing_valuati
 import 'package:realworth/features/property_overview/data/models/property_state.dart';
 import 'package:realworth/features/property_overview/data/models/room.dart';
 import 'package:realworth/features/property_overview/data/models/unit_details.dart';
+import 'package:realworth/features/property_report/data/models/area_details.dart';
+import 'package:realworth/features/property_report/data/models/marketing_area.dart';
 import 'package:realworth/features/property_report/data/models/property_report.dart';
 import 'package:realworth/features/property_report/data/pack_record.dart';
 import 'package:realworth/features/property_report/presentation/widgets/report_pack_sheet.dart';
@@ -206,5 +208,46 @@ void main() {
       );
       expect(packFingerprint(repriced), isNot(packFingerprint(made)));
     });
+  });
+
+  group('Marketing area', () {
+    ForSaleListing home(String suburb, double? m) => ForSaleListing(
+      listingNumber: '$suburb$m',
+      url: '',
+      title: '',
+      suburb: suburb,
+      distanceM: m,
+    );
+    ForSale forSale(List<ForSaleListing> listings) => ForSale(
+      source: 'Property24',
+      attribution: '',
+      suburbs: const [ForSaleSuburb(1, "Lynn's View", 'Somerset West', '')],
+      listings: listings,
+    );
+
+    test("is the Property24 suburb of the nearest homes", () {
+      expect(
+        suggestMarketingArea(
+          forSale([
+            home('Steynsrust', 120),
+            home('Steynsrust', 300),
+            home("Lynn's View", 250),
+            home('Strand North', 1900),
+          ]),
+        ),
+        'Steynsrust',
+      );
+    });
+
+    test(
+      "falls back to Property24's matched suburb; homes too far count not",
+      () {
+        expect(
+          suggestMarketingArea(forSale([home('Far Away', 5000)])),
+          "Lynn's View",
+        );
+        expect(suggestMarketingArea(null), isNull);
+      },
+    );
   });
 }
