@@ -7,6 +7,8 @@ import 'package:realworth/core/theme/office_details.dart';
 import 'package:realworth/features/property_report/data/models/area_details.dart';
 import 'package:realworth/features/property_report/data/models/property_report.dart';
 import 'package:realworth/features/property_report/report/costs_calculator.dart';
+import 'package:realworth/features/property_report/report/listing_flyer.dart';
+import 'package:realworth/features/property_report/report/pack_listing.dart';
 import 'package:realworth/features/property_report/report/report_pack_pdf.dart';
 import 'package:realworth/features/property_report/report/valuation_report_pdf.dart';
 
@@ -17,7 +19,12 @@ PropertyReport _fixture() => PropertyReport.fromJson(
       as Map<String, dynamic>,
 );
 
-ReportPackPdf _pack({AreaDetails? area, ForSale? forSale}) => ReportPackPdf(
+ReportPackPdf _pack({
+  AreaDetails? area,
+  ForSale? forSale,
+  PackAudience audience = PackAudience.seller,
+}) => ReportPackPdf(
+  audience: audience,
   report: _fixture(),
   sitePlanSvg: File('test/fixtures/site_plan_53927.svg').readAsStringSync(),
   images: const {},
@@ -98,6 +105,52 @@ void main() {
       containsAll(['Area details', 'Homes on the market like yours']),
     );
     expect((await full.build()).length, greaterThan(bytes.length));
+  });
+
+  test(
+    "the buyer's brochure leaves out the owners and the valuation",
+    () async {
+      final brochure = _pack(
+        audience: PackAudience.buyer,
+        forSale: const ForSale(source: 'Property24', attribution: ''),
+      );
+      expect(brochure.sections, contains('Costs of buying'));
+      expect(
+        brochure.sections,
+        isNot(
+          anyOf(
+            contains('Valuation letter'),
+            contains('Market valuation analysis'),
+          ),
+        ),
+      );
+      expect(brochure.fileName, startsWith('Property brochure'));
+      final bytes = await brochure.build();
+      expect(utf8.decode(bytes.sublist(0, 5)), '%PDF-');
+      // No owner's name anywhere in it.
+      expect(
+        latin1.decode(bytes, allowInvalid: true),
+        isNot(contains('Smith')),
+      );
+    },
+  );
+
+  test('builds the flyer in every shape', () async {
+    const flyer = ListingFlyer(
+      street: '10 Bosman Street',
+      area: 'Steynsrust, Somerset West',
+      askingPrice: 2950000,
+      facts: PackFacts(bedrooms: 3, bathrooms: 2, garages: 2, floorM2: 180),
+      agentName: 'Jane Agent',
+      agentPhone: '082 123 4567',
+      agencyName: 'Keller Williams',
+      brandColor: Color(0xFFB41F25),
+    );
+    for (final f in FlyerFormat.values) {
+      final bytes = await flyer.pdf(f);
+      expect(utf8.decode(bytes.sublist(0, 5)), '%PDF-');
+    }
+    expect(flyer.fileName(FlyerFormat.square), endsWith('(square).png'));
   });
 
   test('typographic punctuation becomes plain for the PDF fonts', () {

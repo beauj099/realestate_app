@@ -70,11 +70,8 @@ PackInspection packInspection(PropertyState s) {
             for (final f in r.features)
               if (!r.hiddenFeatures.contains(f.description)) f.description,
           ],
-          // A flatlet's layout leads its notes.
-          notes: [
-            if (r.unit case final unit?) '${unit.summary(money: rand)}.',
-            if (r.notes.trim().isNotEmpty) r.notes.trim(),
-          ].join(' '),
+          notes: r.notes.trim(),
+          unitSummary: r.unit?.summary(money: rand) ?? '',
         ),
     ],
     houseScore: s.houseScore,
@@ -377,6 +374,19 @@ List<String> packGallery(PropertyState s, {int count = 3}) {
   return (street, area);
 }
 
+/// The address as buyers know it: the street, and the area by the name
+/// buyers search for (the marketing area, else the official suburb).
+(String street, String area) marketedAddress(PropertyState s) {
+  final (street, official) = packAddress(s);
+  final marketing = s.marketingArea.trim();
+  if (marketing.isEmpty) return (street, official);
+  final area = [
+    marketing,
+    s.city.trim(),
+  ].where((p) => p.isNotEmpty).toSet().join(', ');
+  return (street, area);
+}
+
 /// Zoning in words for owners who do not know the codes: "Residential 1 :
 /// Conventional Housing" → "Residential 1 (Conventional Housing)"; the code
 /// ("R1") only when there is no description.
@@ -388,3 +398,16 @@ String? readableZoning(String? code, String? description) {
   final detail = parts.skip(1).join(':').trim();
   return detail.isEmpty ? main : '$main ($detail)';
 }
+
+/// Every photo of the home for the buyer's brochure, captioned: outside
+/// first, then each room's in the order captured. At most [max], to keep the
+/// brochure a size that shares easily.
+List<({String caption, String path})> buyerPhotoList(
+  PropertyState s, {
+  int max = 24,
+}) => [
+  for (final p in s.exteriorPhotos) (caption: 'Outside', path: p),
+  for (final r in s.rooms)
+    for (final p in r.photos)
+      (caption: r.name.trim().isEmpty ? 'Room' : r.name.trim(), path: p.path),
+].take(max).toList();

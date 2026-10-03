@@ -125,6 +125,10 @@ class PackRoom {
   final List<String> features;
   final String notes;
 
+  /// A flatlet's layout in words ("1 bedroom, 1 bathroom, kitchenette…");
+  /// empty for other rooms.
+  final String unitSummary;
+
   const PackRoom({
     required this.name,
     this.condition = '',
@@ -132,6 +136,7 @@ class PackRoom {
     this.score,
     this.features = const [],
     this.notes = '',
+    this.unitSummary = '',
   });
 }
 
@@ -174,6 +179,10 @@ class PackImages {
   final Map<String, List<Uint8List>> listingMorePhotos;
   final List<Uint8List> brochurePages;
 
+  /// The buyer's brochure's photo pages: every photo of the home, with what
+  /// it shows ("Outside", "Kitchen").
+  final List<({String caption, Uint8List bytes})> photoPages;
+
   const PackImages({
     this.coverPhoto,
     this.secondPhoto,
@@ -187,6 +196,7 @@ class PackImages {
     this.listingPhotos = const {},
     this.listingMorePhotos = const {},
     this.brochurePages = const [],
+    this.photoPages = const [],
   });
 }
 
@@ -197,8 +207,15 @@ class PackImages {
 /// The same licence rules as [ValuationReportPdf] apply (it draws the
 /// analysis): only printable imagery, no owner data from registers. The
 /// owners' names come from the agent's own listing.
+/// Who the pack is for. The seller's is the valuation pack. The buyer's is
+/// the property brochure for open houses and buyers: the home, its photos,
+/// the area and what buying it costs, at the asking price; never the owners,
+/// the valuation, the sales analysis, the letter or the last sale.
+enum PackAudience { seller, buyer }
+
 class ReportPackPdf {
   final PropertyReport report;
+  final PackAudience audience;
   final String? sitePlanSvg;
   final String? areaMapSvg;
   final String? blockMapSvg;
@@ -234,8 +251,11 @@ class ReportPackPdf {
     this.logoBackground,
     this.area,
     this.forSale,
+    this.audience = PackAudience.seller,
     DateTime? date,
   }) : date = date ?? DateTime.now();
+
+  bool get _forBuyer => audience == PackAudience.buyer;
 
   static final _day = DateFormat('d MMMM yyyy');
   static final _shortDay = DateFormat('d MMM yyyy');
@@ -292,7 +312,8 @@ class ReportPackPdf {
   // The cover's serif, as on the agencies' own valuation covers.
 
   String get fileName =>
-      'Valuation - ${report.displayAddress.replaceAll(',', '')}.pdf';
+      '${_forBuyer ? 'Property brochure' : 'Valuation'} - '
+      '${(listing.street.isNotEmpty ? listing.street : report.displayAddress).replaceAll(',', '')}.pdf';
 
   static pw.ImageProvider? _img(Uint8List? bytes) =>
       ValuationReportPdf.isEmbeddableImage(bytes)
@@ -327,7 +348,18 @@ class ReportPackPdf {
   /// The sections, in order, for the contents page and the letter.
   bool get _hasInspection => !(listing.inspection?.isEmpty ?? true);
 
-  List<String> get sections => [
+  List<String> get sections => _forBuyer
+      ? [
+          if (_hasInspection) 'The home',
+          if (pictures.photoPages.isNotEmpty) 'Photos',
+          if (_hasArea) 'Area details',
+          'Costs of buying',
+          'Your agent',
+          if (pictures.brochurePages.isNotEmpty) 'About ${agent.agencyName}',
+        ]
+      : _sellerSections;
+
+  List<String> get _sellerSections => [
     'Your agent',
     if (_hasInspection) 'Property inspection',
     'Market valuation analysis',
@@ -367,7 +399,8 @@ class ReportPackPdf {
       _headingBold = bold;
     }
     final doc = pw.Document(
-      title: 'Valuation - ${report.displayAddress}',
+      title:
+          '${_forBuyer ? 'Property brochure' : 'Valuation'} - ${report.displayAddress}',
       author: agent.name.isEmpty ? null : agent.name,
       creator: 'RealWorth',
       theme: await reportTheme(),
@@ -388,6 +421,10 @@ class ReportPackPdf {
         build: (_) => _contents(numbers),
       ),
     );
+    if (_forBuyer) {
+      _buyerPages(doc, format, at, header);
+      return doc;
+    }
     doc.addPage(
       pw.Page(
         pageFormat: format,
@@ -529,7 +566,7 @@ class ReportPackPdf {
                 color: PdfColors.white,
                 padding: const pw.EdgeInsets.symmetric(horizontal: 12),
                 child: pw.Text(
-                  'Market Related Property Valuation',
+                  _forBuyer ? 'For Sale' : 'Market Related Property Valuation',
                   style: _h(
                     pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
@@ -593,7 +630,7 @@ class ReportPackPdf {
                       )
                     : pw.Image(cover, fit: pw.BoxFit.cover),
               ),
-              if (listing.preparedFor.isNotEmpty)
+              if (_coverPill case final pill?)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(top: 12),
                   child: pw.Container(
@@ -603,7 +640,7 @@ class ReportPackPdf {
                       borderRadius: pw.BorderRadius.circular(14),
                     ),
                     child: pw.Text(
-                      pdfText('Specially prepared for ${listing.preparedFor}.'),
+                      pdfText(pill),
                       style: _h(
                         pw.TextStyle(
                           fontSize: _headingFont == null ? 17 : 19,
@@ -640,9 +677,20 @@ class ReportPackPdf {
     ),
   );
 
+  /// On the main cover photo: who the valuation is for, or the asking price.
+  String? get _coverPill => _forBuyer
+      ? (valuation.listingPrice > 0
+            ? 'Asking ${rand(valuation.listingPrice)}'
+            : null)
+      : listing.preparedFor.isEmpty
+      ? null
+      : 'Specially prepared for ${listing.preparedFor}.';
+
   /// Under the cover photos: the last registered sale (or, failing that,
   /// the owners' own purchase) and the agent's inspection. Null if neither.
+  /// A buyer's brochure says neither.
   String? get _coverNote {
+    if (_forBuyer) return null;
     final sold = report.lastSale;
     final bought = listing.ownersPurchase;
     final seen = listing.inspection;
@@ -2746,6 +2794,7 @@ class ReportPackPdf {
                   : '${r.score! == r.score!.roundToDouble() ? r.score!.round() : r.score} / 10',
               pdfText(
                 [
+                  if (r.unitSummary.isNotEmpty) r.unitSummary,
                   if (r.features.isNotEmpty) r.features.join(', '),
                   if (r.notes.trim().isNotEmpty) r.notes.trim(),
                 ].join('. '),
@@ -2783,6 +2832,286 @@ class ReportPackPdf {
         pw.Text(pdfText(v.outside.join(', ')), style: cell),
       ],
     ];
+  }
+
+  // ---- buyer's brochure ------------------------------------------------------
+
+  void _buyerPages(
+    pw.Document doc,
+    PdfPageFormat format,
+    void Function(String, pw.Context) at,
+    pw.Widget Function(pw.Context) Function(String) header,
+  ) {
+    if (_hasInspection) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: format,
+          margin: _margin,
+          header: header('The home'),
+          footer: _analysis.footer,
+          build: (_) => _homePage(listing.inspection!),
+        ),
+      );
+    }
+    if (pictures.photoPages.isNotEmpty) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: format,
+          margin: _margin,
+          header: header('Photos'),
+          footer: _analysis.footer,
+          build: (_) => _photoPages(),
+        ),
+      );
+    }
+    if (_hasArea) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: format,
+          margin: _margin,
+          header: header('Area details'),
+          footer: _analysis.footer,
+          build: (_) => _areaPage(area!),
+        ),
+      );
+    }
+    doc.addPage(
+      pw.Page(
+        pageFormat: format,
+        margin: _margin,
+        build: (context) {
+          at('Costs of buying', context);
+          return _buyerCostsPage();
+        },
+      ),
+    );
+    doc.addPage(
+      pw.Page(
+        pageFormat: format,
+        margin: pw.EdgeInsets.zero,
+        build: (context) {
+          at('Your agent', context);
+          return _agentPage();
+        },
+      ),
+    );
+    for (final page in pictures.brochurePages) {
+      final image = _img(page);
+      if (image == null) continue;
+      doc.addPage(
+        pw.Page(
+          pageFormat: format,
+          margin: pw.EdgeInsets.zero,
+          build: (context) {
+            at('About ${agent.agencyName}', context);
+            return pw.Image(image, fit: pw.BoxFit.contain);
+          },
+        ),
+      );
+    }
+  }
+
+  /// The home for a buyer: the whole (size, rooms, flatlet, parking) and each
+  /// room with what it has. No condition ratings, scores or notes: those are
+  /// the agent's assessment for the seller.
+  List<pw.Widget> _homePage(PackInspection v) {
+    const cell = pw.TextStyle(fontSize: 10.5, color: _ink);
+    final bold = pw.TextStyle(
+      fontSize: 10.5,
+      color: _ink,
+      fontWeight: pw.FontWeight.bold,
+    );
+    return [
+      _sectionTitle('The home'),
+      if (v.building.isNotEmpty) ...[
+        pw.Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final b in v.building)
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: pw.BoxDecoration(
+                  color: _tint(0.08),
+                  borderRadius: pw.BorderRadius.circular(10),
+                ),
+                child: pw.Text(pdfText(b), style: cell),
+              ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+      ],
+      for (final r in v.rooms)
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(color: _rule, width: 0.5)),
+          ),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.SizedBox(
+                width: 150,
+                child: pw.Text(pdfText(r.name), style: bold),
+              ),
+              pw.Expanded(
+                child: pw.Text(
+                  pdfText(
+                    [
+                      if (r.unitSummary.isNotEmpty) r.unitSummary,
+                      if (r.features.isNotEmpty) r.features.join(', '),
+                    ].join('. '),
+                  ),
+                  style: cell,
+                ),
+              ),
+            ],
+          ),
+        ),
+      if (v.outside.isNotEmpty) ...[
+        pw.SizedBox(height: 14),
+        pw.Text('Outside', style: bold.copyWith(fontSize: 11.5)),
+        pw.SizedBox(height: 4),
+        pw.Text(pdfText(v.outside.join(', ')), style: cell),
+      ],
+    ];
+  }
+
+  /// Every photo of the home, two to a row, each with what it shows.
+  List<pw.Widget> _photoPages() {
+    final photos = [
+      for (final p in pictures.photoPages)
+        if (_img(p.bytes) case final image?) (caption: p.caption, image: image),
+    ];
+    pw.Widget tile(({String caption, pw.ImageProvider image}) p) => pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.ClipRRect(
+          horizontalRadius: 4,
+          verticalRadius: 4,
+          child: pw.SizedBox(
+            height: 170,
+            width: double.infinity,
+            child: pw.Image(p.image, fit: pw.BoxFit.cover),
+          ),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Text(
+          pdfText(p.caption),
+          style: const pw.TextStyle(fontSize: 9.5, color: _muted),
+        ),
+      ],
+    );
+    return [
+      _sectionTitle('Photos'),
+      for (var i = 0; i < photos.length; i += 2)
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 10),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(child: tile(photos[i])),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: i + 1 < photos.length
+                    ? tile(photos[i + 1])
+                    : pw.SizedBox(),
+              ),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  /// What buying the home costs, at the asking price: transfer and bond
+  /// costs and the monthly repayment.
+  pw.Widget _buyerCostsPage() {
+    const body = pw.TextStyle(fontSize: 10.5, color: _ink, lineSpacing: 1.5);
+    final bold = pw.TextStyle(
+      fontSize: 10.5,
+      color: _ink,
+      fontWeight: pw.FontWeight.bold,
+    );
+    String pct(double v) => '${v == v.roundToDouble() ? v.toInt() : v}%';
+    final transfer = costs.transfer;
+    final bond = costs.bond;
+    pw.Widget line(String label, double amount, {bool strong = false}) =>
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+          child: pw.Row(
+            children: [
+              pw.Expanded(child: pw.Text(label, style: strong ? bold : body)),
+              pw.Text(rand(amount), style: strong ? bold : body),
+            ],
+          ),
+        );
+    pw.Widget heading(String text) => pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 12, bottom: 4),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 12,
+          color: _brandInk,
+          fontWeight: pw.FontWeight.bold,
+        ),
+      ),
+    );
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _letterhead(),
+        pw.Center(
+          child: pw.Text(
+            'COSTS OF BUYING',
+            style: pw.TextStyle(
+              fontSize: 18,
+              color: _brandInk,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+        ),
+        heading('Transfer (estimate)'),
+        line('Asking price', costs.valuationPrice, strong: true),
+        line('Transfer duty (SARS)', transfer.duty),
+        line("Conveyancer's fee incl. VAT", transfer.attorneyFee),
+        line('Deeds Office fee', transfer.deedsFee),
+        line("Attorney's disbursements (typical)", transfer.extras),
+        line('Transfer costs', transfer.total, strong: true),
+        if (costs.bondAmount > 0) ...[
+          heading('Bond registration (estimate)'),
+          line(
+            'Bond of ${rand(costs.bondAmount)}: attorney incl. VAT',
+            bond.attorneyFee,
+          ),
+          line(
+            'Deeds Office fee and disbursements',
+            bond.deedsFee + bond.extras,
+          ),
+          line('Bond costs', bond.total, strong: true),
+        ],
+        pw.SizedBox(height: 6),
+        line('Total cost of buying', costs.buyerTotal, strong: true),
+        heading('Home-loan repayment (estimate)'),
+        line(
+          'Loan of ${rand(costs.bondAmount)} at ${pct(costs.interestRatePercent)} over ${costs.bondTermYears} years: per month',
+          costs.monthlyRepaymentAmount,
+          strong: true,
+        ),
+        line('Total repaid over the term', costs.totalRepayable),
+        pw.SizedBox(height: 6),
+        pw.Text(
+          'Estimates only; your bank and conveyancer confirm the actual amounts. Excludes the bank\'s '
+          'initiation fee, utilities, insurance and maintenance. Transfer duty per SARS (1 April 2026); '
+          'conveyancing per the LSSA guideline (1 July 2026); Deeds Office fees from 1 April 2026.',
+          style: const pw.TextStyle(fontSize: 9, color: _muted),
+        ),
+        pw.Spacer(),
+        _officeFooter(),
+      ],
+    );
   }
 
   // ---- valuation letter ------------------------------------------------------------

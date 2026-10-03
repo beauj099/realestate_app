@@ -73,7 +73,10 @@ void main() {
         packPortfolio(s),
         contains('Flatlet: 1 bedroom, 1 bathroom, 1 kitchen'),
       );
-      expect(packInspection(s).rooms.single.notes, startsWith('1 bedroom'));
+      expect(
+        packInspection(s).rooms.single.unitSummary,
+        startsWith('1 bedroom'),
+      );
     });
   });
 

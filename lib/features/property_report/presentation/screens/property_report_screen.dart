@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/formatting/time_ago.dart';
 import '../../data/pack_record.dart';
@@ -35,6 +38,7 @@ import '../../report/agency_logo_bytes.dart';
 import '../../report/costs_calculator.dart';
 import '../../report/pack_images.dart';
 import '../../report/pack_listing.dart';
+import '../../report/listing_flyer.dart';
 import '../../report/report_pack_pdf.dart';
 import '../widgets/report_pack_sheet.dart';
 import '../../report/valuation_report_pdf.dart';
@@ -274,124 +278,7 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
 
     setState(() => _exporting = true);
     try {
-      final api = ref.read(apiClientProvider);
-      final profile = ref.read(agentProfileProvider);
-      final agency = ref.read(agencyProvider);
-      final forSale = state.forSale;
-      // The agent's own pages when they have any, else the agency's (an
-      // empty list from the API means "none of my own", not "no pages").
-      final own = profile.brochurePages ?? const <String>[];
-      final brochure = own.isNotEmpty ? own : agency.brochurePages;
-      final office = profile.office.orDefaults(agency.office);
-      final fetched = await Future.wait([
-        packImageBytes(options.coverPhoto, api),
-        packImageBytes(options.gallery.firstOrNull, api),
-        packImageBytes(profile.photoUrl, api),
-        packImageBytes(profile.signatureUrl, api),
-        agencyLogoBytes(agency),
-        for (final l in forSale?.listings ?? const [])
-          packImageBytes(l.imageUrl, api),
-        for (final page in brochure) packImageBytes(page, api),
-      ]);
-      final listingCount = forSale?.listings.length ?? 0;
-      // Three more photos of each home for sale, for its card.
-      final morePhotos = await Future.wait([
-        for (final l in forSale?.listings ?? const <ForSaleListing>[])
-          Future.wait([
-            for (final p in l.morePhotos.take(3)) packImageBytes(p, api),
-          ]),
-      ]);
-      // The cover's row of photos under the main one.
-      final gallery = await Future.wait([
-        for (final g in options.gallery) packImageBytes(g, api),
-      ]);
-      final logos = await Future.wait([
-        for (final kind in OfficeLogos.kinds)
-          packImageBytes(office.logos[kind], api),
-      ]);
-      final parkingTypes = ref
-          .read(parkingTypesProvider)
-          .maybeWhen(data: (t) => t, orElse: () => fallbackParkingTypes);
-      final (street, area) = packAddress(listing);
-      final c = options.calculator;
-      final pdf = ReportPackPdf(
-        report: report,
-        sitePlanSvg: state.sitePlanSvg,
-        areaMapSvg: state.areaMapSvg,
-        blockMapSvg: state.blockMapSvg,
-        images: state.images,
-        agent: PackAgent(
-          name: profile.fullName,
-          jobTitle: profile.jobTitle,
-          email: profile.email,
-          mobile: profile.mobile,
-          website: profile.website,
-          ppraNumber: profile.ppraNumber,
-          ffcNumber: profile.licenceNumber,
-          bio: profile.bio,
-          qualifications: profile.qualifications,
-          agencyName: agency.name,
-          office: office,
-        ),
-        listing: PackListing(
-          preparedFor: options.preparedFor,
-          greeting: options.greeting,
-          portfolio: packPortfolio(listing),
-          street: street,
-          area: area,
-          facts: packFacts(listing, parkingTypes),
-          ownersPurchase: packOwnersPurchase(listing),
-          inspection: packInspection(listing),
-          flatletRents: packFlatletRents(listing),
-        ),
-        valuation: PackValuation(
-          low: options.low,
-          high: options.high,
-          listingPrice: options.listingPrice,
-          adjustmentReason: options.adjustmentReason,
-        ),
-        costs: CostsSummary(
-          valuationPrice: options.high,
-          listingPrice: options.listingPrice,
-          commissionEarlyPercent: c.commissionEarlyPercent,
-          commissionLatePercent: c.commissionLatePercent,
-          earlyMonths: c.earlyMonths,
-          commissionIncludesVat: c.commissionIncludesVat,
-          interestRatePercent: c.interestRatePercent,
-          bondTermYears: c.bondTermYears,
-          depositPercent: c.depositPercent,
-        ),
-        area: state.area,
-        forSale: forSale,
-        pictures: PackImages(
-          coverPhoto: fetched[0],
-          secondPhoto: fetched[1],
-          gallery: [for (final g in gallery) ?g],
-          agentPhoto: fetched[2],
-          signature: fetched[3],
-          // Square logo tiles trimmed to their artwork, to fill the band.
-          logo: fetched[4] == null ? null : trimLogoBorder(fetched[4]!),
-          logoMark: logos[0],
-          logoWide: logos[1],
-          logoWideOnBrand: logos[2],
-          listingPhotos: {
-            for (var i = 0; i < listingCount; i++)
-              forSale!.listings[i].listingNumber: ?fetched[5 + i],
-          },
-          listingMorePhotos: {
-            for (var i = 0; i < listingCount; i++)
-              forSale!.listings[i].listingNumber: [
-                for (final bytes in morePhotos[i]) ?bytes,
-              ],
-          },
-          brochurePages: [
-            for (final bytes in fetched.skip(5 + listingCount)) ?bytes,
-          ],
-        ),
-        brandColor: brand.primaryColor,
-        onBrandColor: brand.onPrimary,
-        logoBackground: agency.bannerColor,
-      );
+      final pdf = await _packPdf(state, report, options);
       final bytes = await pdf.build();
       // What the pack was made from, so the overview can say when it is
       // out of date.
@@ -406,6 +293,405 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
         ScaffoldMessenger.of(context).showSnack(
           SnackBar(content: Text("Couldn't create the report pack: $e")),
         );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// The report pack (or, for [PackAudience.buyer], the property brochure)
+  /// for this listing, its pictures fetched.
+  Future<ReportPackPdf> _packPdf(
+    PropertyReportState state,
+    PropertyReport report,
+    PackOptions options, {
+    PackAudience audience = PackAudience.seller,
+  }) async {
+    final buyer = audience == PackAudience.buyer;
+    final brand = ref.read(themeConfigProvider);
+    final listing = ref.read(propertyViewModelProvider);
+    final api = ref.read(apiClientProvider);
+    final profile = ref.read(agentProfileProvider);
+    final agency = ref.read(agencyProvider);
+    // A buyer's brochure shows no other homes for sale.
+    final forSale = buyer ? null : state.forSale;
+    // The agent's own pages when they have any, else the agency's (an
+    // empty list from the API means "none of my own", not "no pages").
+    final own = profile.brochurePages ?? const <String>[];
+    final brochure = own.isNotEmpty ? own : agency.brochurePages;
+    final office = profile.office.orDefaults(agency.office);
+    final fetched = await Future.wait([
+      packImageBytes(options.coverPhoto, api),
+      packImageBytes(options.gallery.firstOrNull, api),
+      packImageBytes(profile.photoUrl, api),
+      packImageBytes(profile.signatureUrl, api),
+      agencyLogoBytes(agency),
+      for (final l in forSale?.listings ?? const [])
+        packImageBytes(l.imageUrl, api),
+      for (final page in brochure) packImageBytes(page, api),
+    ]);
+    final listingCount = forSale?.listings.length ?? 0;
+    // Three more photos of each home for sale, for its card.
+    final morePhotos = await Future.wait([
+      for (final l in forSale?.listings ?? const <ForSaleListing>[])
+        Future.wait([
+          for (final p in l.morePhotos.take(3)) packImageBytes(p, api),
+        ]),
+    ]);
+    // The cover's row of photos under the main one.
+    final gallery = await Future.wait([
+      for (final g in options.gallery) packImageBytes(g, api),
+    ]);
+    final logos = await Future.wait([
+      for (final kind in OfficeLogos.kinds)
+        packImageBytes(office.logos[kind], api),
+    ]);
+    final parkingTypes = ref
+        .read(parkingTypesProvider)
+        .maybeWhen(data: (t) => t, orElse: () => fallbackParkingTypes);
+    final (street, area) = buyer
+        ? marketedAddress(listing)
+        : packAddress(listing);
+    // The buyer's photo pages: every photo of the home, captioned.
+    final captioned = buyer
+        ? buyerPhotoList(listing)
+        : const <({String caption, String path})>[];
+    final photoBytes = await Future.wait([
+      for (final p in captioned) packImageBytes(p.path, api),
+    ]);
+    final c = options.calculator;
+    return ReportPackPdf(
+      report: report,
+      sitePlanSvg: state.sitePlanSvg,
+      areaMapSvg: state.areaMapSvg,
+      blockMapSvg: state.blockMapSvg,
+      images: state.images,
+      agent: PackAgent(
+        name: profile.fullName,
+        jobTitle: profile.jobTitle,
+        email: profile.email,
+        mobile: profile.mobile,
+        website: profile.website,
+        ppraNumber: profile.ppraNumber,
+        ffcNumber: profile.licenceNumber,
+        bio: profile.bio,
+        qualifications: profile.qualifications,
+        agencyName: agency.name,
+        office: office,
+      ),
+      listing: PackListing(
+        preparedFor: options.preparedFor,
+        greeting: options.greeting,
+        portfolio: packPortfolio(listing),
+        street: street,
+        area: area,
+        facts: packFacts(listing, parkingTypes),
+        ownersPurchase: packOwnersPurchase(listing),
+        inspection: packInspection(listing),
+        flatletRents: packFlatletRents(listing),
+      ),
+      valuation: PackValuation(
+        low: options.low,
+        high: options.high,
+        listingPrice: options.listingPrice,
+        adjustmentReason: options.adjustmentReason,
+      ),
+      costs: CostsSummary(
+        // A buyer pays the asking price.
+        valuationPrice: buyer ? options.listingPrice : options.high,
+        listingPrice: options.listingPrice,
+        commissionEarlyPercent: c.commissionEarlyPercent,
+        commissionLatePercent: c.commissionLatePercent,
+        earlyMonths: c.earlyMonths,
+        commissionIncludesVat: c.commissionIncludesVat,
+        interestRatePercent: c.interestRatePercent,
+        bondTermYears: c.bondTermYears,
+        depositPercent: c.depositPercent,
+      ),
+      area: state.area,
+      forSale: forSale,
+      pictures: PackImages(
+        coverPhoto: fetched[0],
+        secondPhoto: fetched[1],
+        gallery: [for (final g in gallery) ?g],
+        agentPhoto: fetched[2],
+        signature: fetched[3],
+        // Square logo tiles trimmed to their artwork, to fill the band.
+        logo: fetched[4] == null ? null : trimLogoBorder(fetched[4]!),
+        logoMark: logos[0],
+        logoWide: logos[1],
+        logoWideOnBrand: logos[2],
+        listingPhotos: {
+          for (var i = 0; i < listingCount; i++)
+            forSale!.listings[i].listingNumber: ?fetched[5 + i],
+        },
+        listingMorePhotos: {
+          for (var i = 0; i < listingCount; i++)
+            forSale!.listings[i].listingNumber: [
+              for (final bytes in morePhotos[i]) ?bytes,
+            ],
+        },
+        photoPages: [
+          for (var i = 0; i < captioned.length; i++)
+            if (photoBytes[i] case final bytes?)
+              (caption: captioned[i].caption, bytes: bytes),
+        ],
+        brochurePages: [
+          for (final bytes in fetched.skip(5 + listingCount)) ?bytes,
+        ],
+      ),
+      brandColor: brand.primaryColor,
+      onBrandColor: brand.onPrimary,
+      logoBackground: agency.bannerColor,
+      audience: audience,
+    );
+  }
+
+  /// What to make for buyers: the property brochure, or a flyer for social
+  /// media or print. None shows the owners or the valuation.
+  Future<void> _forBuyers() async {
+    final theme = ref.read(themeConfigProvider);
+    final choice = await showRealEstateBottomSheet<String>(
+      context: context,
+      theme: theme,
+      builder: (sheet) {
+        Widget option(String value, IconData icon, String title, String text) =>
+            ListTile(
+              leading: Icon(icon, color: theme.primaryColor),
+              title: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: theme.textPrimary,
+                ),
+              ),
+              subtitle: Text(text),
+              onTap: () => Navigator.pop(sheet, value),
+            );
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                child: Text(
+                  'For buyers',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textPrimary,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(
+                  'At the asking price. Never the owners, the valuation or '
+                  'the sales analysis.',
+                  style: TextStyle(color: theme.textSecondary),
+                ),
+              ),
+              option(
+                'brochure',
+                Icons.menu_book_outlined,
+                'Property brochure',
+                'PDF for open houses and buyers: the home, every photo, the '
+                    'area and the costs of buying.',
+              ),
+              option(
+                'square',
+                Icons.crop_square_rounded,
+                'Social media post',
+                'Square picture for Facebook, Instagram and WhatsApp.',
+              ),
+              option(
+                'story',
+                Icons.crop_portrait_rounded,
+                'Story',
+                'Tall picture for Instagram, Facebook and WhatsApp status.',
+              ),
+              option(
+                'a5',
+                Icons.print_outlined,
+                'Printed flyer',
+                'A5 PDF to print or hand out.',
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (choice == null || !mounted) return;
+    final price = await _askingPrice();
+    if (price == null || !mounted) return;
+    switch (choice) {
+      case 'brochure':
+        await _buyerBrochure(price);
+      case 'square':
+        await _flyer(FlyerFormat.square, price);
+      case 'story':
+        await _flyer(FlyerFormat.story, price);
+      case 'a5':
+        await _flyer(FlyerFormat.a5, price);
+    }
+  }
+
+  /// The asking price from Price & Commission; asked for (and saved there)
+  /// when it is not set yet. Null when the agent cancels.
+  Future<double?> _askingPrice() async {
+    final listing = ref.read(propertyViewModelProvider);
+    final set = double.tryParse(listing.listingValuation.listingPrice.trim());
+    if (set != null && set > 0) return set;
+    final controller = TextEditingController();
+    final theme = ref.read(themeConfigProvider);
+    final entered = await showDialog<double>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: theme.cardBackgroundColor,
+        title: const Text('Asking price'),
+        content: CustomTextInput(
+          theme: theme,
+          label: 'Asking price (R)',
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          subtext: 'Saved on the listing\'s Price & Commission.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialog,
+              double.tryParse(
+                controller.text.replaceAll(RegExp(r'[\s,R]'), ''),
+              ),
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (entered == null || entered <= 0) return null;
+    final viewModel = ref.read(propertyViewModelProvider.notifier);
+    viewModel.editValuation(
+      (v) => v.copyWith(listingPrice: entered.round().toString()),
+    );
+    unawaited(viewModel.saveValuation());
+    return entered;
+  }
+
+  /// The property brochure: the buyer's version of the report pack.
+  Future<void> _buyerBrochure(double price) async {
+    final state = ref.read(propertyReportProvider);
+    final report = state.report;
+    if (report == null) return;
+    final listing = ref.read(propertyViewModelProvider);
+    final base = initialPackOptions(
+      report: report,
+      preparedFor: '',
+      greeting: '',
+      valuation: listing.listingValuation,
+      calculator: ref.read(reportSettingsProvider).calculator,
+      coverPhoto: listing.exteriorPhotos.firstOrNull,
+      gallery: packGallery(listing),
+    );
+    final options = PackOptions(
+      preparedFor: '',
+      greeting: '',
+      low: base.low,
+      high: base.high,
+      listingPrice: price,
+      calculator: base.calculator,
+      coverPhoto: base.coverPhoto,
+      gallery: base.gallery,
+    );
+    setState(() => _exporting = true);
+    try {
+      final pdf = await _packPdf(
+        state,
+        report,
+        options,
+        audience: PackAudience.buyer,
+      );
+      await Printing.sharePdf(bytes: await pdf.build(), filename: pdf.fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnack(
+          SnackBar(content: Text("Couldn't create the brochure: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// A flyer: pictures for social media are shared as images (with a line
+  /// of text to post with them); the A5 flyer as a PDF.
+  Future<void> _flyer(FlyerFormat format, double price) async {
+    setState(() => _exporting = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final listing = ref.read(propertyViewModelProvider);
+      final profile = ref.read(agentProfileProvider);
+      final agency = ref.read(agencyProvider);
+      final brand = ref.read(themeConfigProvider);
+      final parkingTypes = ref
+          .read(parkingTypesProvider)
+          .maybeWhen(data: (t) => t, orElse: () => fallbackParkingTypes);
+      final (street, area) = marketedAddress(listing);
+      final photos = await Future.wait([
+        packImageBytes(listing.exteriorPhotos.firstOrNull, api),
+        for (final g in packGallery(listing, count: 2)) packImageBytes(g, api),
+      ]);
+      final logo = await agencyLogoBytes(agency);
+      final facts = packFacts(listing, parkingTypes);
+      final flyer = ListingFlyer(
+        street: street,
+        area: area,
+        askingPrice: price,
+        facts: facts,
+        mainPhoto: photos.first,
+        morePhotos: [for (final p in photos.skip(1)) ?p],
+        agentName: profile.fullName,
+        agentPhone: profile.mobile,
+        agencyName: agency.name,
+        logo: logo == null ? null : trimLogoBorder(logo),
+        brandColor: brand.primaryColor,
+        onBrandColor: brand.onPrimary,
+      );
+      if (!format.isImage) {
+        await Printing.sharePdf(
+          bytes: await flyer.pdf(format),
+          filename: flyer.fileName(format),
+        );
+        return;
+      }
+      final png = await flyer.png(format);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${flyer.fileName(format)}');
+      await file.writeAsBytes(png);
+      final beds = facts.bedrooms > 0 ? '${facts.bedrooms} bedroom ' : '';
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text:
+              'For sale: ${beds}home in ${area.split(',').first}, '
+              '${rand(price)}. ${profile.fullName}'
+              '${profile.mobile.isEmpty ? '' : ', ${profile.mobile}'}',
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnack(SnackBar(content: Text("Couldn't create the flyer: $e")));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -533,11 +819,30 @@ class _PropertyReportScreenState extends ConsumerState<PropertyReportScreen> {
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                    child: CustomButton(
-                      text: 'Create report pack',
-                      fullWidth: true,
-                      theme: theme,
-                      onTap: _createPack,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: CustomButton(
+                            text: 'Report pack',
+                            fullWidth: true,
+                            theme: theme,
+                            onTap: _createPack,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // The buyer's brochure and the flyers.
+                        Expanded(
+                          flex: 2,
+                          child: CustomButton(
+                            text: 'For buyers',
+                            fullWidth: true,
+                            type: ButtonType.outline,
+                            theme: theme,
+                            onTap: _forBuyers,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
