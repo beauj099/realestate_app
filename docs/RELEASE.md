@@ -38,6 +38,8 @@ refused by Play.
    (For a phone test without Play: `flutter build apk --release --split-per-abi`, then install
    `app-arm64-v8a-release.apk`. To point a release at another server, add
    `--dart-define=API_BASE_URL=https://...`.)
+   The pin map's satellite view needs a MapTiler key: `MAPTILER_KEY=…` in `.env` (bundled with
+   the app) or `--dart-define=MAPTILER_KEY=…`. Without one the Satellite button is not shown.
 
    The bundle is `build/app/outputs/bundle/release/app-release.aab`.
 3. Play Console → the app → Testing → Internal testing → Create release → upload the `.aab`.

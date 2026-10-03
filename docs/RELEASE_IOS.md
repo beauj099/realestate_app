@@ -19,6 +19,8 @@ browser on Windows.
 4. **Codemagic** (codemagic.io, sign in with GitHub):
    - Team settings → Integrations → Developer Portal → Connect: name it **RealWorth** (the
      name `codemagic.yaml` uses), and give it the Issuer ID, Key ID and `.p8` file.
+   - Optional: Team settings → Global variables → group `realworth`, variable `MAPTILER_KEY`
+     (the pin map's satellite view), and add the group to the workflow.
    - Add application → GitHub → `beauj099/realestate_app` → Flutter App, and choose
      `codemagic.yaml` as the configuration.
    - Codemagic signing: with the integration in place it creates the distribution

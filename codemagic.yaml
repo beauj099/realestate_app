@@ -29,7 +29,11 @@ workflows:
       - name: Settings file
         # pubspec lists .env as an asset, but it is never committed. Release builds
         # use the live API whatever it says (lib/core/constants/api_constants.dart).
-        script: echo "API_BASE_URL=https://api.realworth.co.za" > .env
+        # MAPTILER_KEY (satellite view on the pin map) comes from the Codemagic
+        # environment group "realworth" when set; without it the view is hidden.
+        script: |
+          echo "API_BASE_URL=https://api.realworth.co.za" > .env
+          echo "MAPTILER_KEY=${MAPTILER_KEY:-}" >> .env
 
       - name: Packages
         script: flutter pub get

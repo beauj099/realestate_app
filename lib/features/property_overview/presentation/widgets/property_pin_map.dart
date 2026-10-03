@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/constants/map_keys.dart';
 import '../../../../core/theme/themes.dart';
 
 /// A map under the address search with the property's pin. Tapping the map
@@ -41,6 +42,11 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
   final _map = MapController();
   bool _ready = false;
 
+  /// Satellite photos (MapTiler) instead of the street map; offered only
+  /// with a MapTiler key. Remembered for the session.
+  static bool _satellite = false;
+  final String _mapTilerKey = MapKeys.mapTiler;
+
   LatLng? get _pin => widget.lat != null && widget.lng != null
       ? LatLng(widget.lat!, widget.lng!)
       : null;
@@ -60,6 +66,7 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final pin = _pin;
+    final satellite = _satellite && _mapTilerKey.isNotEmpty;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Container(
@@ -82,18 +89,33 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
                 ),
               ),
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.realworth.app',
-                  maxZoom: 19,
-                ),
+                if (satellite)
+                  // Satellite photos with street names (MapTiler "hybrid").
+                  TileLayer(
+                    urlTemplate:
+                        'https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key={key}',
+                    additionalOptions: {'key': _mapTilerKey},
+                    userAgentPackageName: 'com.realworth.app',
+                    maxZoom: 19,
+                  )
+                else
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.realworth.app',
+                    maxZoom: 19,
+                  ),
                 if (widget.outline case final ring? when ring.length >= 3)
                   PolygonLayer(
                     polygons: [
                       Polygon(
                         points: ring,
-                        color: theme.primaryColor.withValues(alpha: 0.12),
-                        borderColor: theme.primaryColor,
+                        color: (satellite ? Colors.white : theme.primaryColor)
+                            .withValues(alpha: 0.12),
+                        // White shows on a roof; the brand on the street map.
+                        borderColor: satellite
+                            ? Colors.white
+                            : theme.primaryColor,
                         borderStrokeWidth: 2.5,
                       ),
                     ],
@@ -119,16 +141,19 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
                   ),
                 // The map tiles' licence asks for credit on the map itself;
                 // this keeps it to a small (i) that opens on tap.
-                const RichAttributionWidget(
+                RichAttributionWidget(
                   showFlutterMapAttribution: false,
-                  attributions: [TextSourceAttribution('OpenStreetMap')],
+                  attributions: [
+                    if (satellite) const TextSourceAttribution('MapTiler'),
+                    const TextSourceAttribution('OpenStreetMap contributors'),
+                  ],
                 ),
               ],
             ),
             Positioned(
               left: 10,
               top: 10,
-              right: 56,
+              right: _mapTilerKey.isEmpty ? 56 : 112,
               child: Align(
                 alignment: Alignment.topLeft,
                 child: Container(
@@ -172,6 +197,46 @@ class _PropertyPinMapState extends State<PropertyPinMap> {
                 ),
               ),
             ),
+            if (_mapTilerKey.isNotEmpty)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  shape: const StadiumBorder(),
+                  child: InkWell(
+                    customBorder: const StadiumBorder(),
+                    onTap: () => setState(() => _satellite = !_satellite),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            satellite
+                                ? Icons.map_outlined
+                                : Icons.satellite_alt,
+                            size: 16,
+                            color: Colors.black87,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            satellite ? 'Map' : 'Satellite',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
